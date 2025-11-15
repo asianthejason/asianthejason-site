@@ -1,4 +1,6 @@
 // app/about/page.tsx
+"use client";
+
 import Link from "next/link";
 
 export default function AboutPage() {
@@ -38,8 +40,7 @@ export default function AboutPage() {
             <p>
               I&apos;m a teacher, game dev, and professional button-masher. Online I go by{" "}
               <strong>AsiantheJason</strong>, and yes, I&apos;m the one to blame for{" "}
-              <strong>WWIII — Endless Defense</strong> and{" "}
-              <strong>Animated Escape</strong>.
+              <strong>WWIII — Endless Defense</strong> and <strong>Animated Escape</strong>.
             </p>
           </div>
 
