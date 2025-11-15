@@ -721,9 +721,7 @@ export default function HomePage() {
               {activeTab === "leaderboard" && (
                 <div className="leaderboard">
                   <h2>Top Runs</h2>
-                  <p className="leaderboard-subtitle">
-                    Live scores from Firestore — sorted by distance travelled.
-                  </p>
+
                   <div className="leaderboard-table-wrapper">
                     <table className="leaderboard-table">
                       <thead>
@@ -965,7 +963,6 @@ export default function HomePage() {
 
         <footer className="site-footer">
           <span>© {new Date().getFullYear()} AsiantheJason</span>
-          <span>Leaderboard powered by Firebase</span>
         </footer>
       </main>
 
