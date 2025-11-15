@@ -204,6 +204,8 @@ export default function ContactPage() {
           email: email || null,
           subject,
           message,
+          userAgent:
+            typeof navigator !== "undefined" ? navigator.userAgent : null,
         }),
       });
 
