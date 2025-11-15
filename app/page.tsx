@@ -109,6 +109,70 @@ export default function HomePage() {
     return () => unsub();
   }, []);
 
+  // ---------- Keep leaderboard/review names in sync with current display name ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!authReady || !currentUser) return;
+
+    const w = window as any;
+    const db = w.db;
+    if (!db || !w.firebase?.firestore) return;
+
+    const desiredName =
+      currentUser.displayName || currentUser.email || "Unknown soldier";
+
+    if (!desiredName) return;
+
+    let cancelled = false;
+
+    const syncNames = async () => {
+      try {
+        const batch = db.batch();
+        let hasChanges = false;
+
+        // Scores docs for this user
+        const scoresSnap = await db
+          .collection("scores")
+          .where("uid", "==", currentUser.uid)
+          .get();
+
+        scoresSnap.forEach((doc: any) => {
+          const d = doc.data() || {};
+          if (d.name !== desiredName) {
+            batch.update(doc.ref, { name: desiredName });
+            hasChanges = true;
+          }
+        });
+
+        // Reviews docs for this user
+        const reviewsSnap = await db
+          .collection("reviews")
+          .where("uid", "==", currentUser.uid)
+          .get();
+
+        reviewsSnap.forEach((doc: any) => {
+          const d = doc.data() || {};
+          if (d.name !== desiredName) {
+            batch.update(doc.ref, { name: desiredName });
+            hasChanges = true;
+          }
+        });
+
+        if (!cancelled && hasChanges) {
+          await batch.commit();
+        }
+      } catch (err) {
+        console.error("Error syncing display name to scores/reviews", err);
+      }
+    };
+
+    syncNames();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, currentUser?.uid, currentUser?.displayName, currentUser?.email]);
+
   // ---------- Listen for "open auth" from Phaser ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -351,7 +415,7 @@ export default function HomePage() {
           displayName: rawDisplayName,
         });
 
-        // Store user profile document (no pre-signup uniqueness check)
+        // Store user profile document
         if (db && w.firebase?.firestore) {
           await db
             .collection("users")
