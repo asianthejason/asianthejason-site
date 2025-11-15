@@ -237,23 +237,7 @@ export default function HomePage() {
         }
         const displayNameLower = rawDisplayName.toLowerCase();
 
-        // --- Enforce case-insensitive unique display names ---
-        if (db && w.firebase?.firestore) {
-          const existingSnap = await db
-            .collection("users")
-            .where("displayNameLower", "==", displayNameLower)
-            .limit(1)
-            .get();
-
-          if (!existingSnap.empty) {
-            setAuthError(
-              "That display name is already taken. Please choose another one."
-            );
-            return;
-          }
-        }
-
-        // Create auth user
+        // Create auth user (this signs them in)
         const cred = await auth.createUserWithEmailAndPassword(
           authEmail,
           authPassword
@@ -262,7 +246,7 @@ export default function HomePage() {
           displayName: rawDisplayName,
         });
 
-        // Store user profile document
+        // Store user profile document (no pre-signup uniqueness check)
         if (db && w.firebase?.firestore) {
           await db
             .collection("users")
@@ -311,6 +295,9 @@ export default function HomePage() {
         msg = "That email address doesn’t look valid.";
       } else if (code === "auth/weak-password") {
         msg = "Password should be at least 6 characters.";
+      } else if (code === "permission-denied") {
+        msg =
+          "We couldn't finish creating your account because of a permissions issue. Please try again or contact the site owner.";
       }
       setAuthError(msg);
     } finally {
