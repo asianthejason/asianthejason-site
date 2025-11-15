@@ -1,4 +1,3 @@
-// app/api/contact/route.ts
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
@@ -6,6 +5,14 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
+    if (!process.env.RESEND_API_KEY) {
+      console.error("Missing RESEND_API_KEY env var");
+      return NextResponse.json(
+        { ok: false, error: "Email service is not configured." },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
     const {
       name,
@@ -51,12 +58,15 @@ export async function POST(req: Request) {
 
     const toAddress =
       process.env.CONTACT_TO_EMAIL || "asianthejason@gmail.com";
+    const fromAddress =
+      process.env.CONTACT_FROM_EMAIL || "onboarding@resend.dev";
 
     const sendResult = await resend.emails.send({
-      from: "onboarding@resend.dev", // safe default from Resend docs
+      from: fromAddress,
       to: [toAddress],
       subject: subject || "New contact form message",
-      reply_to: email || undefined,
+      // ✅ Resend expects `replyTo`, not `reply_to`
+      replyTo: email || undefined,
       html,
     });
 
