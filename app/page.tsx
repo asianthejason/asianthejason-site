@@ -119,6 +119,33 @@ export default function HomePage() {
       window.removeEventListener("wwiii-open-auth", handler as any);
   }, []);
 
+  // ---------- Ensure Phaser canvas is attached on mount ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const attachCanvas = () => {
+      const container = document.getElementById("gameContainer");
+      if (!container) return;
+
+      const w = window as any;
+      // common global name for the Phaser.Game instance
+      const game =
+        (w.game as any) || (w.phaserGame as any) || (w.WWIII_GAME as any);
+
+      if (game && game.canvas && !container.contains(game.canvas)) {
+        container.appendChild(game.canvas);
+      }
+    };
+
+    // run immediately and once more shortly after in case game is created a bit later
+    attachCanvas();
+    const timeoutId = window.setTimeout(attachCanvas, 150);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
+
   // ---------- Leaderboard listener ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
