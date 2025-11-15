@@ -234,6 +234,7 @@ export default function HomePage() {
       const db = w?.db;
       if (!db) {
         console.warn("Firestore db not found on window (reviews)");
+        setReviews([]);
         return;
       }
 
@@ -267,6 +268,8 @@ export default function HomePage() {
         });
     } catch (err) {
       console.error("Error setting up reviews listener", err);
+      // If listener fails (e.g., security rules), don't stay stuck on "Loading…"
+      setReviews([]);
     }
 
     return () => {
@@ -464,9 +467,15 @@ export default function HomePage() {
       setReviewStatus("Thanks for your review!");
       setReviewComment("");
       // Keep rating as-is so they can see what they chose
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error submitting review", err);
-      setReviewError("Could not submit your review. Please try again.");
+      if (err?.code === "permission-denied") {
+        setReviewError(
+          "Your review was rejected by the server (permission denied). The site owner needs to update Firestore security rules for the 'reviews' collection."
+        );
+      } else {
+        setReviewError("Could not submit your review. Please try again.");
+      }
     } finally {
       setReviewSubmitting(false);
     }
@@ -486,7 +495,9 @@ export default function HomePage() {
       ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
       : 0;
 
-  const averageRatingRounded = averageRating ? Math.round(averageRating * 10) / 10 : 0;
+  const averageRatingRounded = averageRating
+    ? Math.round(averageRating * 10) / 10
+    : 0;
 
   return (
     <>
@@ -706,9 +717,7 @@ export default function HomePage() {
 
                   {/* Average rating */}
                   <div className="review-summary">
-                    {reviews === null && (
-                      <span>Loading reviews…</span>
-                    )}
+                    {reviews === null && <span>Loading reviews…</span>}
                     {reviews !== null && reviews.length === 0 && (
                       <span>No reviews yet. Be the first to rate the game.</span>
                     )}
@@ -774,8 +783,8 @@ export default function HomePage() {
                         className="review-form"
                         onSubmit={handleReviewSubmit}
                       >
-                        <div className="review-stars-row">
-                          <span className="review-label">Your rating</span>
+                        <div className="review-stars-block">
+                          <label className="review-label">Your rating</label>
                           <div className="review-stars-buttons">
                             {Array.from({ length: 5 }).map((_, i) => {
                               const starValue = i + 1;
@@ -809,7 +818,7 @@ export default function HomePage() {
                             onKeyDown={stopKeyEvent}
                             onKeyUp={stopKeyEvent}
                             onKeyPress={stopKeyEvent}
-                            rows={3}
+                            rows={5}
                             placeholder="What did you think of WWIII — Endless Defense?"
                           />
                         </div>
@@ -1285,7 +1294,7 @@ export default function HomePage() {
           border-radius: 12px;
           border: 1px solid rgba(255, 255, 255, 0.12);
           background: rgba(12, 16, 32, 0.9);
-          margin-bottom: 14px;
+          margin-bottom: 16px;
           font-size: 14px;
         }
 
@@ -1322,8 +1331,8 @@ export default function HomePage() {
         }
 
         .review-form-shell {
-          margin-top: 14px;
-          margin-bottom: 18px;
+          margin-top: 6px;
+          margin-bottom: 20px;
         }
 
         .review-info {
@@ -1336,7 +1345,7 @@ export default function HomePage() {
 
         .review-form {
           display: grid;
-          gap: 10px;
+          gap: 12px;
         }
 
         .review-label {
@@ -1344,11 +1353,10 @@ export default function HomePage() {
           opacity: 0.85;
         }
 
-        .review-stars-row {
+        .review-stars-block {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
+          flex-direction: column;
+          gap: 4px;
         }
 
         .review-stars-buttons {
@@ -1360,12 +1368,12 @@ export default function HomePage() {
           border-radius: 999px;
           border: 1px solid rgba(255, 255, 255, 0.2);
           background: rgba(15, 23, 42, 0.9);
-          width: 26px;
-          height: 26px;
+          width: 28px;
+          height: 28px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 15px;
+          font-size: 16px;
           cursor: pointer;
           padding: 0;
         }
@@ -1379,11 +1387,13 @@ export default function HomePage() {
         .review-field textarea {
           border-radius: 10px;
           border: 1px solid rgba(255, 255, 255, 0.18);
-          padding: 6px 10px;
+          padding: 8px 10px;
           font-size: 13px;
           background: rgba(5, 8, 20, 0.95);
           color: #f5f5f5;
           resize: vertical;
+          width: 100%;
+          min-height: 110px;
         }
 
         .review-field textarea:focus {
@@ -1393,7 +1403,7 @@ export default function HomePage() {
         }
 
         .review-submit-btn {
-          margin-top: 2px;
+          margin-top: 4px;
           width: fit-content;
         }
 
@@ -1588,11 +1598,6 @@ export default function HomePage() {
             gap: 4px;
             align-items: center;
             text-align: center;
-          }
-
-          .review-stars-row {
-            flex-direction: column;
-            align-items: flex-start;
           }
         }
       `}</style>
