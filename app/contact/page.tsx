@@ -177,7 +177,7 @@ export default function ContactPage() {
     }
   };
 
-  // ---------- Contact form submit ----------
+  // ---------- Contact form submit (Resend via /api/contact) ----------
   const handleContactSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setContactError(null);
@@ -195,32 +195,43 @@ export default function ContactPage() {
 
     try {
       setContactSubmitting(true);
-      const w = window as any;
-      const db = w.db;
-      if (!db || !w.firebase?.firestore) {
-        setContactError(
-          "The contact form is not available right now. Try again later."
-        );
-        return;
-      }
 
-      await db.collection("contactMessages").add({
-        uid: currentUser?.uid ?? null,
-        name: name || null,
-        email: email || null,
-        subject,
-        message,
-        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
-        userAgent:
-          typeof navigator !== "undefined" ? navigator.userAgent : null,
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name || "Anonymous player",
+          email: email || null,
+          subject,
+          message,
+        }),
       });
 
-      setContactStatus("Thanks for reaching out! Your message has been sent.");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // ignore JSON parse errors – we'll just rely on res.ok
+      }
+
+      if (!res.ok || (data && data.ok === false)) {
+        const errMsg =
+          (data && data.error) ||
+          "Could not send your message. Please try again.";
+        throw new Error(errMsg);
+      }
+
+      setContactStatus(
+        "Thanks for reaching out! Your message has been sent to my inbox."
+      );
       setContactSubject("");
       setContactMessage("");
-    } catch (err) {
+      // leave name/email so they don't have to retype
+    } catch (err: any) {
       console.error("Error sending contact message", err);
-      setContactError("Could not send your message. Please try again.");
+      setContactError(
+        err?.message || "Could not send your message. Please try again."
+      );
     } finally {
       setContactSubmitting(false);
     }
@@ -228,7 +239,7 @@ export default function ContactPage() {
 
   return (
     <>
-      {/* Firebase compat scripts */}
+      {/* Firebase compat scripts (used for auth / user profile, not for contact send) */}
       <Script
         src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
         strategy="beforeInteractive"
