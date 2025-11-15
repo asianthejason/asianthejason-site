@@ -1306,7 +1306,7 @@ function switchTab(tabName) {
 }
 
 // =====================
-//  Game Over (with auth bridge, adjusted layout)
+//  Game Over (with auth bridge & no overlapping buttons)
 // =====================
 function showGameOver(scene) {
   // Pause gameplay
@@ -1317,17 +1317,21 @@ function showGameOver(scene) {
     machineGunInterval = null;
   }
 
-  const runDistance = Math.floor(distanceTraveled);
-  const runStats = {
-    distance: runDistance,
+  const thisDistance = Math.floor(distanceTraveled);
+
+  const runSummary = {
+    distance: thisDistance,
     enemiesKilled,
     bulletsFired: {
-      Pistol: bulletsFired.Pistol | 0,
-      Shotgun: bulletsFired.Shotgun | 0,
-      Sniper: bulletsFired.Sniper | 0,
-      'Machine Gun': bulletsFired['Machine Gun'] | 0
+      Pistol: bulletsFired.Pistol ?? 0,
+      Shotgun: bulletsFired.Shotgun ?? 0,
+      Sniper: bulletsFired.Sniper ?? 0,
+      'Machine Gun': bulletsFired['Machine Gun'] ?? 0
     }
   };
+
+  // make the run globally accessible for React
+  window.wwiiiPendingScore = runSummary;
 
   const w = window;
   const db = w.db;
@@ -1337,9 +1341,9 @@ function showGameOver(scene) {
   const isSignedIn = !!currentUser;
 
   // Backdrop + panel
-  const backdrop = scene.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.7)
+  scene.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.7)
     .setScrollFactor(0).setDepth(3000);
-  const panel = scene.add.rectangle(960, 540, 760, 600, 0x222222, 0.95)
+  scene.add.rectangle(960, 540, 760, 600, 0x222222, 0.95)
     .setStrokeStyle(4, 0xffffff).setScrollFactor(0).setDepth(3001);
 
   // Title + core stats
@@ -1347,7 +1351,7 @@ function showGameOver(scene) {
     font: '40px Arial', fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-  scene.add.text(960, 460, `Distance: ${runDistance} m`, {
+  scene.add.text(960, 460, `Distance: ${thisDistance} m`, {
     font: '22px Arial', fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
@@ -1367,7 +1371,7 @@ function showGameOver(scene) {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
   });
 
-  // Info text that we'll update
+  // Info text we keep updating
   const infoText = scene.add.text(
     960,
     600,
@@ -1377,7 +1381,7 @@ function showGameOver(scene) {
 
   const setInfo = (msg) => infoText.setText(msg);
 
-  // Play Again button (moved down a bit)
+  // Play Again button (at the bottom)
   const BTN_X = 960, BTN_Y = 750, BTN_W = 220, BTN_H = 60, BTN_R = 12;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
   const drawBtn = (fill, stroke = 0xffffff) => {
@@ -1406,11 +1410,12 @@ function showGameOver(scene) {
     btnText.setStyle({ fill: '#ffffff' });
   });
 
-  // React -> Phaser callback when a pending run has been saved
+  // These get filled only if the user isn't signed in
   let authBg = null;
   let authText = null;
   let promptText = null;
 
+  // React → Phaser: run has been saved
   const onRunSaved = (evt) => {
     const detail = (evt && evt.detail) || {};
     const name =
@@ -1418,7 +1423,7 @@ function showGameOver(scene) {
       (auth && auth.currentUser && (auth.currentUser.displayName || auth.currentUser.email)) ||
       'your account';
 
-    setInfo(`Run saved to the leaderboard as ${name}.`);
+    setInfo(`Saved as ${name}. Your score is now on the leaderboard.`);
 
     if (promptText) promptText.setVisible(false);
     if (authBg) {
@@ -1431,7 +1436,7 @@ function showGameOver(scene) {
   window.addEventListener('wwiii-run-saved', onRunSaved);
 
   const hardRestart = () => {
-    // cleanup listener
+    // clean up listener
     window.removeEventListener('wwiii-run-saved', onRunSaved);
 
     // kill timers/tweens and restart scene cleanly
@@ -1476,7 +1481,7 @@ function showGameOver(scene) {
       // How many scores have a strictly higher distance?
       const snap = await db
         .collection('scores')
-        .where('distance', '>', runStats.distance)
+        .where('distance', '>', runSummary.distance)
         .get();
       const higherCount = snap.size;
       const rank = higherCount + 1;
@@ -1491,9 +1496,9 @@ function showGameOver(scene) {
         const scoreDoc = {
           uid: currentUser.uid,
           name: displayName,
-          enemiesKilled: runStats.enemiesKilled,
-          bulletsFired: runStats.bulletsFired,
-          distance: runStats.distance,
+          enemiesKilled: runSummary.enemiesKilled,
+          bulletsFired: runSummary.bulletsFired,
+          distance: runSummary.distance,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
@@ -1519,7 +1524,7 @@ function showGameOver(scene) {
           { font: '18px Arial', fill: '#ffffff' }
         ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-        // Login/Sign up button (moved slightly up to avoid overlap)
+        // Login/Sign up button (placed above Play Again)
         const AUTH_X = 960, AUTH_Y = 690, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
         authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
         const drawAuthBtn = (fill, stroke = 0xffffff) => {
@@ -1555,14 +1560,13 @@ function showGameOver(scene) {
         authBg.on('pointerdown', () => {
           try {
             if (typeof window !== 'undefined' && window.dispatchEvent) {
-              // Store this run so React can save it after auth
+              // expose this run (again) and ask React to open auth
               window.wwiiiPendingScore = {
-                distance: runStats.distance,
-                enemiesKilled: runStats.enemiesKilled,
-                bulletsFired: runStats.bulletsFired
+                distance: runSummary.distance,
+                enemiesKilled: runSummary.enemiesKilled,
+                bulletsFired: runSummary.bulletsFired
               };
 
-              // Notify the Next.js shell to open the auth popup
               window.dispatchEvent(
                 new CustomEvent('wwiii-open-auth', {
                   detail: { run: window.wwiiiPendingScore }
