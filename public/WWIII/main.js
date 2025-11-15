@@ -948,7 +948,7 @@ function update(time) {
 
   // --- Enemy movement AI (with shooting while moving / holding) ---
   {
-    const elapsedMin = (this.time.now - gameStartMs) / 60000;
+    const elapsedMin2 = (this.time.now - gameStartMs) / 60000;
 
     enemies.getChildren().forEach(e => {
       if (!e || !e.active) return;
@@ -962,7 +962,7 @@ function update(time) {
 
       const stopDist = e.attackDistance ?? 300;
       const baseSpd  = e.walkSpeed    ?? 90;
-      const speed    = baseSpd * (1 + 0.15 * elapsedMin);
+      const speed    = baseSpd * (1 + 0.15 * elapsedMin2);
       const DEAD     = 10; // deadzone to prevent oscillation
 
       // Jump if blocked or a step up is ahead
@@ -1306,10 +1306,10 @@ function switchTab(tabName) {
 }
 
 // =====================
-//  Game Over (new logic)
+//  Game Over (with auth bridge)
 // =====================
 function showGameOver(scene) {
-  // pause action
+  // Pause gameplay
   gamePaused = true;
   scene.physics.world.pause();
   if (machineGunInterval) {
@@ -1317,12 +1317,29 @@ function showGameOver(scene) {
     machineGunInterval = null;
   }
 
-  const thisDistance = Math.floor(distanceTraveled);
+  const runDistance = Math.floor(distanceTraveled);
+  const runStats = {
+    distance: runDistance,
+    enemiesKilled,
+    bulletsFired: {
+      Pistol: bulletsFired.Pistol | 0,
+      Shotgun: bulletsFired.Shotgun | 0,
+      Sniper: bulletsFired.Sniper | 0,
+      'Machine Gun': bulletsFired['Machine Gun'] | 0
+    }
+  };
+
+  const w = window;
+  const db = w.db;
+  const firebase = w.firebase;
+  const auth = w.auth;
+  const currentUser = auth && auth.currentUser;
+  const isSignedIn = !!currentUser;
 
   // Backdrop + panel
-  scene.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.7)
+  const backdrop = scene.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.7)
     .setScrollFactor(0).setDepth(3000);
-  scene.add.rectangle(960, 540, 760, 600, 0x222222, 0.95)
+  const panel = scene.add.rectangle(960, 540, 760, 600, 0x222222, 0.95)
     .setStrokeStyle(4, 0xffffff).setScrollFactor(0).setDepth(3001);
 
   // Title + core stats
@@ -1330,7 +1347,7 @@ function showGameOver(scene) {
     font: '40px Arial', fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-  scene.add.text(960, 460, `Distance: ${thisDistance} m`, {
+  scene.add.text(960, 460, `Distance: ${runDistance} m`, {
     font: '22px Arial', fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
@@ -1350,25 +1367,29 @@ function showGameOver(scene) {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
   });
 
-  // Placeholder text that we'll update once we know the rank
-  const rankText = scene.add.text(
+  // Info text that we'll update
+  const infoText = scene.add.text(
     960,
     600,
     'Calculating your place on the leaderboard…',
     { font: '18px Arial', fill: '#ffffff' }
   ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
+  const setInfo = (msg) => infoText.setText(msg);
+
   // Play Again button
   const BTN_X = 960, BTN_Y = 710, BTN_W = 220, BTN_H = 60, BTN_R = 12;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
-  const drawBtn = (fill, stroke=0xffffff) => {
+  const drawBtn = (fill, stroke = 0xffffff) => {
     btnBg.clear()
-      .fillStyle(fill,1).fillRoundedRect(BTN_X - BTN_W/2, BTN_Y - BTN_H/2, BTN_W, BTN_H, BTN_R)
-      .lineStyle(3, stroke).strokeRoundedRect(BTN_X - BTN_W/2, BTN_Y - BTN_H/2, BTN_W, BTN_H, BTN_R);
+      .fillStyle(fill, 1)
+      .fillRoundedRect(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H, BTN_R)
+      .lineStyle(3, stroke)
+      .strokeRoundedRect(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H, BTN_R);
   };
   drawBtn(0x0077cc);
   btnBg.setInteractive(
-    new Phaser.Geom.Rectangle(BTN_X - BTN_W/2, BTN_Y - BTN_H/2, BTN_W, BTN_H),
+    new Phaser.Geom.Rectangle(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H),
     Phaser.Geom.Rectangle.Contains
   );
 
@@ -1376,10 +1397,43 @@ function showGameOver(scene) {
     font: '28px Arial', fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
 
-  btnBg.on('pointerover', () => { drawBtn(0x0090ff, 0xffff88); btnText.setStyle({ fill: '#ffff00' }); });
-  btnBg.on('pointerout',  () => { drawBtn(0x0077cc, 0xffffff);  btnText.setStyle({ fill: '#ffffff' }); });
+  btnBg.on('pointerover', () => {
+    drawBtn(0x0090ff, 0xffff88);
+    btnText.setStyle({ fill: '#ffff00' });
+  });
+  btnBg.on('pointerout', () => {
+    drawBtn(0x0077cc, 0xffffff);
+    btnText.setStyle({ fill: '#ffffff' });
+  });
+
+  // React -> Phaser callback when a pending run has been saved
+  let authBg = null;
+  let authText = null;
+  let promptText = null;
+
+  const onRunSaved = (evt) => {
+    const detail = (evt && evt.detail) || {};
+    const name =
+      detail.name ||
+      (auth && auth.currentUser && (auth.currentUser.displayName || auth.currentUser.email)) ||
+      'your account';
+
+    setInfo(`Run saved to the leaderboard as ${name}.`);
+
+    if (promptText) promptText.setVisible(false);
+    if (authBg) {
+      authBg.disableInteractive();
+      authBg.clear();
+    }
+    if (authText) authText.setVisible(false);
+  };
+
+  window.addEventListener('wwiii-run-saved', onRunSaved);
 
   const hardRestart = () => {
+    // cleanup listener
+    window.removeEventListener('wwiii-run-saved', onRunSaved);
+
     // kill timers/tweens and restart scene cleanly
     scene.tweens.killAll();
     scene.time.removeAllEvents();
@@ -1412,20 +1466,17 @@ function showGameOver(scene) {
   // ----------------------
   //  Leaderboard + saving
   // ----------------------
-  const currentUser = (window.auth && window.auth.currentUser) || null;
-  const isSignedIn = !!currentUser;
-
   (async () => {
     try {
-      if (!window.db || !window.firebase) {
-        rankText.setText('Leaderboard not available right now.');
+      if (!db || !firebase) {
+        setInfo('Leaderboard not available right now.');
         return;
       }
 
       // How many scores have a strictly higher distance?
       const snap = await db
         .collection('scores')
-        .where('distance', '>', thisDistance)
+        .where('distance', '>', runStats.distance)
         .get();
       const higherCount = snap.size;
       const rank = higherCount + 1;
@@ -1440,33 +1491,28 @@ function showGameOver(scene) {
         const scoreDoc = {
           uid: currentUser.uid,
           name: displayName,
-          enemiesKilled,
-          bulletsFired: {
-            Pistol: bulletsFired.Pistol | 0,
-            Shotgun: bulletsFired.Shotgun | 0,
-            Sniper: bulletsFired.Sniper | 0,
-            'Machine Gun': bulletsFired['Machine Gun'] | 0
-          },
-          distance: thisDistance,
+          enemiesKilled: runStats.enemiesKilled,
+          bulletsFired: runStats.bulletsFired,
+          distance: runStats.distance,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         try {
           await db.collection('scores').add(scoreDoc);
-          rankText.setText(
+          setInfo(
             `Saved as ${displayName}. You are currently #${rank} on the leaderboard.`
           );
         } catch (err) {
           console.error('Error saving score', err);
-          rankText.setText(
+          setInfo(
             `You are currently #${rank} on the leaderboard, but saving your score failed.`
           );
         }
       } else {
         // Not signed in: show virtual place + offer login/signup
-        rankText.setText(`You would be #${rank} on the leaderboard.`);
+        setInfo(`You would be #${rank} on the leaderboard.`);
 
-        const promptText = scene.add.text(
+        promptText = scene.add.text(
           960,
           630,
           'Log in or sign up to save this score.',
@@ -1475,21 +1521,22 @@ function showGameOver(scene) {
 
         // Login/Sign up button
         const AUTH_X = 960, AUTH_Y = 670, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
-        const authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
-        const drawAuthBtn = (fill, stroke=0xffffff) => {
+        authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
+        const drawAuthBtn = (fill, stroke = 0xffffff) => {
           authBg.clear()
-            .fillStyle(fill, 1).fillRoundedRect(AUTH_X - AUTH_W/2, AUTH_Y - AUTH_H/2, AUTH_W, AUTH_H, AUTH_R)
+            .fillStyle(fill, 1)
+            .fillRoundedRect(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H, AUTH_R)
             .lineStyle(2, stroke, 1)
-            .strokeRoundedRect(AUTH_X - AUTH_W/2, AUTH_Y - AUTH_H/2, AUTH_W, AUTH_H, AUTH_R);
+            .strokeRoundedRect(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H, AUTH_R);
         };
         drawAuthBtn(0x444444);
 
         authBg.setInteractive(
-          new Phaser.Geom.Rectangle(AUTH_X - AUTH_W/2, AUTH_Y - AUTH_H/2, AUTH_W, AUTH_H),
+          new Phaser.Geom.Rectangle(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H),
           Phaser.Geom.Rectangle.Contains
         );
 
-        const authText = scene.add.text(
+        authText = scene.add.text(
           AUTH_X,
           AUTH_Y,
           'Log in / Sign up',
@@ -1508,9 +1555,18 @@ function showGameOver(scene) {
         authBg.on('pointerdown', () => {
           try {
             if (typeof window !== 'undefined' && window.dispatchEvent) {
+              // Store this run so React can save it after auth
+              window.wwiiiPendingScore = {
+                distance: runStats.distance,
+                enemiesKilled: runStats.enemiesKilled,
+                bulletsFired: runStats.bulletsFired
+              };
+
               // Notify the Next.js shell to open the auth popup
               window.dispatchEvent(
-                new CustomEvent('wwiii-open-auth', { detail: { source: 'gameOver' } })
+                new CustomEvent('wwiii-open-auth', {
+                  detail: { run: window.wwiiiPendingScore }
+                })
               );
             }
           } catch (e) {
@@ -1520,7 +1576,7 @@ function showGameOver(scene) {
       }
     } catch (err) {
       console.error('Error computing rank', err);
-      rankText.setText('Could not compute your leaderboard place.');
+      setInfo('Could not compute your leaderboard place.');
     }
   })();
 }

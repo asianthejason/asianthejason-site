@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect, FormEvent, KeyboardEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 
 type TabKey = "instructions" | "leaderboard" | "review";
@@ -28,6 +28,17 @@ interface AuthUser {
 
 type AuthMode = "login" | "signup";
 
+interface PendingScore {
+  distance: number;
+  enemiesKilled: number;
+  bulletsFired: {
+    Pistol?: number;
+    Shotgun?: number;
+    Sniper?: number;
+    "Machine Gun"?: number;
+  };
+}
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("instructions");
   const [scores, setScores] = useState<ScoreRow[] | null>(null);
@@ -43,6 +54,9 @@ export default function HomePage() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<string | null>(null);
+
+  // Run that the game wants to save AFTER login/signup
+  const [pendingScore, setPendingScore] = useState<PendingScore | null>(null);
 
   // ---------- Auth listener ----------
   useEffect(() => {
@@ -76,19 +90,31 @@ export default function HomePage() {
     return () => unsub();
   }, []);
 
-  // ---------- Open auth modal from game (wwiii-open-auth) ----------
+  // ---------- Listen for "open auth" from Phaser ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handler = () => {
-      setAuthMode("signup"); // default to signup when coming from game
+    const handler = (event: any) => {
+      const detail = event?.detail || {};
+      const run = detail.run || (window as any).wwiiiPendingScore;
+
+      if (run) {
+        setPendingScore({
+          distance: run.distance ?? 0,
+          enemiesKilled: run.enemiesKilled ?? 0,
+          bulletsFired: run.bulletsFired || {},
+        });
+      }
+
+      setShowAuthForm(true);
+      setAuthMode("signup");
       setAuthError(null);
       setAuthStatus(null);
-      setShowAuthForm(true);
     };
 
-    window.addEventListener("wwiii-open-auth", handler);
-    return () => window.removeEventListener("wwiii-open-auth", handler);
+    window.addEventListener("wwiii-open-auth", handler as any);
+    return () =>
+      window.removeEventListener("wwiii-open-auth", handler as any);
   }, []);
 
   // ---------- Leaderboard listener ----------
@@ -146,6 +172,47 @@ export default function HomePage() {
     };
   }, []);
 
+  // ---------- Save pending score to Firestore ----------
+  const savePendingScore = async (firebaseUser: any) => {
+    if (!pendingScore) return;
+    try {
+      const w = window as any;
+      const db = w.db;
+      if (!db || !w.firebase?.firestore) return;
+
+      const displayName =
+        firebaseUser.displayName ||
+        firebaseUser.email ||
+        currentUser?.displayName ||
+        currentUser?.email ||
+        "Unknown soldier";
+
+      await db.collection("scores").add({
+        name: displayName,
+        enemiesKilled: pendingScore.enemiesKilled,
+        distance: pendingScore.distance,
+        bulletsFired: pendingScore.bulletsFired || {},
+        uid: firebaseUser.uid,
+        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Tell Phaser that the run was saved so it can update the Game Over UI.
+      (window as any).dispatchEvent(
+        new CustomEvent("wwiii-run-saved", {
+          detail: { name: displayName },
+        })
+      );
+
+      setPendingScore(null);
+      setAuthStatus("Run saved to leaderboard.");
+    } catch (err) {
+      console.error("Error saving pending score", err);
+      setAuthError(
+        "We created your account, but couldn’t save this run. Future runs will save normally."
+      );
+    }
+  };
+
   // ---------- Auth actions ----------
   const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -170,28 +237,19 @@ export default function HomePage() {
         }
         const displayNameLower = rawDisplayName.toLowerCase();
 
-        // --- Try to enforce case-insensitive unique display names ---
+        // --- Enforce case-insensitive unique display names ---
         if (db && w.firebase?.firestore) {
-          try {
-            const existingSnap = await db
-              .collection("users")
-              .where("displayNameLower", "==", displayNameLower)
-              .limit(1)
-              .get();
+          const existingSnap = await db
+            .collection("users")
+            .where("displayNameLower", "==", displayNameLower)
+            .limit(1)
+            .get();
 
-            if (!existingSnap.empty) {
-              setAuthError(
-                "That display name is already taken. Please choose another one."
-              );
-              setAuthLoading(false);
-              return;
-            }
-          } catch (checkErr) {
-            // Most likely a Firestore rules issue; don't block signup.
-            console.warn(
-              "Display name uniqueness check failed (skipping check):",
-              checkErr
+          if (!existingSnap.empty) {
+            setAuthError(
+              "That display name is already taken. Please choose another one."
             );
+            return;
           }
         }
 
@@ -204,35 +262,43 @@ export default function HomePage() {
           displayName: rawDisplayName,
         });
 
-        // Store user profile document (best-effort)
+        // Store user profile document
         if (db && w.firebase?.firestore) {
-          try {
-            await db
-              .collection("users")
-              .doc(cred.user.uid)
-              .set(
-                {
-                  displayName: rawDisplayName,
-                  displayNameLower,
-                  email: authEmail.trim(),
-                  createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
-          } catch (writeErr) {
-            console.warn("Failed to write user profile document:", writeErr);
-            // Don't fail signup if profile write is blocked
-          }
+          await db
+            .collection("users")
+            .doc(cred.user.uid)
+            .set(
+              {
+                displayName: rawDisplayName,
+                displayNameLower,
+                email: authEmail.trim(),
+                createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+        }
+
+        // If this signup came from a Game Over prompt, save that run.
+        if (pendingScore) {
+          await savePendingScore(cred.user);
         }
 
         setAuthStatus("Account created. You are now signed in.");
         setAuthPassword("");
-        setShowAuthForm(false); // close modal on success
+        setShowAuthForm(false);
       } else {
-        await auth.signInWithEmailAndPassword(authEmail, authPassword);
+        const cred = await auth.signInWithEmailAndPassword(
+          authEmail,
+          authPassword
+        );
+
+        if (pendingScore) {
+          await savePendingScore(cred.user);
+        }
+
         setAuthStatus("Signed in successfully.");
         setAuthPassword("");
-        setShowAuthForm(false); // close modal on success
+        setShowAuthForm(false);
       }
     } catch (err: any) {
       console.error("Auth error", err);
@@ -260,6 +326,7 @@ export default function HomePage() {
       await auth.signOut();
       setAuthStatus("Signed out.");
       setShowAuthForm(false);
+      setPendingScore(null);
     } catch (err) {
       console.error("Sign out error", err);
     }
@@ -269,7 +336,7 @@ export default function HomePage() {
     currentUser?.displayName || currentUser?.email || "Unknown soldier";
 
   // helper to stop key events from reaching the game
-  const stopKeyEvent = (e: KeyboardEvent<HTMLInputElement>) => {
+  const stopKeyEvent = (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation();
   };
 
@@ -319,41 +386,42 @@ export default function HomePage() {
 
       {/* --- Page UI --- */}
       <main className="site">
-        {/* Site header / nav bar */}
+        {/* Site header with auth controls */}
         <header className="site-header">
-          <div className="site-title">asianthejason</div>
-          <div className="site-nav">
-            {authReady && currentUser && (
-              <>
-                <span className="nav-user">
-                  Signed in as <strong>{userLabel}</strong>
-                </span>
+          <div className="site-header-inner">
+            <div className="site-title">ASIANTHEJASON</div>
+            <div className="site-header-spacer" />
+            <div className="site-header-account">
+              {!authReady && <span className="site-header-text">Loading…</span>}
+              {authReady && currentUser && (
+                <>
+                  <span className="site-header-text">
+                    Signed in as <strong>{userLabel}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className="account-btn subtle"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </button>
+                </>
+              )}
+              {authReady && !currentUser && (
                 <button
                   type="button"
-                  className="account-btn subtle"
-                  onClick={handleSignOut}
+                  className="account-btn"
+                  onClick={() => {
+                    setShowAuthForm(true);
+                    setAuthMode("signup");
+                    setAuthError(null);
+                    setAuthStatus(null);
+                  }}
                 >
-                  Sign out
+                  Sign in / Sign up
                 </button>
-              </>
-            )}
-            {authReady && !currentUser && (
-              <button
-                type="button"
-                className="account-btn primary"
-                onClick={() => {
-                  setAuthMode("login");
-                  setAuthError(null);
-                  setAuthStatus(null);
-                  setShowAuthForm(true);
-                }}
-              >
-                Log in / Sign up
-              </button>
-            )}
-            {!authReady && (
-              <span className="nav-user">Checking account…</span>
-            )}
+              )}
+            </div>
           </div>
         </header>
 
@@ -364,10 +432,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Tabs section */}
+        {/* Tabs (instructions / leaderboard / review) */}
         <section className="panel-section">
           <div className="tabs-shell">
-            {/* Tabs */}
             <div className="tabs">
               <button
                 className={
@@ -507,133 +574,127 @@ export default function HomePage() {
           <span>© {new Date().getFullYear()} AsiantheJason</span>
           <span>Leaderboard powered by Firebase</span>
         </footer>
+      </main>
 
-        {/* Auth popup modal */}
-        {authReady && !currentUser && showAuthForm && (
-          <div
-            className="auth-modal-backdrop"
-            onClick={() => setShowAuthForm(false)}
-          >
-            <div
-              className="auth-modal"
-              onClick={(e) => e.stopPropagation()}
-            >
+      {/* Auth modal overlay */}
+      {authReady && showAuthForm && (
+        <div className="auth-overlay">
+          <div className="auth-modal">
+            <div className="auth-modal-header">
+              <div>
+                <div className="auth-modal-title">Save your runs</div>
+                <div className="auth-modal-subtitle">
+                  Log in or sign up to appear on the leaderboard.
+                </div>
+              </div>
               <button
                 type="button"
-                className="auth-modal-close"
+                className="auth-close-btn"
                 onClick={() => setShowAuthForm(false)}
               >
                 ×
               </button>
-              <h2 className="auth-modal-title">Save your runs</h2>
-              <p className="auth-modal-subtitle">
-                Log in or sign up to appear on the leaderboard.
-              </p>
-
-              <div className="auth-form">
-                <div className="auth-toggle">
-                  <button
-                    type="button"
-                    className={
-                      "auth-toggle-btn" +
-                      (authMode === "login" ? " auth-toggle-btn-active" : "")
-                    }
-                    onClick={() => {
-                      setAuthMode("login");
-                      setAuthError(null);
-                      setAuthStatus(null);
-                    }}
-                  >
-                    Log in
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      "auth-toggle-btn" +
-                      (authMode === "signup" ? " auth-toggle-btn-active" : "")
-                    }
-                    onClick={() => {
-                      setAuthMode("signup");
-                      setAuthError(null);
-                      setAuthStatus(null);
-                    }}
-                  >
-                    Sign up
-                  </button>
-                </div>
-
-                <form onSubmit={handleAuthSubmit} className="auth-fields">
-                  {authMode === "signup" && (
-                    <div className="auth-field">
-                      <label>Display name</label>
-                      <input
-                        type="text"
-                        value={authDisplayName}
-                        onChange={(e) => setAuthDisplayName(e.target.value)}
-                        onKeyDown={stopKeyEvent}
-                        onKeyUp={stopKeyEvent}
-                        onKeyPress={stopKeyEvent}
-                        placeholder="e.g. WastelandKing"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  <div className="auth-field">
-                    <label>Email</label>
-                    <input
-                      type="email"
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      onKeyDown={stopKeyEvent}
-                      onKeyUp={stopKeyEvent}
-                      onKeyPress={stopKeyEvent}
-                      required
-                    />
-                  </div>
-
-                  <div className="auth-field">
-                    <label>Password</label>
-                    <input
-                      type="password"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      onKeyDown={stopKeyEvent}
-                      onKeyUp={stopKeyEvent}
-                      onKeyPress={stopKeyEvent}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  {authError && (
-                    <div className="auth-message auth-error">{authError}</div>
-                  )}
-                  {authStatus && (
-                    <div className="auth-message auth-status">
-                      {authStatus}
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="account-btn primary"
-                    disabled={authLoading}
-                  >
-                    {authLoading
-                      ? authMode === "signup"
-                        ? "Creating account…"
-                        : "Signing in…"
-                      : authMode === "signup"
-                      ? "Create account"
-                      : "Log in"}
-                  </button>
-                </form>
-              </div>
             </div>
+
+            <div className="auth-toggle">
+              <button
+                type="button"
+                className={
+                  "auth-toggle-btn" +
+                  (authMode === "login" ? " auth-toggle-btn-active" : "")
+                }
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthError(null);
+                  setAuthStatus(null);
+                }}
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                className={
+                  "auth-toggle-btn" +
+                  (authMode === "signup" ? " auth-toggle-btn-active" : "")
+                }
+                onClick={() => {
+                  setAuthMode("signup");
+                  setAuthError(null);
+                  setAuthStatus(null);
+                }}
+              >
+                Sign up
+              </button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="auth-fields">
+              {authMode === "signup" && (
+                <div className="auth-field">
+                  <label>Display name</label>
+                  <input
+                    type="text"
+                    value={authDisplayName}
+                    onChange={(e) => setAuthDisplayName(e.target.value)}
+                    onKeyDown={stopKeyEvent}
+                    onKeyUp={stopKeyEvent}
+                    onKeyPress={stopKeyEvent}
+                    placeholder="e.g. WastelandKing"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="auth-field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  onKeyDown={stopKeyEvent}
+                  onKeyUp={stopKeyEvent}
+                  onKeyPress={stopKeyEvent}
+                  required
+                />
+              </div>
+
+              <div className="auth-field">
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  onKeyDown={stopKeyEvent}
+                  onKeyUp={stopKeyEvent}
+                  onKeyPress={stopKeyEvent}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              {authError && (
+                <div className="auth-message auth-error">{authError}</div>
+              )}
+              {authStatus && (
+                <div className="auth-message auth-status">{authStatus}</div>
+              )}
+
+              <button
+                type="submit"
+                className="account-btn primary auth-submit-btn"
+                disabled={authLoading}
+              >
+                {authLoading
+                  ? authMode === "signup"
+                    ? "Creating account…"
+                    : "Signing in…"
+                  : authMode === "signup"
+                  ? "Create account"
+                  : "Log in"}
+              </button>
+            </form>
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
       {/* Styles */}
       <style jsx global>{`
@@ -654,32 +715,40 @@ export default function HomePage() {
 
         .site-header {
           padding: 8px 24px 12px;
+        }
+
+        .site-header-inner {
+          max-width: 1200px;
+          margin: 0 auto;
           display: flex;
           align-items: center;
-          justify-content: space-between;
           gap: 16px;
+        }
+
+        .site-header-spacer {
+          flex: 1;
         }
 
         .site-title {
           font-weight: 700;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
-          font-size: 18px;
+          font-size: 16px;
           padding: 8px 16px;
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.04);
           border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .site-nav {
+        .site-header-account {
           display: flex;
           align-items: center;
           gap: 10px;
           font-size: 13px;
         }
 
-        .nav-user {
-          opacity: 0.85;
+        .site-header-text {
+          opacity: 0.9;
         }
 
         .game-section {
@@ -726,8 +795,7 @@ export default function HomePage() {
           background: transparent;
           color: #f5f5f5;
           cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, opacity 0.15s,
-            filter 0.15s;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
         }
 
         .account-btn.subtle {
@@ -753,86 +821,6 @@ export default function HomePage() {
         .account-btn:disabled {
           opacity: 0.6;
           cursor: default;
-        }
-
-        .auth-form {
-          padding: 10px 16px 14px;
-          background: rgba(0, 0, 0, 0.16);
-          border-radius: 14px;
-        }
-
-        .auth-toggle {
-          display: inline-flex;
-          padding: 2px;
-          border-radius: 999px;
-          background: rgba(15, 23, 42, 0.9);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          margin-bottom: 10px;
-        }
-
-        .auth-toggle-btn {
-          border: none;
-          background: transparent;
-          color: #b7c1ff;
-          font-size: 12px;
-          padding: 4px 12px;
-          border-radius: 999px;
-          cursor: pointer;
-        }
-
-        .auth-toggle-btn-active {
-          background: rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-weight: 600;
-        }
-
-        .auth-fields {
-          display: grid;
-          gap: 8px;
-          max-width: 420px;
-        }
-
-        .auth-field {
-          display: grid;
-          gap: 4px;
-        }
-
-        .auth-field label {
-          font-size: 12px;
-          opacity: 0.85;
-        }
-
-        .auth-field input {
-          border-radius: 10px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          padding: 6px 10px;
-          font-size: 13px;
-          background: rgba(5, 8, 20, 0.95);
-          color: #f5f5f5;
-        }
-
-        .auth-field input:focus {
-          outline: none;
-          border-color: #ff834a;
-          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
-        }
-
-        .auth-message {
-          font-size: 12px;
-          padding: 4px 8px;
-          border-radius: 8px;
-        }
-
-        .auth-error {
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid rgba(239, 68, 68, 0.6);
-          color: #fecaca;
-        }
-
-        .auth-status {
-          background: rgba(34, 197, 94, 0.1);
-          border: 1px solid rgba(34, 197, 94, 0.6);
-          color: #bbf7d0;
         }
 
         .tabs {
@@ -971,47 +959,132 @@ export default function HomePage() {
         }
 
         /* Auth modal */
-        .auth-modal-backdrop {
+        .auth-overlay {
           position: fixed;
           inset: 0;
           background: rgba(0, 0, 0, 0.65);
           display: flex;
-          align-items: center;
           justify-content: center;
+          align-items: center;
           z-index: 9999;
         }
 
         .auth-modal {
-          position: relative;
-          max-width: 480px;
-          width: 90vw;
-          background: rgba(8, 12, 28, 0.98);
-          border-radius: 18px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);
-          padding: 18px 18px 20px;
+          width: 420px;
+          max-width: 90vw;
+          background: radial-gradient(circle at top, #11172a, #050712);
+          border-radius: 24px;
+          padding: 18px 20px 20px;
+          box-shadow: 0 22px 60px rgba(0, 0, 0, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.14);
         }
 
-        .auth-modal-close {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          border: none;
-          background: transparent;
-          color: #e5e7eb;
-          font-size: 20px;
-          cursor: pointer;
+        .auth-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 10px;
         }
 
         .auth-modal-title {
-          margin: 0 0 4px;
           font-size: 18px;
+          font-weight: 600;
         }
 
         .auth-modal-subtitle {
-          margin: 0 0 10px;
           font-size: 13px;
-          opacity: 0.8;
+          opacity: 0.75;
+          margin-top: 4px;
+        }
+
+        .auth-close-btn {
+          border: none;
+          background: transparent;
+          color: #9ca3af;
+          font-size: 20px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .auth-toggle {
+          display: inline-flex;
+          padding: 2px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 10px;
+        }
+
+        .auth-toggle-btn {
+          border: none;
+          background: transparent;
+          color: #b7c1ff;
+          font-size: 12px;
+          padding: 4px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+        }
+
+        .auth-toggle-btn-active {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+          font-weight: 600;
+        }
+
+        .auth-fields {
+          display: grid;
+          gap: 8px;
+          margin-top: 4px;
+        }
+
+        .auth-field {
+          display: grid;
+          gap: 4px;
+        }
+
+        .auth-field label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .auth-field input {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 6px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+        }
+
+        .auth-field input:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .auth-message {
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 8px;
+        }
+
+        .auth-error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.6);
+          color: #fecaca;
+        }
+
+        .auth-status {
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.6);
+          color: #bbf7d0;
+        }
+
+        .auth-submit-btn {
+          margin-top: 4px;
+          width: 100%;
+          justify-content: center;
         }
 
         @media (max-width: 700px) {
