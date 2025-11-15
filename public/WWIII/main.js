@@ -1306,7 +1306,7 @@ function switchTab(tabName) {
 }
 
 // =====================
-//  Game Over (with auth bridge)
+//  Game Over (with auth bridge, adjusted layout)
 // =====================
 function showGameOver(scene) {
   // Pause gameplay
@@ -1377,8 +1377,8 @@ function showGameOver(scene) {
 
   const setInfo = (msg) => infoText.setText(msg);
 
-  // Play Again button
-  const BTN_X = 960, BTN_Y = 710, BTN_W = 220, BTN_H = 60, BTN_R = 12;
+  // Play Again button (moved down a bit)
+  const BTN_X = 960, BTN_Y = 750, BTN_W = 220, BTN_H = 60, BTN_R = 12;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
   const drawBtn = (fill, stroke = 0xffffff) => {
     btnBg.clear()
@@ -1519,8 +1519,8 @@ function showGameOver(scene) {
           { font: '18px Arial', fill: '#ffffff' }
         ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-        // Login/Sign up button
-        const AUTH_X = 960, AUTH_Y = 670, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
+        // Login/Sign up button (moved slightly up to avoid overlap)
+        const AUTH_X = 960, AUTH_Y = 690, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
         authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
         const drawAuthBtn = (fill, stroke = 0xffffff) => {
           authBg.clear()
