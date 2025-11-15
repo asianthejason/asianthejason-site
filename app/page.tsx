@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 
 type TabKey = "instructions" | "leaderboard" | "review";
@@ -20,11 +20,64 @@ interface ScoreRow {
   daysAgo: number;
 }
 
+interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+}
+
+type AuthMode = "login" | "signup";
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("instructions");
   const [scores, setScores] = useState<ScoreRow[] | null>(null);
 
-  // Set up real-time leaderboard listener (once on mount)
+  // Auth state
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authDisplayName, setAuthDisplayName] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authStatus, setAuthStatus] = useState<string | null>(null);
+
+  // ---------- Auth listener ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const w = window as any;
+
+    // If firebase is there but auth not set, ensure we expose it
+    if (!w.auth && w.firebase?.auth) {
+      w.auth = w.firebase.auth();
+    }
+
+    const auth = w.auth;
+    if (!auth) {
+      console.warn("Firebase auth not available on window");
+      return;
+    }
+
+    const unsub = auth.onAuthStateChanged((user: any) => {
+      if (user) {
+        setCurrentUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        });
+      } else {
+        setCurrentUser(null);
+      }
+      setAuthReady(true);
+    });
+
+    return () => unsub();
+  }, []);
+
+  // ---------- Leaderboard listener ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -40,7 +93,7 @@ export default function HomePage() {
 
       unsubscribe = db
         .collection("scores")
-        .orderBy("distance", "desc") // same as original
+        .orderBy("distance", "desc")
         .limit(10)
         .onSnapshot((snapshot: any) => {
           if (snapshot.empty) {
@@ -79,6 +132,83 @@ export default function HomePage() {
     };
   }, []);
 
+  // ---------- Auth actions ----------
+  const handleAuthSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthStatus(null);
+    setAuthLoading(true);
+
+    try {
+      const w = window as any;
+      const auth = w.auth;
+      const db = w.db;
+      if (!auth) {
+        setAuthError("Authentication is not ready. Try again in a moment.");
+        return;
+      }
+
+      if (authMode === "signup") {
+        if (!authDisplayName.trim()) {
+          setAuthError("Please enter a display name.");
+          return;
+        }
+
+        const cred = await auth.createUserWithEmailAndPassword(
+          authEmail,
+          authPassword
+        );
+        await cred.user.updateProfile({
+          displayName: authDisplayName.trim(),
+        });
+
+        if (db && w.firebase?.firestore) {
+          await db
+            .collection("users")
+            .doc(cred.user.uid)
+            .set(
+              {
+                displayName: authDisplayName.trim(),
+                email: authEmail.trim(),
+                createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+        }
+
+        setAuthStatus("Account created. You are now signed in.");
+        setAuthPassword("");
+      } else {
+        await auth.signInWithEmailAndPassword(authEmail, authPassword);
+        setAuthStatus("Signed in successfully.");
+        setAuthPassword("");
+      }
+    } catch (err: any) {
+      console.error("Auth error", err);
+      setAuthError(
+        err?.message || "Something went wrong. Please check your details."
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const w = window as any;
+      const auth = w.auth;
+      if (!auth) return;
+      await auth.signOut();
+      setAuthStatus("Signed out.");
+      setShowAuthForm(false);
+    } catch (err) {
+      console.error("Sign out error", err);
+    }
+  };
+
+  const userLabel =
+    currentUser?.displayName || currentUser?.email || "Unknown soldier";
+
   return (
     <>
       {/* --- External libraries --- */}
@@ -92,6 +222,10 @@ export default function HomePage() {
       />
       <Script
         src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
+        strategy="beforeInteractive"
+      />
+      <Script
+        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"
         strategy="beforeInteractive"
       />
       <Script
@@ -112,6 +246,7 @@ export default function HomePage() {
             window.firebase.initializeApp(firebaseConfig);
           }
           window.db = window.firebase.firestore();
+          window.auth = window.firebase.auth();
         `,
         }}
       />
@@ -132,9 +267,138 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Tabs beneath game */}
+        {/* Tabs + account section */}
         <section className="panel-section">
           <div className="tabs-shell">
+            {/* Account bar */}
+            <div className="account-bar">
+              <div className="account-info">
+                {!authReady && <span>Loading account…</span>}
+                {authReady && currentUser && (
+                  <span>
+                    Signed in as <strong>{userLabel}</strong>
+                  </span>
+                )}
+                {authReady && !currentUser && <span>Not signed in</span>}
+              </div>
+              <div className="account-actions">
+                {authReady && currentUser && (
+                  <button
+                    type="button"
+                    className="account-btn subtle"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </button>
+                )}
+                {authReady && !currentUser && (
+                  <button
+                    type="button"
+                    className="account-btn"
+                    onClick={() => setShowAuthForm((v) => !v)}
+                  >
+                    {showAuthForm ? "Close" : "Sign in / Sign up"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Auth form (collapsed unless needed) */}
+            {authReady && !currentUser && showAuthForm && (
+              <div className="auth-form">
+                <div className="auth-toggle">
+                  <button
+                    type="button"
+                    className={
+                      "auth-toggle-btn" +
+                      (authMode === "login" ? " auth-toggle-btn-active" : "")
+                    }
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthError(null);
+                      setAuthStatus(null);
+                    }}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      "auth-toggle-btn" +
+                      (authMode === "signup" ? " auth-toggle-btn-active" : "")
+                    }
+                    onClick={() => {
+                      setAuthMode("signup");
+                      setAuthError(null);
+                      setAuthStatus(null);
+                    }}
+                  >
+                    Sign up
+                  </button>
+                </div>
+
+                <form onSubmit={handleAuthSubmit} className="auth-fields">
+                  {authMode === "signup" && (
+                    <div className="auth-field">
+                      <label>Display name</label>
+                      <input
+                        type="text"
+                        value={authDisplayName}
+                        onChange={(e) => setAuthDisplayName(e.target.value)}
+                        placeholder="e.g. WastelandKing"
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="auth-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="auth-field">
+                    <label>Password</label>
+                    <input
+                      type="password"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  {authError && (
+                    <div className="auth-message auth-error">{authError}</div>
+                  )}
+                  {authStatus && (
+                    <div className="auth-message auth-status">
+                      {authStatus}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="account-btn primary"
+                    disabled={authLoading}
+                  >
+                    {authLoading
+                      ? authMode === "signup"
+                        ? "Creating account…"
+                        : "Signing in…"
+                      : authMode === "signup"
+                      ? "Create account"
+                      : "Log in"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Tabs */}
             <div className="tabs">
               <button
                 className={
@@ -165,6 +429,7 @@ export default function HomePage() {
               </button>
             </div>
 
+            {/* Tab content */}
             <div className="tab-panel">
               {activeTab === "instructions" && (
                 <div className="instructions">
@@ -255,8 +520,8 @@ export default function HomePage() {
                   </p>
                   <p>
                     You can send thoughts, bug reports, or balance suggestions
-                    to <strong>asianthejason</strong> on your platform of choice.
-                    A proper feedback form can go here later.
+                    to <strong>asianthejason</strong>. A proper feedback form
+                    can go here later.
                   </p>
                   <ul>
                     <li>Is the game too easy or too hard?</li>
@@ -343,6 +608,142 @@ export default function HomePage() {
           border: 1px solid rgba(255, 255, 255, 0.12);
           box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7);
           overflow: hidden;
+        }
+
+        .account-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 16px;
+          background: rgba(255, 255, 255, 0.02);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          font-size: 13px;
+        }
+
+        .account-info span {
+          opacity: 0.9;
+        }
+
+        .account-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .account-btn {
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          padding: 6px 12px;
+          font-size: 12px;
+          background: transparent;
+          color: #f5f5f5;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+        }
+
+        .account-btn.subtle {
+          border-color: rgba(255, 255, 255, 0.18);
+          opacity: 0.85;
+        }
+
+        .account-btn.primary {
+          border-color: #ff834a;
+          background: linear-gradient(135deg, #ff784a, #ffb347);
+          color: #120b06;
+          font-weight: 600;
+        }
+
+        .account-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .account-btn.primary:hover:not(:disabled) {
+          filter: brightness(1.05);
+        }
+
+        .account-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .auth-form {
+          padding: 10px 16px 14px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(0, 0, 0, 0.16);
+        }
+
+        .auth-toggle {
+          display: inline-flex;
+          padding: 2px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 10px;
+        }
+
+        .auth-toggle-btn {
+          border: none;
+          background: transparent;
+          color: #b7c1ff;
+          font-size: 12px;
+          padding: 4px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+        }
+
+        .auth-toggle-btn-active {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+          font-weight: 600;
+        }
+
+        .auth-fields {
+          display: grid;
+          gap: 8px;
+          max-width: 420px;
+        }
+
+        .auth-field {
+          display: grid;
+          gap: 4px;
+        }
+
+        .auth-field label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .auth-field input {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 6px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+        }
+
+        .auth-field input:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .auth-message {
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 8px;
+        }
+
+        .auth-error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.6);
+          color: #fecaca;
+        }
+
+        .auth-status {
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.6);
+          color: #bbf7d0;
         }
 
         .tabs {
