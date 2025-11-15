@@ -1,13 +1,83 @@
 // app/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Script from "next/script";
 
 type TabKey = "instructions" | "leaderboard" | "review";
 
+interface ScoreRow {
+  id: string;
+  name: string;
+  enemiesKilled: number;
+  distance: number;
+  bulletsFired: {
+    Pistol?: number;
+    Shotgun?: number;
+    Sniper?: number;
+    "Machine Gun"?: number;
+  };
+  daysAgo: number;
+}
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("instructions");
+  const [scores, setScores] = useState<ScoreRow[] | null>(null);
+
+  // Set up real-time leaderboard listener (once on mount)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let unsubscribe: (() => void) | undefined;
+
+    try {
+      const w = window as any;
+      const db = w?.db;
+      if (!db) {
+        console.warn("Firestore db not found on window");
+        return;
+      }
+
+      unsubscribe = db
+        .collection("scores")
+        .orderBy("distance", "desc") // same as original
+        .limit(10)
+        .onSnapshot((snapshot: any) => {
+          if (snapshot.empty) {
+            setScores([]);
+            return;
+          }
+          const now = Date.now();
+          const rows: ScoreRow[] = snapshot.docs.map((doc: any) => {
+            const d = doc.data() || {};
+            const ts =
+              d.createdAt && d.createdAt.toDate
+                ? d.createdAt.toDate()
+                : new Date();
+            const daysAgo = Math.floor(
+              (now - ts.getTime()) / (1000 * 60 * 60 * 24)
+            );
+
+            return {
+              id: doc.id,
+              name: d.name || "Unknown",
+              enemiesKilled: d.enemiesKilled ?? 0,
+              distance: d.distance ?? 0,
+              bulletsFired: d.bulletsFired || {},
+              daysAgo,
+            };
+          });
+
+          setScores(rows);
+        });
+    } catch (err) {
+      console.error("Error setting up leaderboard listener", err);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   return (
     <>
@@ -121,54 +191,56 @@ export default function HomePage() {
                 <div className="leaderboard">
                   <h2>Top Runs</h2>
                   <p className="leaderboard-subtitle">
-                    Sample layout only – this will be wired to the live Firebase
-                    leaderboard.
+                    Live scores from Firestore — sorted by distance travelled.
                   </p>
                   <div className="leaderboard-table-wrapper">
                     <table className="leaderboard-table">
                       <thead>
                         <tr>
-                          <th>#</th>
+                          <th>Days Ago</th>
                           <th>Player</th>
-                          <th>Distance</th>
-                          <th>Kills</th>
-                          <th>Date</th>
+                          <th>Enemies Killed</th>
+                          <th>Pistol Shots</th>
+                          <th>Shotgun Shots</th>
+                          <th>Sniper Shots</th>
+                          <th>MG Shots</th>
+                          <th>Distance (m)</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr>
-                          <td>1</td>
-                          <td>WastelandKing</td>
-                          <td>1,245 m</td>
-                          <td>312</td>
-                          <td>2025-11-10</td>
-                        </tr>
-                        <tr>
-                          <td>2</td>
-                          <td>LastSoldier</td>
-                          <td>990 m</td>
-                          <td>260</td>
-                          <td>2025-11-09</td>
-                        </tr>
-                        <tr>
-                          <td>3</td>
-                          <td>AsiantheJason</td>
-                          <td>865 m</td>
-                          <td>204</td>
-                          <td>2025-11-08</td>
-                        </tr>
-                        <tr>
-                          <td>4</td>
-                          <td>New Recruit</td>
-                          <td>540 m</td>
-                          <td>120</td>
-                          <td>2025-11-07</td>
-                        </tr>
+                        {scores === null && (
+                          <tr>
+                            <td colSpan={8}>Loading…</td>
+                          </tr>
+                        )}
+
+                        {scores !== null && scores.length === 0 && (
+                          <tr>
+                            <td colSpan={8}>
+                              No scores yet. Be the first to reach the front
+                              lines.
+                            </td>
+                          </tr>
+                        )}
+
+                        {scores &&
+                          scores.map((s) => (
+                            <tr key={s.id}>
+                              <td>{s.daysAgo}</td>
+                              <td>{s.name}</td>
+                              <td>{s.enemiesKilled}</td>
+                              <td>{s.bulletsFired?.Pistol ?? 0}</td>
+                              <td>{s.bulletsFired?.Shotgun ?? 0}</td>
+                              <td>{s.bulletsFired?.Sniper ?? 0}</td>
+                              <td>{s.bulletsFired?.["Machine Gun"] ?? 0}</td>
+                              <td>{s.distance}</td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
                   <p className="leaderboard-footnote">
-                    Once wired, scores will update automatically after each run.
+                    Scores update automatically when a run finishes.
                   </p>
                 </div>
               )}
