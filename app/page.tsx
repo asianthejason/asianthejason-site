@@ -3,6 +3,7 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
+import Link from "next/link";
 
 type TabKey = "instructions" | "leaderboard" | "review";
 
@@ -389,6 +390,10 @@ export default function HomePage() {
                   <span className="site-header-text">
                     Signed in as <strong>{userLabel}</strong>
                   </span>
+                  {/* Profile link (only when logged in) */}
+                  <Link href="/profile" className="account-btn subtle">
+                    Profile
+                  </Link>
                   <button
                     type="button"
                     className="account-btn subtle"
@@ -789,6 +794,10 @@ export default function HomePage() {
           color: #f5f5f5;
           cursor: pointer;
           transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .account-btn.subtle {
