@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import Script from "next/script";
@@ -33,7 +32,7 @@ export default function HomePage() {
               appId: "1:906432978784:web:433e23330bef1e6a3ac805"
             };
 
-            // Avoid double-init in dev
+            // Initialize Firebase & expose db
             if (!window.firebase.apps || !window.firebase.apps.length) {
               window.firebase.initializeApp(firebaseConfig);
             }
@@ -41,7 +40,8 @@ export default function HomePage() {
           `,
         }}
       />
-      {/* Your actual Phaser game logic */}
+
+      {/* Your Phaser game logic */}
       <Script src="/WWIII/main.js" strategy="afterInteractive" />
 
       {/* --- Page UI --- */}
@@ -96,6 +96,168 @@ export default function HomePage() {
           <span>Leaderboard powered by Firebase</span>
         </footer>
       </main>
+
+      {/* Page styles (scoped globally) */}
+      <style jsx global>{`
+        body {
+          margin: 0;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont,
+            "SF Pro Text", sans-serif;
+          background: radial-gradient(circle at top, #1a1a2e 0, #05070d 55%);
+          color: #f5f5f5;
+        }
+
+        .game-page {
+          min-height: 100vh;
+          padding: 24px 20px 32px;
+          max-width: 1200px;
+          margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+
+        .game-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .game-brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .game-logo {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #ff4b3a, #ff9f4a);
+          font-weight: 700;
+          font-size: 20px;
+        }
+
+        .game-title {
+          font-weight: 700;
+          font-size: 18px;
+        }
+
+        .game-subtitle {
+          font-size: 13px;
+          opacity: 0.7;
+        }
+
+        .header-pill {
+          padding: 6px 14px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          font-size: 12px;
+          white-space: nowrap;
+        }
+
+        .game-content {
+          display: grid;
+          grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+          gap: 28px;
+          align-items: center;
+        }
+
+        .game-info h1 {
+          font-size: 32px;
+          margin: 0 0 8px;
+        }
+
+        .game-info p {
+          margin: 0 0 16px;
+          line-height: 1.5;
+          opacity: 0.9;
+        }
+
+        .game-highlight {
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          margin-bottom: 16px;
+        }
+
+        .game-highlight h2 {
+          font-size: 16px;
+          margin: 0 0 8px;
+        }
+
+        .game-highlight ul {
+          margin: 0;
+          padding-left: 18px;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
+        .game-controls {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px dashed rgba(255, 255, 255, 0.2);
+          font-size: 12px;
+        }
+
+        .controls-label {
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          opacity: 0.8;
+        }
+
+        .controls-text {
+          opacity: 0.9;
+        }
+
+        .game-frame {
+          display: flex;
+          justify-content: center;
+        }
+
+        .game-container {
+          width: 100%;
+          max-width: 720px;
+          aspect-ratio: 16 / 9;
+          border-radius: 18px;
+          overflow: hidden;
+          box-shadow: 0 18px 45px rgba(0, 0, 0, 0.85);
+          background: #000;
+        }
+
+        .game-footer {
+          margin-top: auto;
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          opacity: 0.7;
+        }
+
+        @media (max-width: 900px) {
+          .game-content {
+            grid-template-columns: 1fr;
+          }
+
+          .game-page {
+            padding: 16px;
+          }
+
+          .game-frame {
+            order: -1; /* show game above text on mobile */
+          }
+        }
+      `}</style>
     </>
   );
 }
