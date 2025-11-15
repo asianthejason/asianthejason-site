@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WWIII — Endless Defense by AsiantheJason",
+  title: "AsiantheJason",
   description:
-    "A browser-based endless defense game with online leaderboards, reviews, and stats. Built by Jason Huang (AsiantheJason), creator of Animated Escape.",
+    "A silly game by AsiantheJason",
 };
 
 export default function RootLayout({
