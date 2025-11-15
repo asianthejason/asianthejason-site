@@ -8,6 +8,7 @@ type TabKey = "instructions" | "leaderboard" | "review";
 
 interface ScoreRow {
   id: string;
+  rank: number;
   name: string;
   enemiesKilled: number;
   distance: number;
@@ -141,25 +142,28 @@ export default function HomePage() {
             return;
           }
           const now = Date.now();
-          const rows: ScoreRow[] = snapshot.docs.map((doc: any) => {
-            const d = doc.data() || {};
-            const ts =
-              d.createdAt && d.createdAt.toDate
-                ? d.createdAt.toDate()
-                : new Date();
-            const daysAgo = Math.floor(
-              (now - ts.getTime()) / (1000 * 60 * 60 * 24)
-            );
+          const rows: ScoreRow[] = snapshot.docs.map(
+            (doc: any, index: number) => {
+              const d = doc.data() || {};
+              const ts =
+                d.createdAt && d.createdAt.toDate
+                  ? d.createdAt.toDate()
+                  : new Date();
+              const daysAgo = Math.floor(
+                (now - ts.getTime()) / (1000 * 60 * 60 * 24)
+              );
 
-            return {
-              id: doc.id,
-              name: d.name || "Unknown",
-              enemiesKilled: d.enemiesKilled ?? 0,
-              distance: d.distance ?? 0,
-              bulletsFired: d.bulletsFired || {},
-              daysAgo,
-            };
-          });
+              return {
+                id: doc.id,
+                rank: index + 1,
+                name: d.name || "Unknown",
+                enemiesKilled: d.enemiesKilled ?? 0,
+                distance: d.distance ?? 0,
+                bulletsFired: d.bulletsFired || {},
+                daysAgo,
+              };
+            }
+          );
 
           setScores(rows);
         });
@@ -323,7 +327,7 @@ export default function HomePage() {
     currentUser?.displayName || currentUser?.email || "Unknown soldier";
 
   // helper to stop key events from reaching the game
-  const stopKeyEvent = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const stopKeyEvent = (e: any) => {
     e.stopPropagation();
   };
 
@@ -485,6 +489,7 @@ export default function HomePage() {
                     <table className="leaderboard-table">
                       <thead>
                         <tr>
+                          <th>Rank</th>
                           <th>Days Ago</th>
                           <th>Player</th>
                           <th>Enemies Killed</th>
@@ -498,13 +503,13 @@ export default function HomePage() {
                       <tbody>
                         {scores === null && (
                           <tr>
-                            <td colSpan={8}>Loading…</td>
+                            <td colSpan={9}>Loading…</td>
                           </tr>
                         )}
 
                         {scores !== null && scores.length === 0 && (
                           <tr>
-                            <td colSpan={8}>
+                            <td colSpan={9}>
                               No scores yet. Be the first to reach the front
                               lines.
                             </td>
@@ -514,6 +519,7 @@ export default function HomePage() {
                         {scores &&
                           scores.map((s) => (
                             <tr key={s.id}>
+                              <td>{s.rank}</td>
                               <td>{s.daysAgo}</td>
                               <td>{s.name}</td>
                               <td>{s.enemiesKilled}</td>
