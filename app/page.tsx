@@ -119,36 +119,33 @@ export default function HomePage() {
       window.removeEventListener("wwiii-open-auth", handler as any);
   }, []);
 
-  // ---------- Boot / reboot Phaser game on mount ----------
+  // ---------- Ensure game canvas exists; reload page if not ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const w = window as any;
+    const timeoutId = window.setTimeout(() => {
+      const container = document.getElementById("gameContainer");
+      const hasCanvas = !!container?.querySelector("canvas");
 
-    // Try to destroy any existing Phaser game instance if it's stored globally
-    if (w.game && typeof w.game.destroy === "function") {
-      try {
-        w.game.destroy(true);
-      } catch (err) {
-        console.warn("Error destroying previous Phaser game", err);
+      if (!hasCanvas) {
+        try {
+          const guardKey = "wwiiiLastReloadAt";
+          const now = Date.now();
+          const last = window.sessionStorage.getItem(guardKey);
+          if (!last || now - Number(last) > 5000) {
+            window.sessionStorage.setItem(guardKey, String(now));
+            window.location.reload();
+          }
+        } catch (err) {
+          // If sessionStorage is unavailable, just reload once
+          window.location.reload();
+        }
       }
-      w.game = null;
-    }
+    }, 1500);
 
-    // Clear the game container in case anything stale is left
-    const container = document.getElementById("gameContainer");
-    if (container) {
-      container.innerHTML = "";
-    }
-
-    // Dynamically inject the game script so it runs every time this page mounts
-    const script = document.createElement("script");
-    script.src = "/WWIII/main.js";
-    script.async = true;
-    script.dataset.wwiiiMain = "true";
-    document.body.appendChild(script);
-
-    // No cleanup needed here; next mount will destroy & re-inject
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   // ---------- Leaderboard listener ----------
@@ -405,6 +402,8 @@ export default function HomePage() {
         `,
         }}
       />
+      {/* Phaser game logic (expects parent: 'gameContainer') */}
+      <Script src="/WWIII/main.js" strategy="afterInteractive" />
 
       {/* --- Page UI --- */}
       <main className="site">
