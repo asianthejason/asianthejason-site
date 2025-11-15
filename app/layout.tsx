@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { CookieConsent } from "./components/CookieConsent";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ASIANTHEJASON - WWIII — Endless Defense",
+  title: "WWIII — Endless Defense by AsiantheJason",
   description:
-    "Survive as long as you can in a ruined world at war. Upgrade your weapons, manage ammo, and push your distance record while the enemy never stops advancing.",
+    "A browser-based endless defense game with online leaderboards, reviews, and stats. Built by Jason Huang (AsiantheJason), creator of Animated Escape.",
 };
 
 export default function RootLayout({
@@ -40,6 +41,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+
+        {/* Cookie consent banner (shows until user accepts/declines) */}
+        <CookieConsent />
       </body>
     </html>
   );
