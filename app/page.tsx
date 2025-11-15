@@ -703,8 +703,14 @@ export default function HomePage() {
                     while the enemy never stops advancing.
                   </p>
                   <ul>
-                    <li>Move / aim with your mouse.</li>
-                    <li>Click to shoot, reload, and swap weapons in-game.</li>
+                    <li>A / W / D for movement.</li>
+                    <li>Shift to raise your shield.</li>
+                    <li>
+                      Left click to fire your weapon (aim with your mouse).
+                    </li>
+                    <li>Right click to reload.</li>
+                    <li>Q / E to switch weapons.</li>
+                    <li>F to open the shop.</li>
                     <li>Earn cash by surviving and killing enemies.</li>
                     <li>Spend money on upgrades between runs.</li>
                   </ul>
