@@ -148,26 +148,47 @@ export default function HomePage() {
       }
 
       if (authMode === "signup") {
-        if (!authDisplayName.trim()) {
+        const rawDisplayName = authDisplayName.trim();
+        if (!rawDisplayName) {
           setAuthError("Please enter a display name.");
           return;
         }
+        const displayNameLower = rawDisplayName.toLowerCase();
 
+        // --- Enforce case-insensitive unique display names ---
+        if (db && w.firebase?.firestore) {
+          const existingSnap = await db
+            .collection("users")
+            .where("displayNameLower", "==", displayNameLower)
+            .limit(1)
+            .get();
+
+          if (!existingSnap.empty) {
+            setAuthError(
+              "That display name is already taken. Please choose another one."
+            );
+            return;
+          }
+        }
+
+        // Create auth user
         const cred = await auth.createUserWithEmailAndPassword(
           authEmail,
           authPassword
         );
         await cred.user.updateProfile({
-          displayName: authDisplayName.trim(),
+          displayName: rawDisplayName,
         });
 
+        // Store user profile document
         if (db && w.firebase?.firestore) {
           await db
             .collection("users")
             .doc(cred.user.uid)
             .set(
               {
-                displayName: authDisplayName.trim(),
+                displayName: rawDisplayName,
+                displayNameLower,
                 email: authEmail.trim(),
                 createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
               },
@@ -561,7 +582,7 @@ export default function HomePage() {
         </footer>
       </main>
 
-      {/* Styles (same as before) */}
+      {/* Styles (unchanged) */}
       <style jsx global>{`
         body {
           margin: 0;
