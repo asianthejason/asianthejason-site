@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, KeyboardEvent } from "react";
 import Script from "next/script";
 
 type TabKey = "instructions" | "leaderboard" | "review";
@@ -74,6 +74,21 @@ export default function HomePage() {
     });
 
     return () => unsub();
+  }, []);
+
+  // ---------- Open auth modal from game (wwiii-open-auth) ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handler = () => {
+      setAuthMode("signup"); // default to signup when coming from game
+      setAuthError(null);
+      setAuthStatus(null);
+      setShowAuthForm(true);
+    };
+
+    window.addEventListener("wwiii-open-auth", handler);
+    return () => window.removeEventListener("wwiii-open-auth", handler);
   }, []);
 
   // ---------- Leaderboard listener ----------
@@ -198,10 +213,12 @@ export default function HomePage() {
 
         setAuthStatus("Account created. You are now signed in.");
         setAuthPassword("");
+        setShowAuthForm(false); // close modal on success
       } else {
         await auth.signInWithEmailAndPassword(authEmail, authPassword);
         setAuthStatus("Signed in successfully.");
         setAuthPassword("");
+        setShowAuthForm(false); // close modal on success
       }
     } catch (err: any) {
       console.error("Auth error", err);
@@ -238,7 +255,7 @@ export default function HomePage() {
     currentUser?.displayName || currentUser?.email || "Unknown soldier";
 
   // helper to stop key events from reaching the game
-  const stopKeyEvent = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const stopKeyEvent = (e: KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation();
   };
 
@@ -288,9 +305,42 @@ export default function HomePage() {
 
       {/* --- Page UI --- */}
       <main className="site">
-        {/* Site header */}
+        {/* Site header / nav bar */}
         <header className="site-header">
           <div className="site-title">asianthejason</div>
+          <div className="site-nav">
+            {authReady && currentUser && (
+              <>
+                <span className="nav-user">
+                  Signed in as <strong>{userLabel}</strong>
+                </span>
+                <button
+                  type="button"
+                  className="account-btn subtle"
+                  onClick={handleSignOut}
+                >
+                  Sign out
+                </button>
+              </>
+            )}
+            {authReady && !currentUser && (
+              <button
+                type="button"
+                className="account-btn primary"
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthError(null);
+                  setAuthStatus(null);
+                  setShowAuthForm(true);
+                }}
+              >
+                Log in / Sign up
+              </button>
+            )}
+            {!authReady && (
+              <span className="nav-user">Checking account…</span>
+            )}
+          </div>
         </header>
 
         {/* Game */}
@@ -300,146 +350,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Tabs + account section */}
+        {/* Tabs section */}
         <section className="panel-section">
           <div className="tabs-shell">
-            {/* Account bar */}
-            <div className="account-bar">
-              <div className="account-info">
-                {!authReady && <span>Loading account…</span>}
-                {authReady && currentUser && (
-                  <span>
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                )}
-                {authReady && !currentUser && <span>Not signed in</span>}
-              </div>
-              <div className="account-actions">
-                {authReady && currentUser && (
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                )}
-                {authReady && !currentUser && (
-                  <button
-                    type="button"
-                    className="account-btn"
-                    onClick={() => setShowAuthForm((v) => !v)}
-                  >
-                    {showAuthForm ? "Close" : "Sign in / Sign up"}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Auth form */}
-            {authReady && !currentUser && showAuthForm && (
-              <div className="auth-form">
-                <div className="auth-toggle">
-                  <button
-                    type="button"
-                    className={
-                      "auth-toggle-btn" +
-                      (authMode === "login" ? " auth-toggle-btn-active" : "")
-                    }
-                    onClick={() => {
-                      setAuthMode("login");
-                      setAuthError(null);
-                      setAuthStatus(null);
-                    }}
-                  >
-                    Log in
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      "auth-toggle-btn" +
-                      (authMode === "signup" ? " auth-toggle-btn-active" : "")
-                    }
-                    onClick={() => {
-                      setAuthMode("signup");
-                      setAuthError(null);
-                      setAuthStatus(null);
-                    }}
-                  >
-                    Sign up
-                  </button>
-                </div>
-
-                <form onSubmit={handleAuthSubmit} className="auth-fields">
-                  {authMode === "signup" && (
-                    <div className="auth-field">
-                      <label>Display name</label>
-                      <input
-                        type="text"
-                        value={authDisplayName}
-                        onChange={(e) => setAuthDisplayName(e.target.value)}
-                        onKeyDown={stopKeyEvent}
-                        onKeyUp={stopKeyEvent}
-                        onKeyPress={stopKeyEvent}
-                        placeholder="e.g. WastelandKing"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  <div className="auth-field">
-                    <label>Email</label>
-                    <input
-                      type="email"
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      onKeyDown={stopKeyEvent}
-                      onKeyUp={stopKeyEvent}
-                      onKeyPress={stopKeyEvent}
-                      required
-                    />
-                  </div>
-
-                  <div className="auth-field">
-                    <label>Password</label>
-                    <input
-                      type="password"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      onKeyDown={stopKeyEvent}
-                      onKeyUp={stopKeyEvent}
-                      onKeyPress={stopKeyEvent}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  {authError && (
-                    <div className="auth-message auth-error">{authError}</div>
-                  )}
-                  {authStatus && (
-                    <div className="auth-message auth-status">
-                      {authStatus}
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="account-btn primary"
-                    disabled={authLoading}
-                  >
-                    {authLoading
-                      ? authMode === "signup"
-                        ? "Creating account…"
-                        : "Signing in…"
-                      : authMode === "signup"
-                      ? "Create account"
-                      : "Log in"}
-                  </button>
-                </form>
-              </div>
-            )}
-
             {/* Tabs */}
             <div className="tabs">
               <button
@@ -580,9 +493,135 @@ export default function HomePage() {
           <span>© {new Date().getFullYear()} AsiantheJason</span>
           <span>Leaderboard powered by Firebase</span>
         </footer>
+
+        {/* Auth popup modal */}
+        {authReady && !currentUser && showAuthForm && (
+          <div
+            className="auth-modal-backdrop"
+            onClick={() => setShowAuthForm(false)}
+          >
+            <div
+              className="auth-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="auth-modal-close"
+                onClick={() => setShowAuthForm(false)}
+              >
+                ×
+              </button>
+              <h2 className="auth-modal-title">Save your runs</h2>
+              <p className="auth-modal-subtitle">
+                Log in or sign up to appear on the leaderboard.
+              </p>
+
+              <div className="auth-form">
+                <div className="auth-toggle">
+                  <button
+                    type="button"
+                    className={
+                      "auth-toggle-btn" +
+                      (authMode === "login" ? " auth-toggle-btn-active" : "")
+                    }
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthError(null);
+                      setAuthStatus(null);
+                    }}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      "auth-toggle-btn" +
+                      (authMode === "signup" ? " auth-toggle-btn-active" : "")
+                    }
+                    onClick={() => {
+                      setAuthMode("signup");
+                      setAuthError(null);
+                      setAuthStatus(null);
+                    }}
+                  >
+                    Sign up
+                  </button>
+                </div>
+
+                <form onSubmit={handleAuthSubmit} className="auth-fields">
+                  {authMode === "signup" && (
+                    <div className="auth-field">
+                      <label>Display name</label>
+                      <input
+                        type="text"
+                        value={authDisplayName}
+                        onChange={(e) => setAuthDisplayName(e.target.value)}
+                        onKeyDown={stopKeyEvent}
+                        onKeyUp={stopKeyEvent}
+                        onKeyPress={stopKeyEvent}
+                        placeholder="e.g. WastelandKing"
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="auth-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      onKeyDown={stopKeyEvent}
+                      onKeyUp={stopKeyEvent}
+                      onKeyPress={stopKeyEvent}
+                      required
+                    />
+                  </div>
+
+                  <div className="auth-field">
+                    <label>Password</label>
+                    <input
+                      type="password"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      onKeyDown={stopKeyEvent}
+                      onKeyUp={stopKeyEvent}
+                      onKeyPress={stopKeyEvent}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  {authError && (
+                    <div className="auth-message auth-error">{authError}</div>
+                  )}
+                  {authStatus && (
+                    <div className="auth-message auth-status">
+                      {authStatus}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="account-btn primary"
+                    disabled={authLoading}
+                  >
+                    {authLoading
+                      ? authMode === "signup"
+                        ? "Creating account…"
+                        : "Signing in…"
+                      : authMode === "signup"
+                      ? "Create account"
+                      : "Log in"}
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* Styles (unchanged) */}
+      {/* Styles */}
       <style jsx global>{`
         body {
           margin: 0;
@@ -602,7 +641,9 @@ export default function HomePage() {
         .site-header {
           padding: 8px 24px 12px;
           display: flex;
-          justify-content: center;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
         }
 
         .site-title {
@@ -614,6 +655,17 @@ export default function HomePage() {
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.04);
           border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .site-nav {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+        }
+
+        .nav-user {
+          opacity: 0.85;
         }
 
         .game-section {
@@ -652,26 +704,6 @@ export default function HomePage() {
           overflow: hidden;
         }
 
-        .account-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 16px;
-          background: rgba(255, 255, 255, 0.02);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          font-size: 13px;
-        }
-
-        .account-info span {
-          opacity: 0.9;
-        }
-
-        .account-actions {
-          display: flex;
-          gap: 8px;
-        }
-
         .account-btn {
           border-radius: 999px;
           border: 1px solid rgba(255, 255, 255, 0.3);
@@ -680,7 +712,8 @@ export default function HomePage() {
           background: transparent;
           color: #f5f5f5;
           cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s,
+            filter 0.15s;
         }
 
         .account-btn.subtle {
@@ -710,8 +743,8 @@ export default function HomePage() {
 
         .auth-form {
           padding: 10px 16px 14px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           background: rgba(0, 0, 0, 0.16);
+          border-radius: 14px;
         }
 
         .auth-toggle {
@@ -921,6 +954,50 @@ export default function HomePage() {
           justify-content: space-between;
           font-size: 12px;
           opacity: 0.7;
+        }
+
+        /* Auth modal */
+        .auth-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.65);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+        }
+
+        .auth-modal {
+          position: relative;
+          max-width: 480px;
+          width: 90vw;
+          background: rgba(8, 12, 28, 0.98);
+          border-radius: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);
+          padding: 18px 18px 20px;
+        }
+
+        .auth-modal-close {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          border: none;
+          background: transparent;
+          color: #e5e7eb;
+          font-size: 20px;
+          cursor: pointer;
+        }
+
+        .auth-modal-title {
+          margin: 0 0 4px;
+          font-size: 18px;
+        }
+
+        .auth-modal-subtitle {
+          margin: 0 0 10px;
+          font-size: 13px;
+          opacity: 0.8;
         }
 
         @media (max-width: 700px) {

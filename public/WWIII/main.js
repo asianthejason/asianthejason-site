@@ -35,7 +35,6 @@ const bulletsFired = {
   'Machine Gun': 0
 };
 
-
 let playerMoney = 0;
 let moneyText, weaponText, statusText;
 let shopVisible = false, shopPanel;
@@ -91,7 +90,7 @@ const HEADSHOT_HEIGHT_RATIO = 0.15; // top 15% considered head
 const PIERCE_COUNTS = {
   'Pistol':      1,
   'Shotgun':     1,
-  'Sniper':      2,   // your chosen value
+  'Sniper':      2,
   'Machine Gun': 2
 };
 
@@ -173,8 +172,6 @@ function updatePlayerHealthBar() {
   playerHealthBar.fillStyle(0x00ff00);
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
 }
-
-
 
 // pill-ish mini-button for bulk buys
 function createQuantityButton(scene, x, y, weaponIndex, qty, unitCost, labelRef, targetArray = shopTabButtons) {
@@ -336,53 +333,52 @@ function create() {
   // Start timer for time-based difficulty
   gameStartMs = this.time.now;
     
-    // --- HARD RESET of all run-scoped globals (prevents Play Again freeze) ---
-isReloading = false;
-isMouseDown = false;
-machineGunInterval = null;
+  // --- HARD RESET of all run-scoped globals (prevents Play Again freeze) ---
+  isReloading = false;
+  isMouseDown = false;
+  machineGunInterval = null;
 
-playerMoney = 0;
-playerMaxHealth = 100;
-playerHealth = 100;
+  playerMoney = 0;
+  playerMaxHealth = 100;
+  playerHealth = 100;
 
-enemiesKilled = 0;
-bulletsFired.Pistol = 0;
-bulletsFired.Shotgun = 0;
-bulletsFired.Sniper = 0;
-bulletsFired['Machine Gun'] = 0;
+  enemiesKilled = 0;
+  bulletsFired.Pistol = 0;
+  bulletsFired.Shotgun = 0;
+  bulletsFired.Sniper = 0;
+  bulletsFired['Machine Gun'] = 0;
 
-distanceTraveled = 0;
-lastTerrainX = 0;
-enemySpawnInterval = 3000;
-enemySpawnTimer = -enemySpawnInterval;
+  distanceTraveled = 0;
+  lastTerrainX = 0;
+  enemySpawnInterval = 3000;
+  enemySpawnTimer = -enemySpawnInterval;
 
-shopVisible = false;
-gamePaused = false;
+  shopVisible = false;
+  gamePaused = false;
 
-// fresh containers for UI objects (old arrays held destroyed objects)
-shopButtons = [];
-shopTabButtons = [];
-upgradeTabButtons = [];
-pistolTabButtons = [];
-shotgunTabButtons = [];
-sniperTabButtons = [];
-machineGunTabButtons = [];
+  // fresh containers for UI objects (old arrays held destroyed objects)
+  shopButtons = [];
+  shopTabButtons = [];
+  upgradeTabButtons = [];
+  pistolTabButtons = [];
+  shotgunTabButtons = [];
+  sniperTabButtons = [];
+  machineGunTabButtons = [];
 
-// fresh per-enemy maps
-enemyHealthMap = new Map();
-enemyHealthBars = new Map();
+  // fresh per-enemy maps
+  enemyHealthMap = new Map();
+  enemyHealthBars = new Map();
 
-// restore weapon baselines and ammo
-weapons.forEach((w, i) => {
-  w.damageRange = [...ORIGINAL_WEAPON_DAMAGE_RANGES[i]];
-  w.clipSize    = ORIGINAL_CLIP_SIZES[i];
-});
-currentWeaponIndex = 0;
-weaponState = weapons.map(w => ({
-  currentClip: w.clipSize,
-  totalAmmo: w.totalAmmo - w.clipSize
-}));
-
+  // restore weapon baselines and ammo
+  weapons.forEach((w, i) => {
+    w.damageRange = [...ORIGINAL_WEAPON_DAMAGE_RANGES[i]];
+    w.clipSize    = ORIGINAL_CLIP_SIZES[i];
+  });
+  currentWeaponIndex = 0;
+  weaponState = weapons.map(w => ({
+    currentClip: w.clipSize,
+    totalAmmo: w.totalAmmo - w.clipSize
+  }));
 
   // Animations
   this.anims.create({ key: 'player_idle', frames: this.anims.generateFrameNumbers('playeridle', { start: 0, end: 6 }), frameRate: 28, repeat: -1 });
@@ -390,24 +386,24 @@ weaponState = weapons.map(w => ({
   this.anims.create({ key: 'player_shoot',frames: this.anims.generateFrameNumbers('playershot', { start: 0, end: 3 }), frameRate: 10, repeat: 0 });
 
   // Enemy animations (slower shoot so it reads)
-this.anims.create({
-  key: 'enemy_idle',
-  frames: this.anims.generateFrameNumbers('enemyidle', { start: 0, end: 5 }),
-  frameRate: 25,
-  repeat: -1
-});
-this.anims.create({
-  key: 'enemy_walk',
-  frames: this.anims.generateFrameNumbers('enemyrun', { start: 0, end: 9 }),
-  frameRate: 14,
-  repeat: -1
-});
-this.anims.create({
-  key: 'enemy_shoot',
-  frames: this.anims.generateFrameNumbers('enemyshot', { start: 0, end: 3 }),
-  frameRate: 6,     // was 10 — slower so it’s visible
-  repeat: 0
-});
+  this.anims.create({
+    key: 'enemy_idle',
+    frames: this.anims.generateFrameNumbers('enemyidle', { start: 0, end: 5 }),
+    frameRate: 25,
+    repeat: -1
+  });
+  this.anims.create({
+    key: 'enemy_walk',
+    frames: this.anims.generateFrameNumbers('enemyrun', { start: 0, end: 9 }),
+    frameRate: 14,
+    repeat: -1
+  });
+  this.anims.create({
+    key: 'enemy_shoot',
+    frames: this.anims.generateFrameNumbers('enemyshot', { start: 0, end: 3 }),
+    frameRate: 6,
+    repeat: 0
+  });
 
   this.add.image(960, 540, 'background').setScrollFactor(0).setDepth(-10);
   this.input.mouse.disableContextMenu();
@@ -515,7 +511,7 @@ this.anims.create({
       enemyHealthBars.delete(e);
       playerMoney += ENEMY_KILL_REWARD * moneyMultiplier;
       moneyText.setText(`$${playerMoney}`);
-enemiesKilled++;
+      enemiesKilled++;
 
       e.destroy();
     }
@@ -773,7 +769,7 @@ enemiesKilled++;
     shopTabButtons.push(rowBg);
 
     // Centered group: main + x10/x50/x100
-    const ROW_CENTER = 960, ROW_W = 500;
+    const ROW_CENTER = 960;
     const MAIN_W = 330, MAIN_H = 50;
     const BTN_W = 52, BETWEEN = 8, GAP_FROM_MAIN = 14;
 
@@ -949,65 +945,62 @@ function update(time) {
     if (groundY !== null) spawnEnemy(this, spawnX);
     enemySpawnTimer = time;
   }
-// --- Enemy movement AI: approach, jump over obstacles, hold position to shoot ---
-// --- Enemy movement AI: approach, jump, and shoot even while moving ---
-{
-  const elapsedMin = (this.time.now - gameStartMs) / 60000;
 
-  enemies.getChildren().forEach(e => {
-    if (!e || !e.active) return;
+  // --- Enemy movement AI (with shooting while moving / holding) ---
+  {
+    const elapsedMin = (this.time.now - gameStartMs) / 60000;
 
-    // face player
-    e.flipX = (player.x < e.x);
+    enemies.getChildren().forEach(e => {
+      if (!e || !e.active) return;
 
-    const dx = player.x - e.x;
-    const absDx = Math.abs(dx);
-    const dir = Math.sign(dx) || 1;
+      // face player
+      e.flipX = (player.x < e.x);
 
-    const stopDist = e.attackDistance ?? 300;
-    const baseSpd  = e.walkSpeed    ?? 90;
-    const speed    = baseSpd * (1 + 0.15 * elapsedMin);
-    const DEAD     = 10; // deadzone to prevent oscillation
+      const dx = player.x - e.x;
+      const absDx = Math.abs(dx);
+      const dir = Math.sign(dx) || 1;
 
-    // Jump if blocked or a step up is ahead
-    const hereTop  = findGroundYAtX(e.x);
-    const aheadTop = findGroundYAtX(e.x + dir * 30);
-    const stepUp   = aheadTop < hereTop - 12;
+      const stopDist = e.attackDistance ?? 300;
+      const baseSpd  = e.walkSpeed    ?? 90;
+      const speed    = baseSpd * (1 + 0.15 * elapsedMin);
+      const DEAD     = 10; // deadzone to prevent oscillation
 
-    if ((e.body.blocked.left || e.body.blocked.right || stepUp) && e.body.onFloor()) {
-      e.setVelocityY(-420);
-    }
+      // Jump if blocked or a step up is ahead
+      const hereTop  = findGroundYAtX(e.x);
+      const aheadTop = findGroundYAtX(e.x + dir * 30);
+      const stepUp   = aheadTop < hereTop - 12;
 
-    // Move/hold based on distance
-    if (absDx > stopDist + DEAD) {
-      // too far: walk toward player
-      e.setVelocityX(dir * speed);
-      if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_walk') e.play('enemy_walk', true);
+      if ((e.body.blocked.left || e.body.blocked.right || stepUp) && e.body.onFloor()) {
+        e.setVelocityY(-420);
+      }
 
-      // 🔥 shoot while moving
-      shootEnemyBullet(e, this);
+      // Move/hold based on distance
+      if (absDx > stopDist + DEAD) {
+        // too far: walk toward player
+        e.setVelocityX(dir * speed);
+        if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_walk') e.play('enemy_walk', true);
 
-    } else if (absDx < stopDist - DEAD) {
-      // too close: back up a bit
-      e.setVelocityX(-dir * speed * 0.6);
-      if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_walk') e.play('enemy_walk', true);
+        // shoot while moving
+        shootEnemyBullet(e, this);
 
-      // 🔥 shoot while moving
-      shootEnemyBullet(e, this);
+      } else if (absDx < stopDist - DEAD) {
+        // too close: back up a bit
+        e.setVelocityX(-dir * speed * 0.6);
+        if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_walk') e.play('enemy_walk', true);
 
-    } else {
-      // sweet spot: stop and shoot
-      e.setVelocityX(0);
-      if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_idle') e.play('enemy_idle', true);
+        // shoot while moving
+        shootEnemyBullet(e, this);
 
-      // 🔥 shoot while holding position
-      shootEnemyBullet(e, this);
-    }
-  });
-}
+      } else {
+        // sweet spot: stop and shoot
+        e.setVelocityX(0);
+        if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_idle') e.play('enemy_idle', true);
 
-
-
+        // shoot while holding position
+        shootEnemyBullet(e, this);
+      }
+    });
+  }
 
   // Player health bar above player
   updatePlayerHealthBar();
@@ -1151,7 +1144,7 @@ function spawnEnemy(scene, x) {
   e.lastShotTime   = 0;
   e.isShooting     = false;
 
-  // time-based HP scaling (you already have DIFFICULTY + gameStartMs)
+  // time-based HP scaling
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const healthMult = 1 + elapsedMin * DIFFICULTY.HEALTH_GROWTH_PER_MIN;
   e.maxHealth      = Math.round(ENEMY_BASE_HEALTH * healthMult);
@@ -1164,7 +1157,6 @@ function spawnEnemy(scene, x) {
   const hb = scene.add.graphics();
   enemyHealthBars.set(e, hb);
 }
-
 
 function shootEnemyBullet(enemy, scene) {
   // fire at most ~1/s
@@ -1181,7 +1173,6 @@ function shootEnemyBullet(enemy, scene) {
   enemy.play('enemy_shoot');
   enemy.once('animationcomplete-enemy_shoot', () => {
     enemy.isShooting = false;
-    // If the enemy is still moving, keep walk; otherwise idle
     const vx = Math.abs(enemy.body?.velocity?.x || 0);
     if (vx > 5) enemy.play('enemy_walk', true);
     else        enemy.play('enemy_idle', true);
@@ -1195,7 +1186,7 @@ function shootEnemyBullet(enemy, scene) {
   b.body.allowGravity = false;
   b.body.setCollideWorldBounds(true).onWorldBounds = true;
 
-  // time-based damage scaling (your existing DIFFICULTY values)
+  // time-based damage scaling
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
@@ -1214,8 +1205,6 @@ function shootEnemyBullet(enemy, scene) {
   scene.time.delayedCall(3000, () => { if (b.active) b.destroy(); });
 }
 
-
-
 // =====================
 //  Shooting (player)
 // =====================
@@ -1227,8 +1216,8 @@ function shootBullet() {
   if (s.currentClip <= 0 || isReloading) return;
 
   s.currentClip--;
-// count one "shot" for the current weapon
-bulletsFired[w.name] = (bulletsFired[w.name] || 0) + 1;
+  // count one "shot" for the current weapon
+  bulletsFired[w.name] = (bulletsFired[w.name] || 0) + 1;
 
   player.flipX = (pointer.worldX < player.x);
 
@@ -1317,16 +1306,18 @@ function switchTab(tabName) {
 }
 
 // =====================
-//  Game Over
-// =====================
-// =====================
-//  Game Over (full replacement)
+//  Game Over (new logic)
 // =====================
 function showGameOver(scene) {
-  // stop gameplay (pause physics only; don't pause time manager)
+  // pause action
   gamePaused = true;
   scene.physics.world.pause();
-  if (machineGunInterval) { machineGunInterval.remove(); machineGunInterval = null; }
+  if (machineGunInterval) {
+    machineGunInterval.remove();
+    machineGunInterval = null;
+  }
+
+  const thisDistance = Math.floor(distanceTraveled);
 
   // Backdrop + panel
   scene.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.7)
@@ -1335,13 +1326,15 @@ function showGameOver(scene) {
     .setStrokeStyle(4, 0xffffff).setScrollFactor(0).setDepth(3001);
 
   // Title + core stats
-  scene.add.text(960, 420, 'GAME OVER', { font: '40px Arial', fill: '#ffffff' })
-    .setOrigin(0.5).setScrollFactor(0).setDepth(3002);
-  scene.add.text(960, 460, `Distance: ${Math.floor(distanceTraveled)} m`, {
+  scene.add.text(960, 420, 'GAME OVER', {
+    font: '40px Arial', fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+
+  scene.add.text(960, 460, `Distance: ${thisDistance} m`, {
     font: '22px Arial', fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-  // Detailed run stats (one row per weapon)
+  // Detailed run stats
   const rows = [
     `Enemies killed: ${enemiesKilled}`,
     `Pistol shots: ${bulletsFired.Pistol}`,
@@ -1357,34 +1350,15 @@ function showGameOver(scene) {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
   });
 
-  // -------- Name input + Submit (DOM) --------
-  // Visible submit button is included. We'll also disable Phaser keyboard so typing works.
-  const formHTML = `
-    <form id="scoreForm" style="display:flex; gap:10px; align-items:center; justify-content:center;">
-      <input name="playername" type="text" placeholder="Your name"
-             style="padding:10px 12px; font-size:18px; width:260px; border-radius:8px; border:1px solid #ccc;" />
-      <button type="submit"
-              style="padding:10px 14px; font-size:18px; border-radius:10px; border:2px solid #fff; background:#444; color:#fff; cursor:pointer;">
-        Submit
-      </button>
-    </form>`;
-  const formDom = scene.add.dom(960, 640).createFromHTML(formHTML)
-    .setScrollFactor(0).setDepth(3003);
+  // Placeholder text that we'll update once we know the rank
+  const rankText = scene.add.text(
+    960,
+    600,
+    'Calculating your place on the leaderboard…',
+    { font: '18px Arial', fill: '#ffffff' }
+  ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-  // Release keyboard to the DOM so WASD/E/Q/etc. can be typed in the input
-  const keyboard = scene.input.keyboard;
-  const kbWasEnabled = keyboard.enabled;
-  keyboard.enabled = false; // disable Phaser's capture while form is up
-
-  const nameInput = formDom.getChildByName('playername');
-  if (nameInput) {
-    nameInput.focus();
-    // Extra safety: prevent bubbling back to Phaser if re-enabled momentarily
-    nameInput.addEventListener('keydown', e => e.stopPropagation());
-    nameInput.addEventListener('keyup',   e => e.stopPropagation());
-  }
-
-  // Play Again button (robust restart)
+  // Play Again button
   const BTN_X = 960, BTN_Y = 710, BTN_W = 220, BTN_H = 60, BTN_R = 12;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
   const drawBtn = (fill, stroke=0xffffff) => {
@@ -1393,78 +1367,29 @@ function showGameOver(scene) {
       .lineStyle(3, stroke).strokeRoundedRect(BTN_X - BTN_W/2, BTN_Y - BTN_H/2, BTN_W, BTN_H, BTN_R);
   };
   drawBtn(0x0077cc);
-  btnBg.setInteractive(new Phaser.Geom.Rectangle(BTN_X - BTN_W/2, BTN_Y - BTN_H/2, BTN_W, BTN_H), Phaser.Geom.Rectangle.Contains);
+  btnBg.setInteractive(
+    new Phaser.Geom.Rectangle(BTN_X - BTN_W/2, BTN_Y - BTN_H/2, BTN_W, BTN_H),
+    Phaser.Geom.Rectangle.Contains
+  );
 
-  const btnText = scene.add.text(BTN_X, BTN_Y, 'Play Again', { font: '28px Arial', fill: '#ffffff' })
-    .setOrigin(0.5).setScrollFactor(0).setDepth(3003);
+  const btnText = scene.add.text(BTN_X, BTN_Y, 'Play Again', {
+    font: '28px Arial', fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
 
   btnBg.on('pointerover', () => { drawBtn(0x0090ff, 0xffff88); btnText.setStyle({ fill: '#ffff00' }); });
   btnBg.on('pointerout',  () => { drawBtn(0x0077cc, 0xffffff);  btnText.setStyle({ fill: '#ffffff' }); });
 
-  // Submit → Firebase (persistent success message; no timeout)
-  let submitted = false;
-  const submitToFirebase = async (playerName) => {
-    if (submitted) return;
-    submitted = true;
-
-    const doc = {
-      name: (playerName || 'Player').trim().slice(0, 24),
-      enemiesKilled,
-      bulletsFired: {
-        Pistol: bulletsFired.Pistol|0,
-        Shotgun: bulletsFired.Shotgun|0,
-        Sniper: bulletsFired.Sniper|0,
-        'Machine Gun': bulletsFired['Machine Gun']|0
-      },
-      distance: Math.floor(distanceTraveled),
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    try {
-      await db.collection('scores').add(doc);
-      // persistent confirmation
-      scene.add.text(960, 600, 'Submitted! Check the Leaderboard tab.', {
-        font: '18px Arial', fill: '#90ee90'
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
-
-      formDom.setVisible(false);
-    } catch (err) {
-      submitted = false; // allow retry
-      scene.add.text(960, 600, 'Submit failed. Try again.', {
-        font: '18px Arial', fill: '#ff8080'
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
-    }
-  };
-
-  // Form submit handler (Enter or button click)
-  formDom.addListener('submit');
-  formDom.on('submit', (e) => {
-    e.preventDefault();
-    const nameInput = formDom.getChildByName('playername');
-    submitToFirebase(nameInput?.value || 'Player');
-  });
-
-  // Clean restart routine
   const hardRestart = () => {
-    // Re-enable keyboard capture for the next run
-    try { scene.input.keyboard.enabled = kbWasEnabled ?? true; } catch {}
-
-    // cleanup DOM
-    try { formDom.removeListener('submit'); formDom.destroy(); } catch {}
-
-    // reset run-local stats
-    enemiesKilled = 0;
-    bulletsFired.Pistol = bulletsFired.Shotgun = bulletsFired.Sniper = bulletsFired['Machine Gun'] = 0;
-
-    // unpause/resume systems
+    // kill timers/tweens and restart scene cleanly
     scene.tweens.killAll();
     scene.time.removeAllEvents();
     scene.physics.world.resume();
-
     gamePaused = false;
-    machineGunInterval?.remove(); machineGunInterval = null;
+    if (machineGunInterval) {
+      machineGunInterval.remove();
+      machineGunInterval = null;
+    }
 
-    // stop → start on next tick
     setTimeout(() => {
       const key = scene.scene.key;
       scene.scene.stop(key);
@@ -1472,10 +1397,9 @@ function showGameOver(scene) {
     }, 0);
   };
 
-  // Restart click (with optional ad gate if present)
   btnBg.on('pointerdown', () => {
     btnBg.disableInteractive();
-    btnText.setText('Restarting...');
+    btnText.setText('Restarting…');
     scene.input.setDefaultCursor('default');
 
     if (window.adGate && typeof window.adGate.consumeOrGate === 'function') {
@@ -1484,4 +1408,119 @@ function showGameOver(scene) {
       hardRestart();
     }
   });
+
+  // ----------------------
+  //  Leaderboard + saving
+  // ----------------------
+  const currentUser = (window.auth && window.auth.currentUser) || null;
+  const isSignedIn = !!currentUser;
+
+  (async () => {
+    try {
+      if (!window.db || !window.firebase) {
+        rankText.setText('Leaderboard not available right now.');
+        return;
+      }
+
+      // How many scores have a strictly higher distance?
+      const snap = await db
+        .collection('scores')
+        .where('distance', '>', thisDistance)
+        .get();
+      const higherCount = snap.size;
+      const rank = higherCount + 1;
+
+      if (isSignedIn) {
+        // Auto-save score using user display name
+        const displayName =
+          (currentUser.displayName || currentUser.email || 'Player')
+            .trim()
+            .slice(0, 24);
+
+        const scoreDoc = {
+          uid: currentUser.uid,
+          name: displayName,
+          enemiesKilled,
+          bulletsFired: {
+            Pistol: bulletsFired.Pistol | 0,
+            Shotgun: bulletsFired.Shotgun | 0,
+            Sniper: bulletsFired.Sniper | 0,
+            'Machine Gun': bulletsFired['Machine Gun'] | 0
+          },
+          distance: thisDistance,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+          await db.collection('scores').add(scoreDoc);
+          rankText.setText(
+            `Saved as ${displayName}. You are currently #${rank} on the leaderboard.`
+          );
+        } catch (err) {
+          console.error('Error saving score', err);
+          rankText.setText(
+            `You are currently #${rank} on the leaderboard, but saving your score failed.`
+          );
+        }
+      } else {
+        // Not signed in: show virtual place + offer login/signup
+        rankText.setText(`You would be #${rank} on the leaderboard.`);
+
+        const promptText = scene.add.text(
+          960,
+          630,
+          'Log in or sign up to save this score.',
+          { font: '18px Arial', fill: '#ffffff' }
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+
+        // Login/Sign up button
+        const AUTH_X = 960, AUTH_Y = 670, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
+        const authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
+        const drawAuthBtn = (fill, stroke=0xffffff) => {
+          authBg.clear()
+            .fillStyle(fill, 1).fillRoundedRect(AUTH_X - AUTH_W/2, AUTH_Y - AUTH_H/2, AUTH_W, AUTH_H, AUTH_R)
+            .lineStyle(2, stroke, 1)
+            .strokeRoundedRect(AUTH_X - AUTH_W/2, AUTH_Y - AUTH_H/2, AUTH_W, AUTH_H, AUTH_R);
+        };
+        drawAuthBtn(0x444444);
+
+        authBg.setInteractive(
+          new Phaser.Geom.Rectangle(AUTH_X - AUTH_W/2, AUTH_Y - AUTH_H/2, AUTH_W, AUTH_H),
+          Phaser.Geom.Rectangle.Contains
+        );
+
+        const authText = scene.add.text(
+          AUTH_X,
+          AUTH_Y,
+          'Log in / Sign up',
+          { font: '20px Arial', fill: '#ffffff' }
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
+
+        authBg.on('pointerover', () => {
+          drawAuthBtn(0x666666, 0xffff88);
+          authText.setStyle({ fill: '#ffff99' });
+        });
+        authBg.on('pointerout', () => {
+          drawAuthBtn(0x444444, 0xffffff);
+          authText.setStyle({ fill: '#ffffff' });
+        });
+
+        authBg.on('pointerdown', () => {
+          try {
+            if (typeof window !== 'undefined' && window.dispatchEvent) {
+              // Notify the Next.js shell to open the auth popup
+              window.dispatchEvent(
+                new CustomEvent('wwiii-open-auth', { detail: { source: 'gameOver' } })
+              );
+            }
+          } catch (e) {
+            console.error('Failed to dispatch wwiii-open-auth event', e);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Error computing rank', err);
+      rankText.setText('Could not compute your leaderboard place.');
+    }
+  })();
 }
