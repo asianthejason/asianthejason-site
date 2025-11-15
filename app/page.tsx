@@ -170,19 +170,28 @@ export default function HomePage() {
         }
         const displayNameLower = rawDisplayName.toLowerCase();
 
-        // --- Enforce case-insensitive unique display names ---
+        // --- Try to enforce case-insensitive unique display names ---
         if (db && w.firebase?.firestore) {
-          const existingSnap = await db
-            .collection("users")
-            .where("displayNameLower", "==", displayNameLower)
-            .limit(1)
-            .get();
+          try {
+            const existingSnap = await db
+              .collection("users")
+              .where("displayNameLower", "==", displayNameLower)
+              .limit(1)
+              .get();
 
-          if (!existingSnap.empty) {
-            setAuthError(
-              "That display name is already taken. Please choose another one."
+            if (!existingSnap.empty) {
+              setAuthError(
+                "That display name is already taken. Please choose another one."
+              );
+              setAuthLoading(false);
+              return;
+            }
+          } catch (checkErr) {
+            // Most likely a Firestore rules issue; don't block signup.
+            console.warn(
+              "Display name uniqueness check failed (skipping check):",
+              checkErr
             );
-            return;
           }
         }
 
@@ -195,20 +204,25 @@ export default function HomePage() {
           displayName: rawDisplayName,
         });
 
-        // Store user profile document
+        // Store user profile document (best-effort)
         if (db && w.firebase?.firestore) {
-          await db
-            .collection("users")
-            .doc(cred.user.uid)
-            .set(
-              {
-                displayName: rawDisplayName,
-                displayNameLower,
-                email: authEmail.trim(),
-                createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
+          try {
+            await db
+              .collection("users")
+              .doc(cred.user.uid)
+              .set(
+                {
+                  displayName: rawDisplayName,
+                  displayNameLower,
+                  email: authEmail.trim(),
+                  createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+          } catch (writeErr) {
+            console.warn("Failed to write user profile document:", writeErr);
+            // Don't fail signup if profile write is blocked
+          }
         }
 
         setAuthStatus("Account created. You are now signed in.");
