@@ -50,7 +50,6 @@ export default function HomePage() {
 
     const w = window as any;
 
-    // If firebase is there but auth not set, ensure we expose it
     if (!w.auth && w.firebase?.auth) {
       w.auth = w.firebase.auth();
     }
@@ -185,9 +184,17 @@ export default function HomePage() {
       }
     } catch (err: any) {
       console.error("Auth error", err);
-      setAuthError(
-        err?.message || "Something went wrong. Please check your details."
-      );
+      const code = err?.code || "";
+      let msg =
+        err?.message || "Something went wrong. Please check your details.";
+      if (code === "auth/email-already-in-use") {
+        msg = "That email is already in use. Try logging in instead.";
+      } else if (code === "auth/invalid-email") {
+        msg = "That email address doesn’t look valid.";
+      } else if (code === "auth/weak-password") {
+        msg = "Password should be at least 6 characters.";
+      }
+      setAuthError(msg);
     } finally {
       setAuthLoading(false);
     }
@@ -208,6 +215,11 @@ export default function HomePage() {
 
   const userLabel =
     currentUser?.displayName || currentUser?.email || "Unknown soldier";
+
+  // helper to stop key events from reaching the game
+  const stopKeyEvent = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+  };
 
   return (
     <>
@@ -303,7 +315,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Auth form (collapsed unless needed) */}
+            {/* Auth form */}
             {authReady && !currentUser && showAuthForm && (
               <div className="auth-form">
                 <div className="auth-toggle">
@@ -345,6 +357,9 @@ export default function HomePage() {
                         type="text"
                         value={authDisplayName}
                         onChange={(e) => setAuthDisplayName(e.target.value)}
+                        onKeyDown={stopKeyEvent}
+                        onKeyUp={stopKeyEvent}
+                        onKeyPress={stopKeyEvent}
                         placeholder="e.g. WastelandKing"
                         required
                       />
@@ -357,6 +372,9 @@ export default function HomePage() {
                       type="email"
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
+                      onKeyDown={stopKeyEvent}
+                      onKeyUp={stopKeyEvent}
+                      onKeyPress={stopKeyEvent}
                       required
                     />
                   </div>
@@ -367,6 +385,9 @@ export default function HomePage() {
                       type="password"
                       value={authPassword}
                       onChange={(e) => setAuthPassword(e.target.value)}
+                      onKeyDown={stopKeyEvent}
+                      onKeyUp={stopKeyEvent}
+                      onKeyPress={stopKeyEvent}
                       required
                       minLength={6}
                     />
@@ -540,7 +561,7 @@ export default function HomePage() {
         </footer>
       </main>
 
-      {/* Styles */}
+      {/* Styles (same as before) */}
       <style jsx global>{`
         body {
           margin: 0;
