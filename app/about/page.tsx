@@ -121,7 +121,7 @@ export default function AboutPage() {
       {/* Footer nav */}
       <footer className="site-footer">
         <span>© {new Date().getFullYear()} AsiantheJason</span>
-        <span>Leaderboard powered by Firebase</span>
+
         <nav className="site-footer-links">
           <Link href="/" className="site-footer-link">
             Game
@@ -412,3 +412,4 @@ export default function AboutPage() {
     </main>
   );
 }
+
