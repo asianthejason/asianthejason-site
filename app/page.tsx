@@ -714,14 +714,12 @@ export default function HomePage() {
                     <li>Earn cash by surviving and killing enemies.</li>
                     <li>Spend money on upgrades between runs.</li>
                   </ul>
-
                 </div>
               )}
 
               {activeTab === "leaderboard" && (
                 <div className="leaderboard">
                   <h2>Top Runs</h2>
-
                   <div className="leaderboard-table-wrapper">
                     <table className="leaderboard-table">
                       <thead>
@@ -963,6 +961,21 @@ export default function HomePage() {
 
         <footer className="site-footer">
           <span>© {new Date().getFullYear()} AsiantheJason</span>
+          <span>Leaderboard powered by Firebase</span>
+          <nav className="site-footer-links">
+            <Link href="/about" className="site-footer-link">
+              About
+            </Link>
+            <Link href="/privacy-policy" className="site-footer-link">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="site-footer-link">
+              Terms
+            </Link>
+            <Link href="/contact" className="site-footer-link">
+              Contact
+            </Link>
+          </nav>
         </footer>
       </main>
 
@@ -1348,8 +1361,28 @@ export default function HomePage() {
           padding: 16px 24px 0;
           display: flex;
           justify-content: space-between;
+          align-items: center;
+          gap: 12px;
           font-size: 12px;
           opacity: 0.7;
+          flex-wrap: wrap;
+        }
+
+        .site-footer-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .site-footer-link {
+          text-decoration: none;
+          color: inherit;
+          opacity: 0.85;
+        }
+
+        .site-footer-link:hover {
+          opacity: 1;
+          text-decoration: underline;
         }
 
         /* Review styles */
