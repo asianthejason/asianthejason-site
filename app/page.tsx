@@ -961,7 +961,7 @@ export default function HomePage() {
 
         <footer className="site-footer">
           <span>© {new Date().getFullYear()} AsiantheJason</span>
-          <span>Leaderboard powered by Firebase</span>
+
           <nav className="site-footer-links">
             <Link href="/about" className="site-footer-link">
               About
