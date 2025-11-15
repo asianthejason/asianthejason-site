@@ -714,6 +714,8 @@ export default function HomePage() {
                     <li>Earn cash by surviving and killing enemies.</li>
                     <li>Spend money on upgrades between runs.</li>
                   </ul>
+
+                </div>
               )}
 
               {activeTab === "leaderboard" && (
