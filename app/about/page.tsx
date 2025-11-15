@@ -1,145 +1,482 @@
 // app/about/page.tsx
 "use client";
 
+import { useEffect, useState, FormEvent } from "react";
+import Script from "next/script";
 import Link from "next/link";
 
+interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+}
+
+type AuthMode = "login" | "signup";
+
 export default function AboutPage() {
+  // Auth state
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authDisplayName, setAuthDisplayName] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authStatus, setAuthStatus] = useState<string | null>(null);
+
+  // ---------- Auth listener ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const w = window as any;
+
+    if (!w.auth && w.firebase?.auth) {
+      w.auth = w.firebase.auth();
+    }
+
+    const auth = w.auth;
+    if (!auth) {
+      console.warn("Firebase auth not available on window (about page)");
+      return;
+    }
+
+    const unsub = auth.onAuthStateChanged((user: any) => {
+      if (user) {
+        setCurrentUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        });
+      } else {
+        setCurrentUser(null);
+      }
+      setAuthReady(true);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const userLabel =
+    currentUser?.displayName || currentUser?.email || "Unknown soldier";
+
+  // helper to stop key events from reaching the game (if background is listening)
+  const stopKeyEvent = (e: any) => {
+    e.stopPropagation();
+  };
+
+  // ---------- Auth actions ----------
+  const handleAuthSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthStatus(null);
+    setAuthLoading(true);
+
+    try {
+      const w = window as any;
+      const auth = w.auth;
+      const db = w.db;
+      if (!auth) {
+        setAuthError("Authentication is not ready. Try again in a moment.");
+        return;
+      }
+
+      if (authMode === "signup") {
+        const rawDisplayName = authDisplayName.trim();
+        if (!rawDisplayName) {
+          setAuthError("Please enter a display name.");
+          return;
+        }
+        const displayNameLower = rawDisplayName.toLowerCase();
+
+        // Create auth user (this signs them in)
+        const cred = await auth.createUserWithEmailAndPassword(
+          authEmail,
+          authPassword
+        );
+        await cred.user.updateProfile({
+          displayName: rawDisplayName,
+        });
+
+        // Store user profile document
+        if (db && w.firebase?.firestore) {
+          await db
+            .collection("users")
+            .doc(cred.user.uid)
+            .set(
+              {
+                displayName: rawDisplayName,
+                displayNameLower,
+                email: authEmail.trim(),
+                createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+        }
+
+        setAuthStatus("Account created. You are now signed in.");
+        setAuthPassword("");
+        setShowAuthForm(false);
+      } else {
+        const cred = await auth.signInWithEmailAndPassword(
+          authEmail,
+          authPassword
+        );
+
+        if (cred.user) {
+          setAuthStatus("Signed in successfully.");
+        }
+        setAuthPassword("");
+        setShowAuthForm(false);
+      }
+    } catch (err: any) {
+      console.error("Auth error (about page)", err);
+      const code = err?.code || "";
+      let msg =
+        err?.message || "Something went wrong. Please check your details.";
+      if (code === "auth/email-already-in-use") {
+        msg = "That email is already in use. Try logging in instead.";
+      } else if (code === "auth/invalid-email") {
+        msg = "That email address doesn’t look valid.";
+      } else if (code === "auth/weak-password") {
+        msg = "Password should be at least 6 characters.";
+      } else if (code === "permission-denied") {
+        msg =
+          "We couldn't finish creating your account because of a permissions issue. Please try again or contact the site owner.";
+      }
+      setAuthError(msg);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const w = window as any;
+      const auth = w.auth;
+      if (!auth) return;
+      await auth.signOut();
+      setAuthStatus("Signed out.");
+      setShowAuthForm(false);
+    } catch (err) {
+      console.error("Sign out error", err);
+    }
+  };
+
   return (
-    <main className="site">
-      {/* Header nav */}
-      <header className="site-header">
-        <div className="site-header-inner">
-          <div className="site-title">ASIANTHEJASON</div>
-          <div className="site-header-spacer" />
-          <nav className="site-header-nav">
-            <Link href="/" className="site-header-link">
-              Game
+    <>
+      {/* Firebase (shared with home page) */}
+      <Script
+        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
+        strategy="beforeInteractive"
+      />
+      <Script
+        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
+        strategy="beforeInteractive"
+      />
+      <Script
+        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"
+        strategy="beforeInteractive"
+      />
+      <Script
+        id="firebase-init-about"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+          const firebaseConfig = {
+            apiKey: "AIzaSyAteayH-i26BMMYrTHecwlJF1S4DKmDPXI",
+            authDomain: "wwiii-game-af0e7.firebaseapp.com",
+            projectId: "wwiii-game-af0e7",
+            storageBucket: "wwiii-game-af0e7.appspot.com",
+            messagingSenderId: "906432978784",
+            appId: "1:906432978784:web:433e23330bef1e6a3ac805"
+          };
+
+          if (!window.firebase?.apps?.length) {
+            window.firebase.initializeApp(firebaseConfig);
+          }
+          window.db = window.firebase.firestore();
+          window.auth = window.firebase.auth();
+        `,
+        }}
+      />
+
+      <main className="site">
+        {/* Header nav (matching home) */}
+        <header className="site-header">
+          <div className="site-header-inner">
+            <Link href="/" className="site-title-link">
+              <span className="site-title">ASIANTHEJASON</span>
             </Link>
-            <Link href="/about" className="site-header-link site-header-link-active">
+            <div className="site-header-spacer" />
+            <div className="site-header-account">
+              {!authReady && <span className="site-header-text">Loading…</span>}
+              {authReady && currentUser && (
+                <>
+                  <span className="site-header-text">
+                    Signed in as <strong>{userLabel}</strong>
+                  </span>
+                  <Link href="/profile" className="account-btn subtle">
+                    Profile
+                  </Link>
+                  <button
+                    type="button"
+                    className="account-btn subtle"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </button>
+                </>
+              )}
+              {authReady && !currentUser && (
+                <button
+                  type="button"
+                  className="account-btn"
+                  onClick={() => {
+                    setShowAuthForm(true);
+                    setAuthMode("signup");
+                    setAuthError(null);
+                    setAuthStatus(null);
+                  }}
+                >
+                  Sign in / Sign up
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* About content */}
+        <section className="panel-section">
+          <div className="tabs-shell about-shell">
+            <div className="about-header">
+              <span className="about-pill">About</span>
+              <h1>Hi, I&apos;m Jason — a.k.a. AsiantheJason 👋</h1>
+              <p>
+                I&apos;m a teacher, game dev, and professional button-masher. Online I go by{" "}
+                <strong>AsiantheJason</strong>, and yes, I&apos;m the one to blame for{" "}
+                <strong>WWIII — Endless Defense</strong> and <strong>Animated Escape</strong>.
+              </p>
+            </div>
+
+            <div className="about-grid">
+              <article className="about-card">
+                <h2>What I do</h2>
+                <p>
+                  I build games and tools that mix problem-solving, strategy, and just enough chaos
+                  to keep things fun. By day I teach math, computer science, and robotics; by night
+                  I&apos;m usually tweaking spawn rates and wondering if that boss is still too
+                  easy.
+                </p>
+                <p>
+                  My goal: games that feel good to play, backed by real engineering and a lot of
+                  late-night debugging.
+                </p>
+              </article>
+
+              <article className="about-card">
+                <h2>About WWIII — Endless Defense</h2>
+                <p>
+                  <strong>WWIII — Endless Defense</strong> started as a &quot;weekend&quot; project
+                  and then decided to become a full web experience: online leaderboard, reviews,
+                  stats, and the occasional &quot;why did I die there&quot; moment.
+                </p>
+                <p>
+                  You move with <strong>WASD</strong>, you shoot stuff, you try not to panic, and
+                  somewhere in the middle you realize you&apos;re min-maxing ammo like it&apos;s a
+                  math contest.
+                </p>
+              </article>
+
+              <article className="about-card">
+                <h2>Animated Escape &amp; other experiments</h2>
+                <p>
+                  I&apos;m also the creator of <strong>Animated Escape</strong>, another passion
+                  project that plays with animation, timing, and &quot;just one more run&quot;
+                  energy.
+                </p>
+                <p>
+                  I like using games as a sandbox for ideas: physics, AI, level design, and
+                  sneaking in more math than most people realize. If it makes you think{" "}
+                  <em>and</em> laugh a little, I&apos;m happy.
+                </p>
+              </article>
+
+              <article className="about-card about-card-fun">
+                <h2>Fun facts (questionable importance)</h2>
+                <ul>
+                  <li>Yes, I do read the leaderboard like sports stats.</li>
+                  <li>Keyboard shortcuts are my cardio. My WASD fingers are absolutely jacked.</li>
+                  <li>
+                    If you find a bug, it&apos;s a &quot;feature in beta.&quot; If you find two,
+                    congratulations, you&apos;re now part of QA.
+                  </li>
+                </ul>
+              </article>
+            </div>
+
+            <div className="about-cta">
+              <div>
+                <h3>Want to keep playing?</h3>
+                <p>
+                  Hit the game, climb the <strong>Leaderboard</strong>, or drop your thoughts in a{" "}
+                  <strong>Review</strong>. I actually read them. Probably with snacks.
+                </p>
+              </div>
+              <div className="about-cta-buttons">
+                <Link href="/" className="account-btn primary">
+                  Back to Game
+                </Link>
+                <Link href="/contact" className="account-btn subtle">
+                  Say hi
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer nav (no Game link) */}
+        <footer className="site-footer">
+          <span>© {new Date().getFullYear()} AsiantheJason</span>
+
+          <nav className="site-footer-links">
+            <Link href="/about" className="site-footer-link">
               About
             </Link>
-            <Link href="/privacy-policy" className="site-header-link">
-              Privacy
+            <Link href="/privacy-policy" className="site-footer-link">
+              Privacy Policy
             </Link>
-            <Link href="/terms" className="site-header-link">
+            <Link href="/terms" className="site-footer-link">
               Terms
             </Link>
-            <Link href="/contact" className="site-header-link">
+            <Link href="/contact" className="site-footer-link">
               Contact
             </Link>
           </nav>
-        </div>
-      </header>
+        </footer>
+      </main>
 
-      {/* About content */}
-      <section className="panel-section">
-        <div className="tabs-shell about-shell">
-          <div className="about-header">
-            <span className="about-pill">About</span>
-            <h1>Hi, I&apos;m Jason — a.k.a. AsiantheJason 👋</h1>
-            <p>
-              I&apos;m a teacher, game dev, and professional button-masher. Online I go by{" "}
-              <strong>AsiantheJason</strong>, and yes, I&apos;m the one to blame for{" "}
-              <strong>WWIII — Endless Defense</strong> and <strong>Animated Escape</strong>.
-            </p>
-          </div>
-
-          <div className="about-grid">
-            <article className="about-card">
-              <h2>What I do</h2>
-              <p>
-                I build games and tools that mix problem-solving, strategy, and just enough chaos
-                to keep things fun. By day I teach math, computer science, and robotics; by night
-                I&apos;m usually tweaking spawn rates and wondering if that boss is still too easy.
-              </p>
-              <p>
-                My goal: games that feel good to play, backed by real engineering and a lot of
-                late-night debugging.
-              </p>
-            </article>
-
-            <article className="about-card">
-              <h2>About WWIII — Endless Defense</h2>
-              <p>
-                <strong>WWIII — Endless Defense</strong> started as a “weekend” project and then
-                decided to become a full web experience: online leaderboard, reviews, stats, and
-                the occasional &quot;why did I die there&quot; moment.
-              </p>
-              <p>
-                You move with <strong>WASD</strong>, you shoot stuff, you try not to panic, and
-                somewhere in the middle you realize you&apos;re min-maxing ammo like it&apos;s a
-                math contest.
-              </p>
-            </article>
-
-            <article className="about-card">
-              <h2>Animated Escape &amp; other experiments</h2>
-              <p>
-                I&apos;m also the creator of <strong>Animated Escape</strong>, another little
-                passion project that plays with animation, timing, and “just one more run” energy.
-              </p>
-              <p>
-                I like using games as a sandbox for ideas: physics, AI, level design, and sneaking
-                in more math than most people realize. If it makes you think <em>and</em> laugh a
-                little, I&apos;m happy.
-              </p>
-            </article>
-
-            <article className="about-card about-card-fun">
-              <h2>Fun facts (questionable importance)</h2>
-              <ul>
-                <li>Yes, I do read the leaderboard like sports stats.</li>
-                <li>Keyboard shortcuts are my cardio. My WASD fingers are absolutely jacked.</li>
-                <li>
-                  If you find a bug, it&apos;s a “feature in beta.” If you find two, congratulations,
-                  you&apos;re now part of QA.
-                </li>
-              </ul>
-            </article>
-          </div>
-
-          <div className="about-cta">
-            <div>
-              <h3>Want to keep playing?</h3>
-              <p>
-                Hit the game, climb the <strong>Leaderboard</strong>, or drop your thoughts in a{" "}
-                <strong>Review</strong>. I actually read them. Probably with snacks.
-              </p>
+      {/* Auth modal overlay */}
+      {authReady && showAuthForm && (
+        <div className="auth-overlay">
+          <div className="auth-modal">
+            <div className="auth-modal-header">
+              <div>
+                <div className="auth-modal-title">Sign in to save your runs</div>
+                <div className="auth-modal-subtitle">
+                  Use the same account for the game, reviews, and more experiments I probably
+                  shouldn&apos;t ship yet.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="auth-close-btn"
+                onClick={() => setShowAuthForm(false)}
+              >
+                ×
+              </button>
             </div>
-            <div className="about-cta-buttons">
-              <Link href="/" className="account-btn primary">
-                Back to Game
-              </Link>
-              <Link href="/contact" className="account-btn subtle">
-                Say hi
-              </Link>
+
+            <div className="auth-toggle">
+              <button
+                type="button"
+                className={
+                  "auth-toggle-btn" +
+                  (authMode === "login" ? " auth-toggle-btn-active" : "")
+                }
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthError(null);
+                  setAuthStatus(null);
+                }}
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                className={
+                  "auth-toggle-btn" +
+                  (authMode === "signup" ? " auth-toggle-btn-active" : "")
+                }
+                onClick={() => {
+                  setAuthMode("signup");
+                  setAuthError(null);
+                  setAuthStatus(null);
+                }}
+              >
+                Sign up
+              </button>
             </div>
+
+            <form onSubmit={handleAuthSubmit} className="auth-fields">
+              {authMode === "signup" && (
+                <div className="auth-field">
+                  <label>Display name</label>
+                  <input
+                    type="text"
+                    value={authDisplayName}
+                    onChange={(e) => setAuthDisplayName(e.target.value)}
+                    onKeyDown={stopKeyEvent}
+                    onKeyUp={stopKeyEvent}
+                    onKeyPress={stopKeyEvent}
+                    placeholder="e.g. WastelandKing"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="auth-field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  onKeyDown={stopKeyEvent}
+                  onKeyUp={stopKeyEvent}
+                  onKeyPress={stopKeyEvent}
+                  required
+                />
+              </div>
+
+              <div className="auth-field">
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  onKeyDown={stopKeyEvent}
+                  onKeyUp={stopKeyEvent}
+                  onKeyPress={stopKeyEvent}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              {authError && (
+                <div className="auth-message auth-error">{authError}</div>
+              )}
+              {authStatus && (
+                <div className="auth-message auth-status">{authStatus}</div>
+              )}
+
+              <button
+                type="submit"
+                className="account-btn primary auth-submit-btn"
+                disabled={authLoading}
+              >
+                {authLoading
+                  ? authMode === "signup"
+                    ? "Creating account…"
+                    : "Signing in…"
+                  : authMode === "signup"
+                  ? "Create account"
+                  : "Log in"}
+              </button>
+            </form>
           </div>
         </div>
-      </section>
-
-      {/* Footer nav */}
-      <footer className="site-footer">
-        <span>© {new Date().getFullYear()} AsiantheJason</span>
-
-        <nav className="site-footer-links">
-          <Link href="/" className="site-footer-link">
-            Game
-          </Link>
-          <Link href="/about" className="site-footer-link">
-            About
-          </Link>
-          <Link href="/privacy-policy" className="site-footer-link">
-            Privacy Policy
-          </Link>
-          <Link href="/terms" className="site-footer-link">
-            Terms
-          </Link>
-          <Link href="/contact" className="site-footer-link">
-            Contact
-          </Link>
-        </nav>
-      </footer>
+      )}
 
       {/* Page-specific styling */}
       <style jsx global>{`
@@ -163,11 +500,16 @@ export default function AboutPage() {
         }
 
         .site-header-inner {
-          max-width: 1100px;
+          max-width: 1200px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           gap: 16px;
+        }
+
+        .site-title-link {
+          text-decoration: none;
+          color: inherit;
         }
 
         .site-header-spacer {
@@ -185,31 +527,15 @@ export default function AboutPage() {
           border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .site-header-nav {
+        .site-header-account {
           display: flex;
+          align-items: center;
           gap: 10px;
           font-size: 13px;
         }
 
-        .site-header-link {
-          text-decoration: none;
-          color: #cbd5f5;
-          padding: 6px 10px;
-          border-radius: 999px;
-          border: 1px solid transparent;
-          transition: background 0.15s, color 0.15s, border-color 0.15s;
-        }
-
-        .site-header-link:hover {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-        }
-
-        .site-header-link-active {
-          background: rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          border-color: rgba(255, 255, 255, 0.2);
+        .site-header-text {
+          opacity: 0.9;
         }
 
         .panel-section {
@@ -349,12 +675,17 @@ export default function AboutPage() {
           font-weight: 600;
         }
 
-        .account-btn:hover {
+        .account-btn:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.06);
         }
 
-        .account-btn.primary:hover {
+        .account-btn.primary:hover:not(:disabled) {
           filter: brightness(1.05);
+        }
+
+        .account-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
         }
 
         .site-footer {
@@ -386,6 +717,135 @@ export default function AboutPage() {
           text-decoration: underline;
         }
 
+        /* Auth modal */
+        .auth-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.65);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 9999;
+        }
+
+        .auth-modal {
+          width: 420px;
+          max-width: 90vw;
+          background: radial-gradient(circle at top, #11172a, #050712);
+          border-radius: 24px;
+          padding: 18px 20px 20px;
+          box-shadow: 0 22px 60px rgba(0, 0, 0, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+
+        .auth-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 10px;
+        }
+
+        .auth-modal-title {
+          font-size: 18px;
+          font-weight: 600;
+        }
+
+        .auth-modal-subtitle {
+          font-size: 13px;
+          opacity: 0.75;
+          margin-top: 4px;
+        }
+
+        .auth-close-btn {
+          border: none;
+          background: transparent;
+          color: #9ca3af;
+          font-size: 20px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .auth-toggle {
+          display: inline-flex;
+          padding: 2px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 10px;
+        }
+
+        .auth-toggle-btn {
+          border: none;
+          background: transparent;
+          color: #b7c1ff;
+          font-size: 12px;
+          padding: 4px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+        }
+
+        .auth-toggle-btn-active {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+          font-weight: 600;
+        }
+
+        .auth-fields {
+          display: grid;
+          gap: 8px;
+          margin-top: 4px;
+        }
+
+        .auth-field {
+          display: grid;
+          gap: 4px;
+        }
+
+        .auth-field label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .auth-field input {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 6px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+        }
+
+        .auth-field input:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .auth-message {
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 8px;
+        }
+
+        .auth-error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.6);
+          color: #fecaca;
+        }
+
+        .auth-status {
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.6);
+          color: #bbf7d0;
+        }
+
+        .auth-submit-btn {
+          margin-top: 4px;
+          width: 100%;
+          justify-content: center;
+        }
+
         @media (max-width: 800px) {
           .about-grid {
             grid-template-columns: 1fr;
@@ -397,11 +857,6 @@ export default function AboutPage() {
             flex-wrap: wrap;
           }
 
-          .site-header-nav {
-            justify-content: flex-start;
-            flex-wrap: wrap;
-          }
-
           .site-footer {
             flex-direction: column;
             align-items: center;
@@ -409,7 +864,6 @@ export default function AboutPage() {
           }
         }
       `}</style>
-    </main>
+    </>
   );
 }
-
