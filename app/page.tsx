@@ -22,6 +22,15 @@ interface ScoreRow {
   daysAgo: number;
 }
 
+interface ReviewRow {
+  id: string;
+  uid?: string;
+  name: string;
+  rating: number;
+  comment: string;
+  createdAt?: Date | null;
+}
+
 interface AuthUser {
   uid: string;
   email: string | null;
@@ -44,6 +53,14 @@ interface PendingScore {
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("instructions");
   const [scores, setScores] = useState<ScoreRow[] | null>(null);
+
+  // Reviews state
+  const [reviews, setReviews] = useState<ReviewRow[] | null>(null);
+  const [reviewRating, setReviewRating] = useState<number>(0);
+  const [reviewComment, setReviewComment] = useState<string>("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewStatus, setReviewStatus] = useState<string | null>(null);
 
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -206,6 +223,57 @@ export default function HomePage() {
     };
   }, []);
 
+  // ---------- Reviews listener ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let unsubscribe: (() => void) | undefined;
+
+    try {
+      const w = window as any;
+      const db = w?.db;
+      if (!db) {
+        console.warn("Firestore db not found on window (reviews)");
+        return;
+      }
+
+      unsubscribe = db
+        .collection("reviews")
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .onSnapshot((snapshot: any) => {
+          if (snapshot.empty) {
+            setReviews([]);
+            return;
+          }
+
+          const rows: ReviewRow[] = snapshot.docs.map((doc: any) => {
+            const d = doc.data() || {};
+            let createdAt: Date | null = null;
+            if (d.createdAt && d.createdAt.toDate) {
+              createdAt = d.createdAt.toDate();
+            }
+            return {
+              id: doc.id,
+              uid: d.uid,
+              name: d.name || "Unknown soldier",
+              rating: d.rating ?? 0,
+              comment: d.comment ?? "",
+              createdAt,
+            };
+          });
+
+          setReviews(rows);
+        });
+    } catch (err) {
+      console.error("Error setting up reviews listener", err);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   // ---------- Save pending score to Firestore ----------
   const savePendingScore = async (firebaseUser: any) => {
     if (!pendingScore) return;
@@ -353,6 +421,57 @@ export default function HomePage() {
     }
   };
 
+  // ---------- Review submit ----------
+  const handleReviewSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setReviewError(null);
+    setReviewStatus(null);
+
+    if (!currentUser) {
+      setReviewError("You must be signed in to leave a review.");
+      return;
+    }
+    if (reviewRating < 1 || reviewRating > 5) {
+      setReviewError("Please choose a rating from 1 to 5 stars.");
+      return;
+    }
+    const trimmedComment = reviewComment.trim();
+    if (!trimmedComment) {
+      setReviewError("Please write a short comment about the game.");
+      return;
+    }
+
+    try {
+      setReviewSubmitting(true);
+      const w = window as any;
+      const db = w.db;
+      if (!db || !w.firebase?.firestore) {
+        setReviewError("Reviews are not available right now. Try again later.");
+        return;
+      }
+
+      const name =
+        currentUser.displayName || currentUser.email || "Unknown soldier";
+
+      await db.collection("reviews").add({
+        uid: currentUser.uid,
+        name,
+        rating: reviewRating,
+        comment: trimmedComment,
+        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      setReviewStatus("Thanks for your review!");
+      setReviewComment("");
+      // Keep rating as-is so they can see what they chose
+    } catch (err) {
+      console.error("Error submitting review", err);
+      setReviewError("Could not submit your review. Please try again.");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
   const userLabel =
     currentUser?.displayName || currentUser?.email || "Unknown soldier";
 
@@ -360,6 +479,14 @@ export default function HomePage() {
   const stopKeyEvent = (e: any) => {
     e.stopPropagation();
   };
+
+  // Average rating computation
+  const averageRating =
+    reviews && reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
+      : 0;
+
+  const averageRatingRounded = averageRating ? Math.round(averageRating * 10) / 10 : 0;
 
   return (
     <>
@@ -575,22 +702,185 @@ export default function HomePage() {
 
               {activeTab === "review" && (
                 <div className="review">
-                  <h2>Review the Game</h2>
-                  <p>
-                    Enjoying WWIII — Endless Defense? I&apos;m iterating on the
-                    game and would love feedback on difficulty, pacing, and new
-                    features you&apos;d like to see.
-                  </p>
-                  <p>
-                    You can send thoughts, bug reports, or balance suggestions
-                    to <strong>asianthejason</strong>. A proper feedback form
-                    can go here later.
-                  </p>
-                  <ul>
-                    <li>Is the game too easy or too hard?</li>
-                    <li>Which weapons feel the best to use?</li>
-                    <li>What upgrades or enemies should be added next?</li>
-                  </ul>
+                  <h2>Reviews</h2>
+
+                  {/* Average rating */}
+                  <div className="review-summary">
+                    {reviews === null && (
+                      <span>Loading reviews…</span>
+                    )}
+                    {reviews !== null && reviews.length === 0 && (
+                      <span>No reviews yet. Be the first to rate the game.</span>
+                    )}
+                    {reviews !== null && reviews.length > 0 && (
+                      <>
+                        <div className="review-summary-main">
+                          <span className="review-summary-score">
+                            {averageRatingRounded.toFixed(1)}
+                          </span>
+                          <div className="review-summary-stars">
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const starIndex = i + 1;
+                              const filled =
+                                averageRating >= starIndex - 0.5;
+                              return (
+                                <span
+                                  key={starIndex}
+                                  className={
+                                    "star-display" +
+                                    (filled ? " star-display-filled" : "")
+                                  }
+                                >
+                                  ★
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="review-summary-count">
+                          Based on {reviews.length}{" "}
+                          {reviews.length === 1 ? "review" : "reviews"}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Review form */}
+                  <div className="review-form-shell">
+                    {!authReady && (
+                      <p className="review-info">Checking your account…</p>
+                    )}
+
+                    {authReady && !currentUser && (
+                      <div className="review-info">
+                        <p>You need to be signed in to leave a review.</p>
+                        <button
+                          type="button"
+                          className="account-btn primary"
+                          onClick={() => {
+                            setShowAuthForm(true);
+                            setAuthMode("signup");
+                            setAuthError(null);
+                            setAuthStatus(null);
+                          }}
+                        >
+                          Sign in / Sign up
+                        </button>
+                      </div>
+                    )}
+
+                    {authReady && currentUser && (
+                      <form
+                        className="review-form"
+                        onSubmit={handleReviewSubmit}
+                      >
+                        <div className="review-stars-row">
+                          <span className="review-label">Your rating</span>
+                          <div className="review-stars-buttons">
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const starValue = i + 1;
+                              const active = starValue <= reviewRating;
+                              return (
+                                <button
+                                  key={starValue}
+                                  type="button"
+                                  className={
+                                    "star-btn" +
+                                    (active ? " star-btn-active" : "")
+                                  }
+                                  onClick={() => setReviewRating(starValue)}
+                                >
+                                  ★
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="review-field">
+                          <label className="review-label">
+                            Your comment
+                          </label>
+                          <textarea
+                            value={reviewComment}
+                            onChange={(e) =>
+                              setReviewComment(e.target.value)
+                            }
+                            onKeyDown={stopKeyEvent}
+                            onKeyUp={stopKeyEvent}
+                            onKeyPress={stopKeyEvent}
+                            rows={3}
+                            placeholder="What did you think of WWIII — Endless Defense?"
+                          />
+                        </div>
+
+                        {reviewError && (
+                          <div className="auth-message auth-error">
+                            {reviewError}
+                          </div>
+                        )}
+                        {reviewStatus && (
+                          <div className="auth-message auth-status">
+                            {reviewStatus}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          className="account-btn primary review-submit-btn"
+                          disabled={reviewSubmitting}
+                        >
+                          {reviewSubmitting
+                            ? "Submitting…"
+                            : "Submit review"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Reviews list */}
+                  <div className="review-list">
+                    {reviews !== null && reviews.length > 0 && (
+                      <>
+                        <h3 className="review-list-title">Player reviews</h3>
+                        <ul className="review-list-ul">
+                          {reviews.map((r) => (
+                            <li key={r.id} className="review-item">
+                              <div className="review-item-header">
+                                <span className="review-item-name">
+                                  {r.name}
+                                </span>
+                                <span className="review-item-stars">
+                                  {Array.from({ length: 5 }).map((_, i) => {
+                                    const starValue = i + 1;
+                                    const filled = starValue <= r.rating;
+                                    return (
+                                      <span
+                                        key={starValue}
+                                        className={
+                                          "star-display" +
+                                          (filled
+                                            ? " star-display-filled"
+                                            : "")
+                                        }
+                                      >
+                                        ★
+                                      </span>
+                                    );
+                                  })}
+                                </span>
+                              </div>
+                              {r.comment && (
+                                <p className="review-item-comment">
+                                  {r.comment}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -989,6 +1279,171 @@ export default function HomePage() {
           opacity: 0.7;
         }
 
+        /* Review styles */
+        .review-summary {
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(12, 16, 32, 0.9);
+          margin-bottom: 14px;
+          font-size: 14px;
+        }
+
+        .review-summary-main {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .review-summary-score {
+          font-size: 26px;
+          font-weight: 700;
+        }
+
+        .review-summary-stars {
+          display: flex;
+          gap: 2px;
+        }
+
+        .review-summary-count {
+          font-size: 12px;
+          opacity: 0.8;
+          margin-top: 4px;
+        }
+
+        .star-display {
+          font-size: 16px;
+          opacity: 0.35;
+        }
+
+        .star-display-filled {
+          opacity: 1;
+          color: #fbbf24;
+        }
+
+        .review-form-shell {
+          margin-top: 14px;
+          margin-bottom: 18px;
+        }
+
+        .review-info {
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .review-form {
+          display: grid;
+          gap: 10px;
+        }
+
+        .review-label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .review-stars-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .review-stars-buttons {
+          display: inline-flex;
+          gap: 4px;
+        }
+
+        .star-btn {
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: rgba(15, 23, 42, 0.9);
+          width: 26px;
+          height: 26px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          cursor: pointer;
+          padding: 0;
+        }
+
+        .star-btn-active {
+          background: #fbbf24;
+          color: #111827;
+          border-color: #fbbf24;
+        }
+
+        .review-field textarea {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 6px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+          resize: vertical;
+        }
+
+        .review-field textarea:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .review-submit-btn {
+          margin-top: 2px;
+          width: fit-content;
+        }
+
+        .review-list {
+          margin-top: 4px;
+        }
+
+        .review-list-title {
+          margin: 0 0 6px;
+          font-size: 15px;
+        }
+
+        .review-list-ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: grid;
+          gap: 8px;
+        }
+
+        .review-item {
+          padding: 8px 10px;
+          border-radius: 10px;
+          background: rgba(10, 13, 26, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          font-size: 13px;
+        }
+
+        .review-item-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 4px;
+        }
+
+        .review-item-name {
+          font-weight: 600;
+        }
+
+        .review-item-stars {
+          display: inline-flex;
+          gap: 2px;
+        }
+
+        .review-item-comment {
+          margin: 0;
+          opacity: 0.9;
+        }
+
         /* Auth modal */
         .auth-overlay {
           position: fixed;
@@ -1133,6 +1588,11 @@ export default function HomePage() {
             gap: 4px;
             align-items: center;
             text-align: center;
+          }
+
+          .review-stars-row {
+            flex-direction: column;
+            align-items: flex-start;
           }
         }
       `}</style>
