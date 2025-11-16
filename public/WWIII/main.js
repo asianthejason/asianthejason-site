@@ -173,7 +173,7 @@ function updatePlayerHealthBar() {
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
 }
 
-// -------- Pill quantity button (soft strokes so no harsh vertical rails) --------
+// -------- Modern-ish pill button for bulk buys (no stroke to avoid vertical lines) --------
 function createQuantityButton(
   scene,
   x,
@@ -184,7 +184,7 @@ function createQuantityButton(
   labelRef,
   targetArray = shopTabButtons
 ) {
-  const BTN_W = 52, BTN_H = 30, R = 999; // pill
+  const BTN_W = 52, BTN_H = 30, R = 999; // full pill
 
   const buy = () => {
     const w = weapons[weaponIndex];
@@ -210,14 +210,10 @@ function createQuantityButton(
   bg._hovered = false;
   bg._draw = () => {
     bg.clear();
-    const fill   = bg._hovered ? 0x0b1120 : 0x020617;
-    const stroke = bg._hovered ? 0x38bdf8 : 0x4b5563;
+    const fill = bg._hovered ? 0x111827 : 0x020617;
 
     bg.fillStyle(fill, 0.95)
       .fillRoundedRect(x - BTN_W/2, y - BTN_H/2, BTN_W, BTN_H, R);
-
-    bg.lineStyle(2, stroke, bg._hovered ? 0.9 : 0.35)
-      .strokeRoundedRect(x - BTN_W/2, y - BTN_H/2, BTN_W, BTN_H, R);
   };
   bg._draw();
 
@@ -255,7 +251,7 @@ function createQuantityButton(
   return { bg, text };
 }
 
-// -------- Shared upgrade row factory (card, softer borders) --------
+// -------- Shared upgrade row factory (modern card style, softer borders) --------
 function createUpgrade(
   x,
   y,
@@ -267,7 +263,7 @@ function createUpgrade(
 ) {
   let currentCost = cost;
 
-  const divider = this.add.rectangle(x, y - 40, 520, 1, 0x1f2937, 0.7)
+  const divider = this.add.rectangle(x, y - 40, 520, 1, 0x1f2937, 0.5)
     .setScrollFactor(0)
     .setDepth(2001)
     .setVisible(false);
@@ -324,7 +320,7 @@ function createUpgrade(
   tabArray.push(divider, bg, label);
 }
 
-// -------- Tab button --------
+// -------- Modern top tab button with hover + active draw --------
 function createTabButton(scene, x, y, label, tabName) {
   const width  = 130;
   const height = 40;
@@ -381,10 +377,10 @@ function createTabButton(scene, x, y, label, tabName) {
       isHovered ? 0x4b5563 :
                   0x1f2937;
 
-    bg.fillStyle(fillColor, isActive ? 0.95 : 0.75);
+    bg.fillStyle(fillColor, isActive ? 0.95 : 0.8);
     bg.fillRoundedRect(x - width/2, y - height/2, width, height, radius);
 
-    bg.lineStyle(2, strokeColor, isActive ? 0.9 : 0.4);
+    bg.lineStyle(2, strokeColor, isActive ? 0.9 : 0.5);
     bg.strokeRoundedRect(x - width/2, y - height/2, width, height, radius);
 
     text.setStyle({
@@ -398,7 +394,7 @@ function createTabButton(scene, x, y, label, tabName) {
 }
 
 function updateTabVisuals() {
-  // everything handled in _draw()
+  // currently all tab colors handled by _draw()
 }
 
 // =====================
@@ -460,7 +456,7 @@ function create() {
   this.anims.create({ key: 'player_walk', frames: this.anims.generateFrameNumbers('playerrun',  { start: 0, end: 7 }), frameRate: 12, repeat: -1 });
   this.anims.create({ key: 'player_shoot',frames: this.anims.generateFrameNumbers('playershot', { start: 0, end: 3 }), frameRate: 10, repeat: 0 });
 
-  // Enemy animations
+  // Enemy animations (slower shoot so it reads)
   this.anims.create({
     key: 'enemy_idle',
     frames: this.anims.generateFrameNumbers('enemyidle', { start: 0, end: 5 }),
@@ -519,7 +515,7 @@ function create() {
   this.physics.add.collider(enemyBullets, ground, b => b.destroy());
   this.physics.add.collider(enemies, ground);
 
-  // Player hit by enemy bullets
+  // Player hit by enemy bullets (inside create)
   this.physics.add.overlap(
     player,
     enemyBullets,
@@ -538,11 +534,13 @@ function create() {
 
   // Bullets vs enemies (pierce after damage)
   this.physics.add.overlap(bullets, enemies, (b, e) => {
+    // ignore repeated overlaps with same enemy for this bullet
     b.hitEnemies ??= new Set();
     if (b.hitEnemies.has(e)) return;
     b.hitEnemies.add(e);
     if (!e.active) return;
 
+    // ---- DAMAGE ----
     let damage;
     if (b.isSniper) {
       const enemyTopY  = e.y - e.displayHeight / 2;
@@ -574,6 +572,7 @@ function create() {
       }
     }
 
+    // ---- APPLY DAMAGE & KILL ----
     const newHealth = (enemyHealthMap.get(e) || ENEMY_BASE_HEALTH) - damage;
     enemyHealthMap.set(e, newHealth);
 
@@ -584,9 +583,11 @@ function create() {
       playerMoney += ENEMY_KILL_REWARD * moneyMultiplier;
       moneyText.setText(`$${playerMoney}`);
       enemiesKilled++;
+
       e.destroy();
     }
 
+    // ---- PIERCE COUNTDOWN & SELF-DESTRUCT ----
     if (b.active) {
       b.pierceLeft = (b.pierceLeft ?? 1) - 1;
       if (b.pierceLeft <= 0) b.destroy();
@@ -620,9 +621,10 @@ function create() {
   updateWeaponAndHealthUI(this);
 
   // =====================
-  //  Shop panel (simpler + softer)
-  // =====================
-  shopPanel = this.add.rectangle(960, 540, 820, 520, 0x020617, 0.94)
+  //  Modern Shop panel (simpler, no glow)
+// =====================
+  shopPanel = this.add.rectangle(960, 540, 820, 520, 0x020617, 0.96)
+    .setStrokeStyle(3, 0x1f2937, 0.7)
     .setScrollFactor(0)
     .setDepth(2000)
     .setVisible(false);
@@ -664,9 +666,10 @@ function create() {
   const startX          = shopPanel.x - shopPanel.width/2 + 30 + tabSpacing/2;
   const tabY            = subtitleY + 40;
 
-  const CONTENT_TOP   = tabY + 70;
-  const ROW_SPACING   = 80;
-  const UPG_SPACING   = 90;
+  // unified content anchors
+  const CONTENT_TOP   = tabY + 70; // everything starts below tabs
+  const ROW_SPACING   = 80;        // shop row spacing
+  const UPG_SPACING   = 90;        // upgrade row spacing
 
   for (let i = 0; i < numTabs; i++) {
     const x = startX + i * tabSpacing;
@@ -680,12 +683,12 @@ function create() {
   shopButtons.push(shopTabBg, shopTabText, upgradeTabBg, upgradeTabText);
   updateTabVisuals();
 
-  // ===== Max Health +50 =====
+  // ===== Max Health +50 (does NOT heal) =====
   let upgradeY = CONTENT_TOP;
   const upgradeSpacing = UPG_SPACING;
 
   {
-    const divider = this.add.rectangle(panelX, upgradeY - 40, 520, 1, 0x1f2937, 0.7)
+    const divider = this.add.rectangle(panelX, upgradeY - 40, 520, 1, 0x1f2937, 0.5)
       .setScrollFactor(0)
       .setDepth(2001)
       .setVisible(false);
@@ -711,7 +714,7 @@ function create() {
       if (playerMoney >= maxHpCost) {
         playerMoney      -= maxHpCost;
         playerMaxHealth  = Math.min(playerMaxHealth + 50, 9999999);
-        playerHealth     = Math.min(playerHealth, playerMaxHealth);
+        playerHealth     = Math.min(playerHealth, playerMaxHealth); // clamp, do not heal
         moneyText.setText(`$${playerMoney}`);
         updateWeaponAndHealthUI(this);
         updatePlayerHealthBar();
@@ -737,6 +740,7 @@ function create() {
   }
   upgradeY += upgradeSpacing;
 
+  // ===== Extra Upgrades (Upgrades tab) =====
   createUpgrade.call(
     this,
     panelX,
@@ -768,8 +772,9 @@ function create() {
     'Sniper':      sniperTabButtons,
     'Machine Gun': machineGunTabButtons
   };
-  const contentStartY = CONTENT_TOP;
+  const contentStartY = CONTENT_TOP; // align weapon-tab upgrades with shop
 
+  // Damage +10% per weapon
   const DAMAGE_UPGRADE_MULTIPLIER = 1.1;
   const DAMAGE_UPGRADE_COST       = 100;
   Object.entries(damageTabMap).forEach(([weaponName, targetTabs]) => {
@@ -789,6 +794,7 @@ function create() {
     );
   });
 
+  // Clip Size ×2 per weapon ($1000, no auto-reload)
   const CLIP_UPGRADE_COST = 1000;
   Object.entries(damageTabMap).forEach(([weaponName, targetTabs]) => {
     createUpgrade.call(
@@ -805,21 +811,22 @@ function create() {
         updateWeaponAndHealthUI(this);
       },
       targetTabs,
-      1
+      1 // fixed price
     );
   });
 
-  // ===== Shop Rows =====
+  // ===== Shop Rows (clips + bulk) =====
   const CLIP_PRICES = { Pistol: 0, Shotgun: 5, Sniper: 5, "Machine Gun": 5 };
 
   weapons.forEach((w, i) => {
     const y = CONTENT_TOP + i * ROW_SPACING;
 
+    // Pistol row → Medical Kit (full-width box)
     if (i === 0) {
       const cost = 30;
 
       const FULL_W = 520, FULL_H = 68, fullX = 960;
-      const fullBg = this.add.rectangle(fullX, y, FULL_W, FULL_H, 0x020617, 0.95)
+      const fullBg = this.add.rectangle(fullX, y, FULL_W, FULL_H, 0x020617, 0.96)
         .setStrokeStyle(2, 0x38bdf8, 0.7)
         .setScrollFactor(0)
         .setDepth(2002)
@@ -842,7 +849,7 @@ function create() {
         label.setStyle({ fill: '#f9fafb' });
       };
       const hoverOff = () => {
-        fullBg.setFillStyle(0x020617, 0.95);
+        fullBg.setFillStyle(0x020617, 0.96);
         fullBg.setStrokeStyle(2, 0x38bdf8, 0.7);
         label.setStyle({ fill: '#e5e7eb' });
       };
@@ -874,29 +881,20 @@ function create() {
       return;
     }
 
+    // Other weapons → Buy Clip + bulk
     const cost = CLIP_PRICES[w.name];
 
-    const divider = this.add.rectangle(960, y - 40, 520, 1, 0x1f2937, 0.7)
-      .setScrollFactor(0)
-      .setDepth(2001)
-      .setVisible(false);
-    shopTabButtons.push(divider);
-
-    const rowBg = this.add.rectangle(960, y, 520, 68, 0x020617, 0.35)
-      .setScrollFactor(0)
-      .setDepth(2001)
-      .setVisible(false);
-    shopTabButtons.push(rowBg);
-
+    // Centered group: main + x10/x50/x100 (no row background to avoid stripes)
     const ROW_CENTER = 960;
     const MAIN_W = 320, MAIN_H = 52;
     const BTN_W = 52, BETWEEN = 8, GAP_FROM_MAIN = 14;
 
     const groupWidth = MAIN_W + GAP_FROM_MAIN + (BTN_W * 3) + (BETWEEN * 2);
     const groupLeft = ROW_CENTER - groupWidth / 2;
+
     const mainX = groupLeft + MAIN_W / 2;
 
-    const mainBg = this.add.rectangle(mainX, y, MAIN_W, MAIN_H, 0x020617, 0.95)
+    const mainBg = this.add.rectangle(mainX, y, MAIN_W, MAIN_H, 0x020617, 0.96)
       .setStrokeStyle(2, 0x374151, 0.45)
       .setScrollFactor(0)
       .setDepth(2002)
@@ -930,11 +928,12 @@ function create() {
       label.setStyle({ fill: '#f9fafb' });
     });
     label.on('pointerout',  () => {
-      mainBg.setFillStyle(0x020617, 0.95);
+      mainBg.setFillStyle(0x020617, 0.96);
       mainBg.setStrokeStyle(2, 0x374151, 0.45);
       label.setStyle({ fill: '#e5e7eb' });
     });
 
+    // pills to the right of main button
     const mainRightEdge = groupLeft + MAIN_W;
     const x10  = mainRightEdge + GAP_FROM_MAIN + BTN_W / 2;
     const x50  = x10  + BTN_W + BETWEEN;
@@ -947,7 +946,7 @@ function create() {
     shopTabButtons.push(label);
   });
 
-  // Toggle shop (F) – only pause physics, NOT time (for snappy UI)
+  // Toggle shop (F) – pause physics only, not scene time (so UI stays snappy)
   this.input.keyboard.on('keydown-F', () => {
     if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
 
@@ -962,8 +961,10 @@ function create() {
       this.physics.world.resume();
     }
 
+    // headers
     shopButtons.forEach(btn => btn.setVisible(shopVisible));
 
+    // content by tab
     switchTab(currentTab);
     updateTabVisuals();
   });
@@ -1026,7 +1027,7 @@ function create() {
     isMouseDown = true;
     const w = weapons[currentWeaponIndex];
     if (w.name === "Machine Gun") {
-      shootBullet.call(this);
+      shootBullet.call(this); // fire immediately
       machineGunInterval = this.time.addEvent({
         delay: w.fireRate,
         loop: true,
@@ -1060,6 +1061,7 @@ function update(time) {
   if (player.x > lastTerrainX - config.width * 2)
     generateTerrain(this, lastTerrainX + tileWidth, lastTerrainX + 640);
 
+  // ===== TIME-BASED adaptive spawn interval =====
   const elapsedMin = (this.time.now - gameStartMs) / 60000;
   enemySpawnInterval =
     DIFFICULTY.SPAWN_BASE_INTERVAL / (1 + elapsedMin * DIFFICULTY.SPAWN_GROWTH_PER_MIN);
@@ -1074,12 +1076,14 @@ function update(time) {
     enemySpawnTimer = time;
   }
 
+  // --- Enemy movement AI (with shooting while moving / holding) ---
   {
     const elapsedMin2 = (this.time.now - gameStartMs) / 60000;
 
     enemies.getChildren().forEach(e => {
       if (!e || !e.active) return;
 
+      // face player
       e.flipX = (player.x < e.x);
 
       const dx = player.x - e.x;
@@ -1089,8 +1093,9 @@ function update(time) {
       const stopDist = e.attackDistance ?? 300;
       const baseSpd  = e.walkSpeed    ?? 90;
       const speed    = baseSpd * (1 + 0.15 * elapsedMin2);
-      const DEAD     = 10;
+      const DEAD     = 10; // deadzone to prevent oscillation
 
+      // Jump if blocked or a step up is ahead
       const hereTop  = findGroundYAtX(e.x);
       const aheadTop = findGroundYAtX(e.x + dir * 30);
       const stepUp   = aheadTop < hereTop - 12;
@@ -1099,24 +1104,38 @@ function update(time) {
         e.setVelocityY(-420);
       }
 
+      // Move/hold based on distance
       if (absDx > stopDist + DEAD) {
+        // too far: walk toward player
         e.setVelocityX(dir * speed);
         if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_walk') e.play('enemy_walk', true);
+
+        // shoot while moving
         shootEnemyBullet(e, this);
+
       } else if (absDx < stopDist - DEAD) {
+        // too close: back up a bit
         e.setVelocityX(-dir * speed * 0.6);
         if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_walk') e.play('enemy_walk', true);
+
+        // shoot while moving
         shootEnemyBullet(e, this);
+
       } else {
+        // sweet spot: stop and shoot
         e.setVelocityX(0);
         if (!e.isShooting && e.anims.currentAnim?.key !== 'enemy_idle') e.play('enemy_idle', true);
+
+        // shoot while holding position
         shootEnemyBullet(e, this);
       }
     });
   }
 
+  // Player health bar above player
   updatePlayerHealthBar();
 
+  // Movement & jumping (locked when shielding)
   if (!shieldKey.isDown) {
     if (keys.left.isDown) { player.setVelocityX(-200); lastDirection = -1; }
     else if (keys.right.isDown) { player.setVelocityX(200); lastDirection = 1; }
@@ -1135,6 +1154,7 @@ function update(time) {
     player.setVelocityX(0);
   }
 
+  // Shield positioning
   if (shieldKey.isDown) {
     const cursorSide = pointer.worldX >= player.x ? 1 : -1;
     shieldBody.setVisible(true).setPosition(player.x + 25 * cursorSide, player.y);
@@ -1148,6 +1168,7 @@ function update(time) {
 
   statusText.setText(`Distance: ${Math.floor(distanceTraveled)}m`);
 
+  // Enemy HP bars
   enemies.getChildren().forEach(e => {
     const hb = enemyHealthBars.get(e);
     if (!hb) return;
@@ -1166,6 +1187,7 @@ function update(time) {
     hb.fillStyle(0xff0000).fillRect(barX, barY, fullW * pct, barH);
   });
 
+  // Player animations
   if (shieldKey.isDown) {
     player.setVelocityX(0);
     player.play('player_idle', true);
@@ -1212,22 +1234,23 @@ function findSurfaceTile(x) {
   let bestTop = Infinity;
 
   for (const tile of ground.getChildren()) {
-    const b = tile.body;
+    const b = tile.body;               // static body
     if (!b) continue;
+    // is x within this tile's horizontal span?
     if (x >= b.left && x <= b.right) {
-      if (b.top < bestTop) {
+      if (b.top < bestTop) {           // smaller 'top' = higher tile
         bestTop = b.top;
         surfaceBody = b;
       }
     }
   }
-  return surfaceBody;
+  return surfaceBody; // NOTE: returns a body, not the game object
 }
 
 function findGroundYAtX(x) {
   const body = findSurfaceTile(x);
   if (!body) return config.height - 50;
-  return body.top;
+  return body.top; // exact top of the static physics body
 }
 
 function spawnEnemy(scene, x) {
@@ -1240,27 +1263,33 @@ function spawnEnemy(scene, x) {
     .setOrigin(0.5, 1)
     .setCollideWorldBounds(true);
 
+  // physics body size/offset (keep your values if different)
   e.body.setSize(32, 80);
   e.body.setOffset((128 - 32) / 2, 128 - 80);
   e.body.allowGravity = true;
 
-  e.attackDistance = Phaser.Math.Between(140, 380);
-  e.walkSpeed      = Phaser.Math.Between(80, 110);
+  // AI parameters
+  e.attackDistance = Phaser.Math.Between(140, 380); // where to stop from the player
+  e.walkSpeed      = Phaser.Math.Between(80, 110);  // base walk speed
   e.lastShotTime   = 0;
   e.isShooting     = false;
 
+  // time-based HP scaling
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const healthMult = 1 + elapsedMin * DIFFICULTY.HEALTH_GROWTH_PER_MIN;
   e.maxHealth      = Math.round(ENEMY_BASE_HEALTH * healthMult);
   enemyHealthMap.set(e, e.maxHealth);
 
+  // start idle (not running forever)
   e.play('enemy_idle');
 
+  // create HP bar graphic
   const hb = scene.add.graphics();
   enemyHealthBars.set(e, hb);
 }
 
 function shootEnemyBullet(enemy, scene) {
+  // fire at most ~1/s
   if (scene.time.now - (enemy.lastShotTime || 0) < 1000) return;
 
   enemy.isShooting = true;
@@ -1270,6 +1299,7 @@ function shootEnemyBullet(enemy, scene) {
   const muzzleX = enemy.x + (enemy.flipX ? -MUZZLE_OFFSET_X : MUZZLE_OFFSET_X);
   const muzzleY = enemy.y - MUZZLE_OFFSET_Y;
 
+  // play a short shoot burst, then go back to the correct movement anim
   enemy.play('enemy_shoot');
   enemy.once('animationcomplete-enemy_shoot', () => {
     enemy.isShooting = false;
@@ -1286,6 +1316,7 @@ function shootEnemyBullet(enemy, scene) {
   b.body.allowGravity = false;
   b.body.setCollideWorldBounds(true).onWorldBounds = true;
 
+  // time-based damage scaling
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
@@ -1293,6 +1324,7 @@ function shootEnemyBullet(enemy, scene) {
   const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
   b.damage = Math.max(rawD, 0.5);
 
+  // aim toward player's upper body
   const AIM_HEIGHT_RATIO = 0.3;
   const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
   const angle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
@@ -1314,6 +1346,7 @@ function shootBullet() {
   if (s.currentClip <= 0 || isReloading) return;
 
   s.currentClip--;
+  // count one "shot" for the current weapon
   bulletsFired[w.name] = (bulletsFired[w.name] || 0) + 1;
 
   player.flipX = (pointer.worldX < player.x);
@@ -1324,7 +1357,7 @@ function shootBullet() {
 
   if (w.name === "Shotgun") {
     const pelletCount = Phaser.Math.Between(10, 15);
-    const spreadRad   = Phaser.Math.DegToRad(40);
+    const spreadRad   = Phaser.Math.DegToRad(40);  // ±20°
 
     for (let i = 0; i < pelletCount; i++) {
       const randomOffset = (Math.random() - 0.5) * spreadRad;
@@ -1383,8 +1416,10 @@ function shootBullet() {
 function switchTab(tabName) {
   currentTab = tabName;
 
+  // headers only when visible
   shopButtons.forEach(btn => btn.setVisible(shopVisible));
 
+  // by tab content
   shopTabButtons.forEach(btn       => btn.setVisible(shopVisible && tabName === 'shop'));
   upgradeTabButtons.forEach(btn    => btn.setVisible(shopVisible && tabName === 'upgrade'));
   pistolTabButtons.forEach(btn     => btn.setVisible(shopVisible && tabName === 'pistol'));
@@ -1392,6 +1427,7 @@ function switchTab(tabName) {
   sniperTabButtons.forEach(btn     => btn.setVisible(shopVisible && tabName === 'sniper'));
   machineGunTabButtons.forEach(btn => btn.setVisible(shopVisible && tabName === 'machinegun'));
 
+  // redraw tab headers
   shopTabBg._draw();
   upgradeTabBg._draw();
   shopButtons.forEach(b => b._draw?.());
@@ -1400,9 +1436,281 @@ function switchTab(tabName) {
 }
 
 // =====================
-//  Game Over
+//  Game Over (with auth bridge & no overlapping buttons)
 // =====================
 function showGameOver(scene) {
-  // (unchanged from your current version)
-  // ...
+  // Pause gameplay
+  gamePaused = true;
+  scene.physics.world.pause();
+  if (machineGunInterval) {
+    machineGunInterval.remove();
+    machineGunInterval = null;
+  }
+
+  const thisDistance = Math.floor(distanceTraveled);
+
+  const runSummary = {
+    distance: thisDistance,
+    enemiesKilled,
+    bulletsFired: {
+      Pistol: bulletsFired.Pistol ?? 0,
+      Shotgun: bulletsFired.Shotgun ?? 0,
+      Sniper: bulletsFired.Sniper ?? 0,
+      'Machine Gun': bulletsFired['Machine Gun'] ?? 0
+    }
+  };
+
+  // make the run globally accessible for React
+  window.wwiiiPendingScore = runSummary;
+
+  const w = window;
+  const db = w.db;
+  const firebase = w.firebase;
+  const auth = w.auth;
+  const currentUser = auth && auth.currentUser;
+  const isSignedIn = !!currentUser;
+
+  // Backdrop + panel
+  scene.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.7)
+    .setScrollFactor(0).setDepth(3000);
+  scene.add.rectangle(960, 540, 760, 600, 0x222222, 0.95)
+    .setStrokeStyle(4, 0xffffff).setScrollFactor(0).setDepth(3001);
+
+  // Title + core stats
+  scene.add.text(960, 420, 'GAME OVER', {
+    font: '40px Arial', fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+
+  scene.add.text(960, 460, `Distance: ${thisDistance} m`, {
+    font: '22px Arial', fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+
+  // Detailed run stats
+  const rows = [
+    `Enemies killed: ${enemiesKilled}`,
+    `Pistol shots: ${bulletsFired.Pistol}`,
+    `Shotgun shots: ${bulletsFired.Shotgun}`,
+    `Sniper shots: ${bulletsFired.Sniper}`,
+    `Machine Gun shots: ${bulletsFired['Machine Gun']}`
+  ];
+  const baseY = 480;
+  const rowGap = 22;
+  rows.forEach((line, i) => {
+    scene.add.text(960, baseY + i * rowGap, line, {
+      font: '20px Arial', fill: '#ffffff', align: 'center'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+  });
+
+  // Info text we keep updating
+  const infoText = scene.add.text(
+    960,
+    600,
+    'Calculating your place on the leaderboard…',
+    { font: '18px Arial', fill: '#ffffff' }
+  ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+
+  const setInfo = (msg) => infoText.setText(msg);
+
+  // Play Again button (at the bottom)
+  const BTN_X = 960, BTN_Y = 750, BTN_W = 220, BTN_H = 60, BTN_R = 12;
+  const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
+  const drawBtn = (fill, stroke = 0xffffff) => {
+    btnBg.clear()
+      .fillStyle(fill, 1)
+      .fillRoundedRect(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H, BTN_R)
+      .lineStyle(3, stroke)
+      .strokeRoundedRect(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H, BTN_R);
+  };
+  drawBtn(0x0077cc);
+  btnBg.setInteractive(
+    new Phaser.Geom.Rectangle(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H),
+    Phaser.Geom.Rectangle.Contains
+  );
+
+  const btnText = scene.add.text(BTN_X, BTN_Y, 'Play Again', {
+    font: '28px Arial', fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
+
+  btnBg.on('pointerover', () => {
+    drawBtn(0x0090ff, 0xffff88);
+    btnText.setStyle({ fill: '#ffff00' });
+  });
+  btnBg.on('pointerout', () => {
+    drawBtn(0x0077cc, 0xffffff);
+    btnText.setStyle({ fill: '#ffffff' });
+  });
+
+  // These get filled only if the user isn't signed in
+  let authBg = null;
+  let authText = null;
+  let promptText = null;
+
+  // React → Phaser: run has been saved
+  const onRunSaved = (evt) => {
+    const detail = (evt && evt.detail) || {};
+    const name =
+      detail.name ||
+      (auth && auth.currentUser && (auth.currentUser.displayName || auth.currentUser.email)) ||
+      'your account';
+
+    setInfo(`Saved as ${name}. Your score is now on the leaderboard.`);
+
+    if (promptText) promptText.setVisible(false);
+    if (authBg) {
+      authBg.disableInteractive();
+      authBg.clear();
+    }
+    if (authText) authText.setVisible(false);
+  };
+
+  window.addEventListener('wwiii-run-saved', onRunSaved);
+
+  const hardRestart = () => {
+    // clean up listener
+    window.removeEventListener('wwiii-run-saved', onRunSaved);
+
+    // kill timers/tweens and restart scene cleanly
+    scene.tweens.killAll();
+    scene.time.removeAllEvents();
+    scene.physics.world.resume();
+    gamePaused = false;
+    if (machineGunInterval) {
+      machineGunInterval.remove();
+      machineGunInterval = null;
+    }
+
+    setTimeout(() => {
+      const key = scene.scene.key;
+      scene.scene.stop(key);
+      scene.scene.start(key);
+    }, 0);
+  };
+
+  btnBg.on('pointerdown', () => {
+    btnBg.disableInteractive();
+    btnText.setText('Restarting…');
+    scene.input.setDefaultCursor('default');
+
+    if (window.adGate && typeof window.adGate.consumeOrGate === 'function') {
+      window.adGate.consumeOrGate(hardRestart);
+    } else {
+      hardRestart();
+    }
+  });
+
+  // ----------------------
+  //  Leaderboard + saving
+  // ----------------------
+  (async () => {
+    try {
+      if (!db || !firebase) {
+        setInfo('Leaderboard not available right now.');
+        return;
+      }
+
+      // How many scores have a strictly higher distance?
+      const snap = await db
+        .collection('scores')
+        .where('distance', '>', runSummary.distance)
+        .get();
+      const higherCount = snap.size;
+      const rank = higherCount + 1;
+
+      if (isSignedIn) {
+        // Auto-save score using user display name
+        const displayName =
+          (currentUser.displayName || currentUser.email || 'Player')
+            .trim()
+            .slice(0, 24);
+
+        const scoreDoc = {
+          uid: currentUser.uid,
+          name: displayName,
+          enemiesKilled: runSummary.enemiesKilled,
+          bulletsFired: runSummary.bulletsFired,
+          distance: runSummary.distance,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+          await db.collection('scores').add(scoreDoc);
+          setInfo(
+            `Saved as ${displayName}. You are currently #${rank} on the leaderboard.`
+          );
+        } catch (err) {
+          console.error('Error saving score', err);
+          setInfo(
+            `You are currently #${rank} on the leaderboard, but saving your score failed.`
+          );
+        }
+      } else {
+        // Not signed in: show virtual place + offer login/signup
+        setInfo(`You would be #${rank} on the leaderboard.`);
+
+        promptText = scene.add.text(
+          960,
+          630,
+          'Log in or sign up to save this score.',
+          { font: '18px Arial', fill: '#ffffff' }
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+
+        // Login/Sign up button (placed above Play Again)
+        const AUTH_X = 960, AUTH_Y = 690, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
+        authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
+        const drawAuthBtn = (fill, stroke = 0xffffff) => {
+          authBg.clear()
+            .fillStyle(fill, 1)
+            .fillRoundedRect(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H, AUTH_R)
+            .lineStyle(2, stroke, 1)
+            .strokeRoundedRect(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H, AUTH_R);
+        };
+        drawAuthBtn(0x444444);
+
+        authBg.setInteractive(
+          new Phaser.Geom.Rectangle(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H),
+          Phaser.Geom.Rectangle.Contains
+        );
+
+        authText = scene.add.text(
+          AUTH_X,
+          AUTH_Y,
+          'Log in / Sign up',
+          { font: '20px Arial', fill: '#ffffff' }
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
+
+        authBg.on('pointerover', () => {
+          drawAuthBtn(0x666666, 0xffff88);
+          authText.setStyle({ fill: '#ffff99' });
+        });
+        authBg.on('pointerout', () => {
+          drawAuthBtn(0x444444, 0xffffff);
+          authText.setStyle({ fill: '#ffffff' });
+        });
+
+        authBg.on('pointerdown', () => {
+          try {
+            if (typeof window !== 'undefined' && window.dispatchEvent) {
+              // expose this run (again) and ask React to open auth
+              window.wwiiiPendingScore = {
+                distance: runSummary.distance,
+                enemiesKilled: runSummary.enemiesKilled,
+                bulletsFired: runSummary.bulletsFired
+              };
+
+              window.dispatchEvent(
+                new CustomEvent('wwiii-open-auth', {
+                  detail: { run: window.wwiiiPendingScore }
+                })
+              );
+            }
+          } catch (e) {
+            console.error('Failed to dispatch wwiii-open-auth event', e);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Error computing rank', err);
+      setInfo('Could not compute your leaderboard place.');
+    }
+  })();
 }
