@@ -11,6 +11,43 @@ interface AuthUser {
   displayName: string | null;
 }
 
+interface GameConfig {
+  id: string;
+  title: string;
+  collection: string;
+  scoreField: string;
+  scoreLabel: string;
+  scoreUnit?: string;
+}
+
+interface GameStat extends GameConfig {
+  bestScore?: number;
+  rank?: number;
+  loading: boolean;
+  error?: string;
+}
+
+// Add new games here as you build them.
+// Each game can have its own collection and scoring metric.
+const GAME_CONFIGS: GameConfig[] = [
+  {
+    id: "wwiii",
+    title: "WWIII — Endless Defense",
+    collection: "scores",
+    scoreField: "distance",
+    scoreLabel: "Best distance",
+    scoreUnit: " m",
+  },
+  // Example future game:
+  // {
+  //   id: "space_invaders",
+  //   title: "Space Invaders Redux",
+  //   collection: "spaceScores",
+  //   scoreField: "score",
+  //   scoreLabel: "Highest score",
+  // }
+];
+
 export default function ProfilePage() {
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -30,6 +67,11 @@ export default function ProfilePage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
+
+  // Game stats
+  const [gameStats, setGameStats] = useState<GameStat[]>(
+    GAME_CONFIGS.map((cfg) => ({ ...cfg, loading: true }))
+  );
 
   // ---------- Auth listener ----------
   useEffect(() => {
@@ -65,6 +107,83 @@ export default function ProfilePage() {
 
     return () => unsub();
   }, []);
+
+  // ---------- Fetch per-game high scores / ranks ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!authReady || !currentUser) {
+      // reset to loading when user logs out
+      setGameStats(GAME_CONFIGS.map((cfg) => ({ ...cfg, loading: true })));
+      return;
+    }
+
+    const w = window as any;
+    const db = w.db;
+
+    if (!db) {
+      console.warn("Firestore not available on window (profile stats)");
+      setGameStats((prev) =>
+        prev.map((g) => ({
+          ...g,
+          loading: false,
+          error: "Stats unavailable (database offline).",
+        }))
+      );
+      return;
+    }
+
+    const fetchStats = async () => {
+      const results: GameStat[] = [];
+
+      for (const cfg of GAME_CONFIGS) {
+        try {
+          // user’s best score for this game
+          const bestSnap = await db
+            .collection(cfg.collection)
+            .where("uid", "==", currentUser.uid)
+            .orderBy(cfg.scoreField, "desc")
+            .limit(1)
+            .get();
+
+          if (bestSnap.empty) {
+            results.push({
+              ...cfg,
+              loading: false,
+            });
+            continue;
+          }
+
+          const bestDoc = bestSnap.docs[0];
+          const bestScore = bestDoc.get(cfg.scoreField) ?? 0;
+
+          // rank = number of scores strictly higher + 1
+          const higherSnap = await db
+            .collection(cfg.collection)
+            .where(cfg.scoreField, ">", bestScore)
+            .get();
+          const rank = higherSnap.size + 1;
+
+          results.push({
+            ...cfg,
+            bestScore,
+            rank,
+            loading: false,
+          });
+        } catch (err) {
+          console.error("Error fetching stats for game", cfg.id, err);
+          results.push({
+            ...cfg,
+            loading: false,
+            error: "Could not load stats.",
+          });
+        }
+      }
+
+      setGameStats(results);
+    };
+
+    fetchStats();
+  }, [authReady, currentUser?.uid]);
 
   // ---------- Update display name ----------
   const handleDisplayNameSubmit = async (e: FormEvent) => {
@@ -313,6 +432,66 @@ export default function ProfilePage() {
 
               {authReady && currentUser && (
                 <>
+                  {/* High scores section */}
+                  <div className="profile-section-block">
+                    <h2>High scores</h2>
+                    <p className="profile-subtext">
+                      Your best runs and ranks across all games on this
+                      account.
+                    </p>
+
+                    <div className="profile-games-grid">
+                      {gameStats.map((stat) => (
+                        <div key={stat.id} className="profile-game-card">
+                          <div className="profile-game-header">
+                            <span className="profile-game-title">
+                              {stat.title}
+                            </span>
+                          </div>
+
+                          {stat.loading && (
+                            <p className="profile-game-text">Loading…</p>
+                          )}
+
+                          {!stat.loading && stat.error && (
+                            <p className="profile-game-text profile-game-error">
+                              {stat.error}
+                            </p>
+                          )}
+
+                          {!stat.loading &&
+                            !stat.error &&
+                            stat.bestScore === undefined && (
+                              <p className="profile-game-text">
+                                No scores yet — play a round to claim your
+                                spot on the leaderboard.
+                              </p>
+                            )}
+
+                          {!stat.loading &&
+                            !stat.error &&
+                            stat.bestScore !== undefined && (
+                              <>
+                                <p className="profile-game-metric">
+                                  {stat.scoreLabel}:{" "}
+                                  <strong>
+                                    {stat.bestScore}
+                                    {stat.scoreUnit ?? ""}
+                                  </strong>
+                                </p>
+                                {stat.rank && (
+                                  <p className="profile-game-metric">
+                                    Best rank:{" "}
+                                    <strong>#{stat.rank}</strong>
+                                  </p>
+                                )}
+                              </>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Display name form */}
                   <div className="profile-section-block">
                     <h2>Display name</h2>
@@ -624,6 +803,47 @@ export default function ProfilePage() {
         .profile-btn:disabled {
           opacity: 0.6;
           cursor: default;
+        }
+
+        /* High scores layout */
+        .profile-games-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: 10px;
+          margin-top: 8px;
+        }
+
+        .profile-game-card {
+          border-radius: 14px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: radial-gradient(circle at top left, #111827 0, #020617 60%);
+          padding: 10px 12px;
+          font-size: 13px;
+        }
+
+        .profile-game-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+
+        .profile-game-title {
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .profile-game-text {
+          margin: 2px 0;
+          opacity: 0.85;
+        }
+
+        .profile-game-metric {
+          margin: 2px 0;
+        }
+
+        .profile-game-error {
+          color: #fecaca;
         }
 
         .profile-footer {
