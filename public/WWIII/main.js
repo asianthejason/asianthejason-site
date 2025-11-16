@@ -48,6 +48,10 @@ let pistolTabButtons = [], shotgunTabButtons = [], sniperTabButtons = [], machin
 let currentTab = 'shop';
 let shopTabBg, shopTabText, upgradeTabBg, upgradeTabText;
 
+// new: track all tab backgrounds/text for styling
+let allTabBgs = [];
+let allTabTexts = [];
+
 let distanceTraveled = 0;
 let lastTerrainX = 0, tileWidth = 64, tileHeight = 32;
 
@@ -173,7 +177,7 @@ function updatePlayerHealthBar() {
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
 }
 
-// -------- Modern-ish pill button for bulk buys (no stroke to avoid vertical lines) --------
+// -------- Quantity pill using Rectangle (no custom draw) --------
 function createQuantityButton(
   scene,
   x,
@@ -184,7 +188,7 @@ function createQuantityButton(
   labelRef,
   targetArray = shopTabButtons
 ) {
-  const BTN_W = 52, BTN_H = 30, R = 999; // full pill
+  const BTN_W = 52, BTN_H = 30;
 
   const buy = () => {
     const w = weapons[weaponIndex];
@@ -202,28 +206,13 @@ function createQuantityButton(
     }
   };
 
-  const bg = scene.add.graphics()
+  const bg = scene.add.rectangle(x, y, BTN_W, BTN_H, 0x020617, 0.95)
+    .setStrokeStyle(1, 0x4b5563, 0.7)
     .setScrollFactor(0)
     .setDepth(2002)
-    .setVisible(false);
-
-  bg._hovered = false;
-  bg._draw = () => {
-    bg.clear();
-    const fill = bg._hovered ? 0x111827 : 0x020617;
-
-    bg.fillStyle(fill, 0.95)
-      .fillRoundedRect(x - BTN_W/2, y - BTN_H/2, BTN_W, BTN_H, R);
-  };
-  bg._draw();
-
-  bg.setInteractive(
-    new Phaser.Geom.Rectangle(x - BTN_W/2, y - BTN_H/2, BTN_W, BTN_H),
-    Phaser.Geom.Rectangle.Contains
-  )
-  .on('pointerover', () => { bg._hovered = true;  bg._draw(); scene.input.setDefaultCursor('pointer'); })
-  .on('pointerout',  () => { bg._hovered = false; bg._draw(); scene.input.setDefaultCursor('default'); })
-  .on('pointerdown', buy);
+    .setVisible(false)
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true });
 
   const text = scene.add.text(x, y, `x${qty}`, {
     font: '14px "Inter", Arial',
@@ -235,16 +224,24 @@ function createQuantityButton(
     .setVisible(false)
     .setInteractive({ useHandCursor: true });
 
-  text.on('pointerover', () => {
-    bg._hovered = true;
-    bg._draw();
+  const hoverOn = () => {
+    bg.setFillStyle(0x111827, 0.95);
     text.setStyle({ fill: '#f9fafb' });
-  });
-  text.on('pointerout',  () => {
-    bg._hovered = false;
-    bg._draw();
+    scene.input.setDefaultCursor('pointer');
+  };
+
+  const hoverOff = () => {
+    bg.setFillStyle(0x020617, 0.95);
     text.setStyle({ fill: '#e5e7eb' });
-  });
+    scene.input.setDefaultCursor('default');
+  };
+
+  bg.on('pointerover', hoverOn);
+  bg.on('pointerout',  hoverOff);
+  bg.on('pointerdown', buy);
+
+  text.on('pointerover', hoverOn);
+  text.on('pointerout',  hoverOff);
   text.on('pointerdown', buy);
 
   targetArray.push(bg, text);
@@ -320,27 +317,20 @@ function createUpgrade(
   tabArray.push(divider, bg, label);
 }
 
-// -------- Modern top tab button with hover + active draw --------
+// -------- Top tab button using Rectangle (no Graphics._draw) --------
 function createTabButton(scene, x, y, label, tabName) {
   const width  = 130;
   const height = 40;
-  const radius = 999; // pill
 
-  const bg = scene.add.graphics()
+  const bg = scene.add.rectangle(x, y, width, height, 0x020617, 0.8)
+    .setStrokeStyle(2, 0x1f2937, 0.7)
     .setScrollFactor(0)
     .setDepth(2001)
     .setVisible(false)
-    .setInteractive(
-      new Phaser.Geom.Rectangle(x - width/2, y - height/2, width, height),
-      Phaser.Geom.Rectangle.Contains
-    )
-    .on('pointerdown', () => {
-      switchTab(tabName);
-      updateTabVisuals();
-    });
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true });
 
   bg.tabName = tabName;
-  bg._hovered = false;
 
   const text = scene.add.text(x, y, label, {
     font: '15px "Inter", Arial',
@@ -354,47 +344,54 @@ function createTabButton(scene, x, y, label, tabName) {
 
   text.tabName = tabName;
 
-  const onOver = () => { bg._hovered = true;  bg._draw(); };
-  const onOut  = () => { bg._hovered = false; bg._draw(); };
-  const onDown = () => { switchTab(tabName); updateTabVisuals(); };
+  // keep references so updateTabVisuals can restyle everything
+  bg._label = text;
+  allTabBgs.push(bg);
+  allTabTexts.push(text);
 
-  bg.on('pointerover', onOver);   bg.on('pointerout', onOut);
-  text.on('pointerover', onOver); text.on('pointerout', onOut);
-  text.on('pointerdown', onDown);
-
-  bg._draw = () => {
-    const isActive  = currentTab === tabName;
-    const isHovered = bg._hovered && !isActive;
-    bg.clear();
-
-    const fillColor =
-      isActive  ? 0x0f172a :
-      isHovered ? 0x020617 :
-                  0x020617;
-
-    const strokeColor =
-      isActive  ? 0x38bdf8 :
-      isHovered ? 0x4b5563 :
-                  0x1f2937;
-
-    bg.fillStyle(fillColor, isActive ? 0.95 : 0.8);
-    bg.fillRoundedRect(x - width/2, y - height/2, width, height, radius);
-
-    bg.lineStyle(2, strokeColor, isActive ? 0.9 : 0.5);
-    bg.strokeRoundedRect(x - width/2, y - height/2, width, height, radius);
-
-    text.setStyle({
-      fill: isActive ? '#bfdbfe' : (isHovered ? '#f9fafb' : '#e5e7eb')
-    });
+  const goTab = () => {
+    switchTab(tabName);
   };
 
-  bg._draw();
+  const hoverOn = () => {
+    if (currentTab === tabName) return;
+    bg.setStrokeStyle(2, 0x4b5563, 0.9);
+    text.setStyle({ fill: '#f9fafb' });
+  };
+
+  const hoverOff = () => {
+    updateTabVisuals();
+  };
+
+  bg.on('pointerover', hoverOn);
+  bg.on('pointerout',  hoverOff);
+  bg.on('pointerdown', goTab);
+
+  text.on('pointerover', hoverOn);
+  text.on('pointerout',  hoverOff);
+  text.on('pointerdown', goTab);
 
   return [bg, text];
 }
 
 function updateTabVisuals() {
-  // currently all tab colors handled by _draw()
+  allTabBgs.forEach(bg => {
+    if (!bg) return;
+    const isActive = currentTab === bg.tabName;
+    const text = bg._label;
+
+    const fillColor   = isActive ? 0x0f172a : 0x020617;
+    const strokeColor = isActive ? 0x38bdf8 : 0x1f2937;
+
+    bg.setFillStyle(fillColor, isActive ? 0.95 : 0.8);
+    bg.setStrokeStyle(2, strokeColor, 0.9);
+
+    if (text) {
+      text.setStyle({
+        fill: isActive ? '#bfdbfe' : '#e5e7eb'
+      });
+    }
+  });
 }
 
 // =====================
@@ -435,6 +432,8 @@ function create() {
   shotgunTabButtons = [];
   sniperTabButtons = [];
   machineGunTabButtons = [];
+  allTabBgs = [];
+  allTabTexts = [];
 
   // fresh per-enemy maps
   enemyHealthMap = new Map();
@@ -621,8 +620,8 @@ function create() {
   updateWeaponAndHealthUI(this);
 
   // =====================
-  //  Modern Shop panel (simpler, no glow)
-// =====================
+  //  Modern Shop panel
+  // =====================
   shopPanel = this.add.rectangle(960, 540, 820, 520, 0x020617, 0.96)
     .setStrokeStyle(3, 0x1f2937, 0.7)
     .setScrollFactor(0)
@@ -680,7 +679,6 @@ function create() {
       case 'upgrade': upgradeTabBg = bg; upgradeTabText = text; break;
     }
   }
-  shopButtons.push(shopTabBg, shopTabText, upgradeTabBg, upgradeTabText);
   updateTabVisuals();
 
   // ===== Max Health +50 (does NOT heal) =====
@@ -966,7 +964,6 @@ function create() {
 
     // content by tab
     switchTab(currentTab);
-    updateTabVisuals();
   });
 
   // Cycle weapons (E / Q)
@@ -1426,11 +1423,6 @@ function switchTab(tabName) {
   shotgunTabButtons.forEach(btn    => btn.setVisible(shopVisible && tabName === 'shotgun'));
   sniperTabButtons.forEach(btn     => btn.setVisible(shopVisible && tabName === 'sniper'));
   machineGunTabButtons.forEach(btn => btn.setVisible(shopVisible && tabName === 'machinegun'));
-
-  // redraw tab headers
-  shopTabBg._draw();
-  upgradeTabBg._draw();
-  shopButtons.forEach(b => b._draw?.());
 
   updateTabVisuals();
 }
