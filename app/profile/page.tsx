@@ -28,7 +28,6 @@ interface GameStat extends GameConfig {
 }
 
 // Add new games here as you build them.
-// Each game can have its own collection and scoring metric.
 const GAME_CONFIGS: GameConfig[] = [
   {
     id: "wwiii",
@@ -79,7 +78,6 @@ export default function ProfilePage() {
 
     const w = window as any;
 
-    // If auth not attached yet but firebase is, attach it
     if (!w.auth && w.firebase?.auth) {
       w.auth = w.firebase.auth();
     }
@@ -111,8 +109,9 @@ export default function ProfilePage() {
   // ---------- Fetch per-game high scores / ranks ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     if (!authReady || !currentUser) {
-      // reset to loading when user logs out
+      // reset to loading when user logs out / not ready
       setGameStats(GAME_CONFIGS.map((cfg) => ({ ...cfg, loading: true })));
       return;
     }
@@ -137,15 +136,14 @@ export default function ProfilePage() {
 
       for (const cfg of GAME_CONFIGS) {
         try {
-          // user’s best score for this game
-          const bestSnap = await db
+          // Get all scores for this user for this game
+          const userSnap = await db
             .collection(cfg.collection)
             .where("uid", "==", currentUser.uid)
-            .orderBy(cfg.scoreField, "desc")
-            .limit(1)
             .get();
 
-          if (bestSnap.empty) {
+          if (userSnap.empty) {
+            // No scores yet
             results.push({
               ...cfg,
               loading: false,
@@ -153,10 +151,27 @@ export default function ProfilePage() {
             continue;
           }
 
-          const bestDoc = bestSnap.docs[0];
-          const bestScore = bestDoc.get(cfg.scoreField) ?? 0;
+          // Compute best score client-side to avoid composite index
+          let bestScore: number | undefined;
+          userSnap.forEach((doc: any) => {
+            const val = doc.get(cfg.scoreField);
+            if (typeof val === "number") {
+              if (bestScore === undefined || val > bestScore) {
+                bestScore = val;
+              }
+            }
+          });
 
-          // rank = number of scores strictly higher + 1
+          if (bestScore === undefined) {
+            // Docs exist but no numeric field – treat as no stats
+            results.push({
+              ...cfg,
+              loading: false,
+            });
+            continue;
+          }
+
+          // Rank: count how many scores are strictly higher
           const higherSnap = await db
             .collection(cfg.collection)
             .where(cfg.scoreField, ">", bestScore)
