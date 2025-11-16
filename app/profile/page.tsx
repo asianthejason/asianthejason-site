@@ -619,9 +619,25 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <footer className="profile-footer">
-          <span>© {new Date().getFullYear()} AsiantheJason</span>
-          <span>WWIII — Endless Defense</span>
+        {/* Footer matching main site */}
+        <footer className="site-footer">
+          <div className="site-footer-inner">
+            <span>© {new Date().getFullYear()} AsiantheJason</span>
+            <nav className="site-footer-nav">
+              <Link href="/about" className="site-footer-link">
+                About
+              </Link>
+              <Link href="/privacy" className="site-footer-link">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="site-footer-link">
+                Terms
+              </Link>
+              <Link href="/contact" className="site-footer-link">
+                Contact
+              </Link>
+            </nav>
+          </div>
         </footer>
       </main>
 
@@ -861,13 +877,37 @@ export default function ProfilePage() {
           color: #fecaca;
         }
 
-        .profile-footer {
+        /* Shared site footer (matches main page) */
+        .site-footer {
           margin-top: auto;
-          padding: 16px 24px 0;
+          padding: 16px 24px 8px;
+          font-size: 12px;
+        }
+
+        .site-footer-inner {
+          max-width: 1200px;
+          margin: 0 auto;
           display: flex;
           justify-content: space-between;
-          font-size: 12px;
+          align-items: center;
+          gap: 16px;
           opacity: 0.7;
+        }
+
+        .site-footer-nav {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+
+        .site-footer-link {
+          color: #9ca3af;
+          text-decoration: none;
+        }
+
+        .site-footer-link:hover {
+          color: #e5e7eb;
+          text-decoration: underline;
         }
 
         @media (max-width: 700px) {
@@ -875,9 +915,8 @@ export default function ProfilePage() {
             padding: 16px 16px 18px;
           }
 
-          .profile-footer {
+          .site-footer-inner {
             flex-direction: column;
-            gap: 4px;
             align-items: center;
             text-align: center;
           }
