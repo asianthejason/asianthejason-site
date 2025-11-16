@@ -173,9 +173,18 @@ function updatePlayerHealthBar() {
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
 }
 
-// pill-ish mini-button for bulk buys
-function createQuantityButton(scene, x, y, weaponIndex, qty, unitCost, labelRef, targetArray = shopTabButtons) {
-  const BTN_W = 52, BTN_H = 30, R = 10;
+// -------- Modern-ish pill button for bulk buys --------
+function createQuantityButton(
+  scene,
+  x,
+  y,
+  weaponIndex,
+  qty,
+  unitCost,
+  labelRef,
+  targetArray = shopTabButtons
+) {
+  const BTN_W = 52, BTN_H = 30, R = 999; // full pill
 
   const buy = () => {
     const w = weapons[weaponIndex];
@@ -201,10 +210,12 @@ function createQuantityButton(scene, x, y, weaponIndex, qty, unitCost, labelRef,
   bg._hovered = false;
   bg._draw = () => {
     bg.clear();
-    const fill   = bg._hovered ? 0x5a5a5a : 0x3a3a3a;
-    const stroke = bg._hovered ? 0xffff88 : 0xffffff;
-    bg.fillStyle(fill, 1)
+    const fill   = bg._hovered ? 0x111827 : 0x020617;
+    const stroke = bg._hovered ? 0x38bdf8 : 0x4b5563;
+
+    bg.fillStyle(fill, 0.95)
       .fillRoundedRect(x - BTN_W/2, y - BTN_H/2, BTN_W, BTN_H, R);
+
     bg.lineStyle(2, stroke, 1)
       .strokeRoundedRect(x - BTN_W/2, y - BTN_H/2, BTN_W, BTN_H, R);
   };
@@ -218,41 +229,71 @@ function createQuantityButton(scene, x, y, weaponIndex, qty, unitCost, labelRef,
   .on('pointerout',  () => { bg._hovered = false; bg._draw(); scene.input.setDefaultCursor('default'); })
   .on('pointerdown', buy);
 
-  const text = scene.add.text(x, y, `x${qty}`, { font: '16px Arial', fill: '#ffffff' })
+  const text = scene.add.text(x, y, `x${qty}`, {
+    font: '14px "Inter", Arial',
+    fill: '#e5e7eb'
+  })
     .setOrigin(0.5)
     .setScrollFactor(0)
     .setDepth(2003)
     .setVisible(false)
     .setInteractive({ useHandCursor: true });
 
-  text.on('pointerover', () => { bg._hovered = true;  bg._draw(); text.setStyle({ fill: '#ffff99' }); });
-  text.on('pointerout',  () => { bg._hovered = false; bg._draw(); text.setStyle({ fill: '#ffffff' }); });
+  text.on('pointerover', () => {
+    bg._hovered = true;
+    bg._draw();
+    text.setStyle({ fill: '#f9fafb' });
+  });
+  text.on('pointerout',  () => {
+    bg._hovered = false;
+    bg._draw();
+    text.setStyle({ fill: '#e5e7eb' });
+  });
   text.on('pointerdown', buy);
 
   targetArray.push(bg, text);
   return { bg, text };
 }
 
-// shared upgrade row factory
-function createUpgrade(x, y, labelText, cost, applyCallback, tabArray = upgradeTabButtons, costIncreaseFactor = 1.5) {
+// -------- Shared upgrade row factory (modern card style) --------
+function createUpgrade(
+  x,
+  y,
+  labelText,
+  cost,
+  applyCallback,
+  tabArray = upgradeTabButtons,
+  costIncreaseFactor = 1.5
+) {
   let currentCost = cost;
 
-  const divider = this.add.rectangle(x, y - 36, 500, 2, 0xffffff)
-    .setScrollFactor(0).setDepth(2001).setVisible(false);
+  const divider = this.add.rectangle(x, y - 40, 520, 1, 0x1f2937)
+    .setScrollFactor(0)
+    .setDepth(2001)
+    .setVisible(false);
 
-  const bg = this.add.rectangle(x, y, 500, 60, 0x444444, 1)
-    .setStrokeStyle(2, 0xffffff)
-    .setScrollFactor(0).setDepth(2001).setVisible(false);
+  const bg = this.add.rectangle(x, y, 520, 68, 0x020617, 0.9)
+    .setStrokeStyle(2, 0x374151)
+    .setScrollFactor(0)
+    .setDepth(2001)
+    .setVisible(false);
 
   const label = this.add.text(x, y, `${labelText} — $${currentCost}`, {
-    font: '22px Arial', fill: '#ffffff'
-  }).setOrigin(0.5).setScrollFactor(0).setDepth(2002).setVisible(false)
+    font: '20px "Inter", Arial',
+    fill: '#e5e7eb'
+  })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(2002)
+    .setVisible(false)
     .setInteractive({ useHandCursor: true });
 
   label.on('pointerdown', () => {
     if (playerMoney < currentCost) {
       label.setText('Not enough $');
-      this.time.delayedCall(1000, () => label.setText(`${labelText} — $${currentCost}`));
+      this.time.delayedCall(1000, () =>
+        label.setText(`${labelText} — $${currentCost}`)
+      );
       return;
     }
     playerMoney -= currentCost;
@@ -264,35 +305,55 @@ function createUpgrade(x, y, labelText, cost, applyCallback, tabArray = upgradeT
     updateWeaponAndHealthUI(this);
     updatePlayerHealthBar();
 
-    // bump price
+    // bump price (or stay flat if factor = 1)
     currentCost = Math.ceil(currentCost * costIncreaseFactor);
     label.setText(`${labelText} — $${currentCost}`);
   });
 
-  label.on('pointerover', () => { bg.setFillStyle(0x666666); label.setStyle({ fill: '#ffff99' }); });
-  label.on('pointerout',  () => { bg.setFillStyle(0x444444); label.setStyle({ fill: '#ffffff' }); });
+  label.on('pointerover', () => {
+    bg.setFillStyle(0x020617, 1);
+    bg.setStrokeStyle(2, 0x38bdf8);
+    label.setStyle({ fill: '#f9fafb' });
+  });
+  label.on('pointerout',  () => {
+    bg.setFillStyle(0x020617, 0.9);
+    bg.setStrokeStyle(2, 0x374151);
+    label.setStyle({ fill: '#e5e7eb' });
+  });
 
   tabArray.push(divider, bg, label);
 }
 
-// tab button with hover + active draw
+// -------- Modern top tab button with hover + active draw --------
 function createTabButton(scene, x, y, label, tabName) {
-  const width = 100, height = 40, radius = 8;
+  const width  = 130;
+  const height = 40;
+  const radius = 999; // pill
 
   const bg = scene.add.graphics()
-    .setScrollFactor(0).setDepth(2001).setVisible(false)
+    .setScrollFactor(0)
+    .setDepth(2001)
+    .setVisible(false)
     .setInteractive(
       new Phaser.Geom.Rectangle(x - width/2, y - height/2, width, height),
       Phaser.Geom.Rectangle.Contains
     )
-    .on('pointerdown', () => { switchTab(tabName); updateTabVisuals(); });
+    .on('pointerdown', () => {
+      switchTab(tabName);
+      updateTabVisuals();
+    });
 
   bg.tabName = tabName;
   bg._hovered = false;
 
   const text = scene.add.text(x, y, label, {
-    font: '16px Arial', fill: '#ffffff'
-  }).setOrigin(0.5).setScrollFactor(0).setDepth(2002).setVisible(false)
+    font: '15px "Inter", Arial',
+    fill: '#e5e7eb'
+  })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(2002)
+    .setVisible(false)
     .setInteractive({ useHandCursor: true });
 
   text.tabName = tabName;
@@ -310,13 +371,25 @@ function createTabButton(scene, x, y, label, tabName) {
     const isHovered = bg._hovered && !isActive;
     bg.clear();
 
-    bg.fillStyle(isActive ? 0x222222 : (isHovered ? 0x666666 : 0x444444), 1);
+    const fillColor =
+      isActive  ? 0x0f172a :
+      isHovered ? 0x020617 :
+                  0x020617;
+
+    const strokeColor =
+      isActive  ? 0x38bdf8 :
+      isHovered ? 0x4b5563 :
+                  0x1f2937;
+
+    bg.fillStyle(fillColor, isActive ? 0.95 : 0.8);
     bg.fillRoundedRect(x - width/2, y - height/2, width, height, radius);
 
-    bg.lineStyle(2, isActive ? 0xffffff : (isHovered ? 0xffff88 : 0x888888), 1);
+    bg.lineStyle(2, strokeColor, 1);
     bg.strokeRoundedRect(x - width/2, y - height/2, width, height, radius);
 
-    text.setStyle({ fill: isHovered ? '#ffff99' : '#ffffff' });
+    text.setStyle({
+      fill: isActive ? '#bfdbfe' : (isHovered ? '#f9fafb' : '#e5e7eb')
+    });
   };
 
   bg._draw();
@@ -324,7 +397,9 @@ function createTabButton(scene, x, y, label, tabName) {
   return [bg, text];
 }
 
-function updateTabVisuals() {/* reserved for per-tab text coloring if needed */}
+function updateTabVisuals() {
+  // currently all tab colors handled by _draw()
+}
 
 // =====================
 //  Create
@@ -549,9 +624,46 @@ function create() {
   this.topStatusText = this.add.text(config.width / 2, 200, '', topInfoStyle).setOrigin(0.5,0).setScrollFactor(0).setDepth(1000);
   updateWeaponAndHealthUI(this);
 
-  // Shop panel
-  shopPanel = this.add.rectangle(960, 540, 700, 500, 0x222222, 0.9)
-    .setStrokeStyle(4, 0xffffff).setScrollFactor(0).setDepth(2000).setVisible(false);
+  // =====================
+  //  Modern Shop panel
+  // =====================
+  shopPanel = this.add.rectangle(960, 540, 820, 520, 0x020617, 0.96)
+    .setStrokeStyle(3, 0x1f2937)
+    .setScrollFactor(0)
+    .setDepth(2000)
+    .setVisible(false);
+
+  // soft inner glow border
+  const shopPanelGlow = this.add.rectangle(960, 540, 820, 520)
+    .setStrokeStyle(2, 0x38bdf8, 0.5)
+    .setScrollFactor(0)
+    .setDepth(1999)
+    .setVisible(false);
+
+  shopButtons.push(shopPanel, shopPanelGlow);
+
+  const headerY   = shopPanel.y - shopPanel.height / 2 + 36;
+  const subtitleY = headerY + 20;
+
+  const panelTitle = this.add.text(960, headerY, 'Supply Depot', {
+    font: '24px "Inter", Arial',
+    fill: '#f9fafb'
+  })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(2001)
+    .setVisible(false);
+
+  const panelSubtitle = this.add.text(960, subtitleY, 'Press F to open / close the shop', {
+    font: '14px "Inter", Arial',
+    fill: '#9ca3af'
+  })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(2001)
+    .setVisible(false);
+
+  shopButtons.push(panelTitle, panelSubtitle);
 
   const panelX = shopPanel.x;
 
@@ -560,15 +672,15 @@ function create() {
   const tabNames  = ['shop','upgrade','pistol','shotgun','sniper','machinegun'];
   const numTabs   = tabLabels.length;
 
-  const panelInnerWidth = shopPanel.width - 40;
+  const panelInnerWidth = shopPanel.width - 60;
   const tabSpacing      = panelInnerWidth / numTabs;
-  const startX          = shopPanel.x - shopPanel.width/2 + 20 + tabSpacing/2;
-  const tabY            = shopPanel.y - shopPanel.height/2 + 70;
+  const startX          = shopPanel.x - shopPanel.width/2 + 30 + tabSpacing/2;
+  const tabY            = subtitleY + 40;
 
   // unified content anchors
-  const CONTENT_TOP   = tabY + 110; // everything starts below tabs
-  const ROW_SPACING   = 80;         // shop row spacing
-  const UPG_SPACING   = 90;         // upgrade row spacing
+  const CONTENT_TOP   = tabY + 70; // everything starts below tabs
+  const ROW_SPACING   = 80;        // shop row spacing
+  const UPG_SPACING   = 90;        // upgrade row spacing
 
   for (let i = 0; i < numTabs; i++) {
     const x = startX + i * tabSpacing;
@@ -587,14 +699,25 @@ function create() {
   const upgradeSpacing = UPG_SPACING;
 
   {
-    const divider = this.add.rectangle(panelX, upgradeY - 36, 500, 2, 0xffffff)
-      .setScrollFactor(0).setDepth(2001).setVisible(false);
-    const bg = this.add.rectangle(panelX, upgradeY, 500, 60, 0x444444, 1)
-      .setStrokeStyle(2, 0xffffff).setScrollFactor(0).setDepth(2001).setVisible(false);
+    const divider = this.add.rectangle(panelX, upgradeY - 40, 520, 1, 0x1f2937)
+      .setScrollFactor(0)
+      .setDepth(2001)
+      .setVisible(false);
+
+    const bg = this.add.rectangle(panelX, upgradeY, 520, 68, 0x020617, 0.9)
+      .setStrokeStyle(2, 0x374151)
+      .setScrollFactor(0)
+      .setDepth(2001)
+      .setVisible(false);
 
     const label = this.add.text(panelX, upgradeY, `Upgrade 💪 Max Health +50 - $100`, {
-      font: '22px Arial', fill: '#ffffff'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(2002).setVisible(false)
+      font: '20px "Inter", Arial',
+      fill: '#e5e7eb'
+    })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(2002)
+      .setVisible(false)
       .setInteractive({ useHandCursor: true });
 
     let maxHpCost = 100;
@@ -613,8 +736,16 @@ function create() {
         this.time.delayedCall(1000, () => label.setText(`Upgrade 💪 Max Health +50 - $${maxHpCost}`));
       }
     });
-    label.on('pointerover', () => { bg.setFillStyle(0x666666); label.setStyle({ fill: '#ffff99' }); });
-    label.on('pointerout',  () => { bg.setFillStyle(0x444444); label.setStyle({ fill: '#ffffff' }); });
+    label.on('pointerover', () => {
+      bg.setFillStyle(0x020617, 1);
+      bg.setStrokeStyle(2, 0x38bdf8);
+      label.setStyle({ fill: '#f9fafb' });
+    });
+    label.on('pointerout',  () => {
+      bg.setFillStyle(0x020617, 0.9);
+      bg.setStrokeStyle(2, 0x374151);
+      label.setStyle({ fill: '#e5e7eb' });
+    });
 
     upgradeTabButtons.push(divider, bg, label);
   }
@@ -705,18 +836,17 @@ function create() {
     if (i === 0) {
       const cost = 30;
 
-      // full-width/height interactive box (matches other tabs)
-      const FULL_W = 500, FULL_H = 60, fullX = 960;
-      const fullBg = this.add.rectangle(fullX, y, FULL_W, FULL_H, 0x444444, 1)
-        .setStrokeStyle(2, 0xffffff)
+      const FULL_W = 520, FULL_H = 68, fullX = 960;
+      const fullBg = this.add.rectangle(fullX, y, FULL_W, FULL_H, 0x020617, 0.95)
+        .setStrokeStyle(2, 0x38bdf8)
         .setScrollFactor(0)
         .setDepth(2002)
         .setVisible(false)
         .setInteractive({ useHandCursor: true });
 
       const label = this.add.text(fullX, y, `Buy Medical Kit - $${cost}`, {
-        font: '22px Arial',
-        fill: '#ffffff'
+        font: '20px "Inter", Arial',
+        fill: '#e5e7eb'
       })
         .setOrigin(0.5)
         .setScrollFactor(0)
@@ -724,8 +854,16 @@ function create() {
         .setVisible(false)
         .setInteractive({ useHandCursor: true });
 
-      const hoverOn  = () => { fullBg.setFillStyle(0x666666); label.setStyle({ fill: '#ffff99' }); };
-      const hoverOff = () => { fullBg.setFillStyle(0x444444); label.setStyle({ fill: '#ffffff' }); };
+      const hoverOn  = () => {
+        fullBg.setFillStyle(0x020617, 1);
+        fullBg.setStrokeStyle(2, 0x38bdf8);
+        label.setStyle({ fill: '#f9fafb' });
+      };
+      const hoverOff = () => {
+        fullBg.setFillStyle(0x020617, 0.95);
+        fullBg.setStrokeStyle(2, 0x374151);
+        label.setStyle({ fill: '#e5e7eb' });
+      };
 
       fullBg.on('pointerover', hoverOn);
       fullBg.on('pointerout',  hoverOff);
@@ -757,20 +895,22 @@ function create() {
     // Other weapons → Buy Clip + bulk
     const cost = CLIP_PRICES[w.name];
 
-    // divider between rows (not above the very first row)
-    if (i > 0) {
-      const divider = this.add.rectangle(960, y - 36, 500, 2, 0xffffff)
-        .setScrollFactor(0).setDepth(2001).setVisible(false);
-      shopTabButtons.push(divider);
-    }
+    // divider between rows
+    const divider = this.add.rectangle(960, y - 40, 520, 1, 0x1f2937)
+      .setScrollFactor(0)
+      .setDepth(2001)
+      .setVisible(false);
+    shopTabButtons.push(divider);
 
-    const rowBg = this.add.rectangle(960, y, 500, 60, 0x222222, 0.35)
-      .setScrollFactor(0).setDepth(2001).setVisible(false);
+    const rowBg = this.add.rectangle(960, y, 520, 68, 0x020617, 0.4)
+      .setScrollFactor(0)
+      .setDepth(2001)
+      .setVisible(false);
     shopTabButtons.push(rowBg);
 
     // Centered group: main + x10/x50/x100
     const ROW_CENTER = 960;
-    const MAIN_W = 330, MAIN_H = 50;
+    const MAIN_W = 320, MAIN_H = 52;
     const BTN_W = 52, BETWEEN = 8, GAP_FROM_MAIN = 14;
 
     const groupWidth = MAIN_W + GAP_FROM_MAIN + (BTN_W * 3) + (BETWEEN * 2);
@@ -778,13 +918,21 @@ function create() {
 
     const mainX = groupLeft + MAIN_W / 2;
 
-    const mainBg = this.add.rectangle(mainX, y, MAIN_W, MAIN_H, 0x444444, 1)
-      .setStrokeStyle(2, 0xffffff).setScrollFactor(0).setDepth(2002).setVisible(false);
+    const mainBg = this.add.rectangle(mainX, y, MAIN_W, MAIN_H, 0x020617, 0.95)
+      .setStrokeStyle(2, 0x374151)
+      .setScrollFactor(0)
+      .setDepth(2002)
+      .setVisible(false);
     shopTabButtons.push(mainBg);
 
     const label = this.add.text(mainX, y, `Buy 1 ${w.name} Clip - $${cost}`, {
-      font: '20px Arial', fill: '#ffffff'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(2003).setVisible(false)
+      font: '18px "Inter", Arial',
+      fill: '#e5e7eb'
+    })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(2003)
+      .setVisible(false)
       .setInteractive({ useHandCursor: true });
 
     label.on('pointerdown', () => {
@@ -798,8 +946,16 @@ function create() {
         this.time.delayedCall(1000, () => label.setText(`Buy 1 ${w.name} Clip - $${cost}`));
       }
     });
-    label.on('pointerover', () => { mainBg.setFillStyle(0x666666); label.setStyle({ fill: '#ffff99' }); });
-    label.on('pointerout',  () => { mainBg.setFillStyle(0x444444); label.setStyle({ fill: '#ffffff' }); });
+    label.on('pointerover', () => {
+      mainBg.setFillStyle(0x020617, 1);
+      mainBg.setStrokeStyle(2, 0x38bdf8);
+      label.setStyle({ fill: '#f9fafb' });
+    });
+    label.on('pointerout',  () => {
+      mainBg.setFillStyle(0x020617, 0.95);
+      mainBg.setStrokeStyle(2, 0x374151);
+      label.setStyle({ fill: '#e5e7eb' });
+    });
 
     // pills to the right of main button
     const mainRightEdge = groupLeft + MAIN_W;
@@ -822,6 +978,7 @@ function create() {
     gamePaused  = shopVisible;
 
     shopPanel.setVisible(shopVisible);
+    shopPanelGlow.setVisible(shopVisible);
 
     if (shopVisible) {
       this.physics.world.pause();
