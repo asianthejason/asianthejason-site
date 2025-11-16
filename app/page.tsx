@@ -382,7 +382,7 @@ export default function HomePage() {
     }
   };
 
-  // ---------- Auth actions (with email verification) ----------
+  // ---------- Auth actions (with enforced email verification) ----------
   const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -443,46 +443,56 @@ export default function HomePage() {
           console.error("Error sending verification email", err);
         }
 
-        // If this signup came from a Game Over prompt, save that run.
+        // Force them to verify before being considered "logged in"
+        await auth.signOut();
+
         if (pendingScore) {
-          await savePendingScore(cred.user);
+          // Don't save unverified runs; clear it so the game can move on.
+          setPendingScore(null);
         }
+
+        setAuthMode("login");
+        setAuthPassword("");
 
         setAuthStatus(
           verificationSent
-            ? "Account created. We just sent you a verification email — check your inbox and click the link to verify your account."
-            : "Account created. (We couldn’t send a verification email automatically — you can request one again from your account.)"
+            ? "Account created. Check your email and click the verification link, then come back here and log in."
+            : "Account created, but we couldn’t send a verification email automatically. Try again later or contact the site owner."
         );
-        setAuthPassword("");
-        setShowAuthForm(false);
       } else {
         const cred = await auth.signInWithEmailAndPassword(
           authEmail,
           authPassword
         );
 
-        if (pendingScore) {
-          await savePendingScore(cred.user);
-        }
-
-        // If the user isn't verified yet, send another verification email
-        let statusMessage = "Signed in successfully.";
+        // Block login if email not verified
         if (!cred.user.emailVerified) {
+          let msg =
+            "You need to verify your email before logging in. We just sent you another verification email.";
           try {
             await cred.user.sendEmailVerification({
               url: window.location.origin + "/",
               handleCodeInApp: false,
             });
-            statusMessage =
-              "Signed in, but your email isn’t verified yet. We just sent you another verification email.";
           } catch (err) {
-            console.error("Error re-sending verification email on login", err);
-            statusMessage =
-              "Signed in, but your email isn’t verified yet and we couldn’t send a new verification email automatically.";
+            console.error("Error sending verification email on login", err);
+            msg =
+              "You need to verify your email before logging in, and we couldn’t send a new verification email automatically.";
           }
+
+          await auth.signOut();
+          setAuthMode("login");
+          setAuthPassword("");
+          setAuthError(msg);
+          return;
         }
 
-        setAuthStatus(statusMessage);
+        // Only verified users get to save runs / be logged in
+        if (pendingScore) {
+          await savePendingScore(cred.user);
+        }
+
+        setAuthStatus("Signed in successfully.");
         setAuthPassword("");
         setShowAuthForm(false);
       }
@@ -1020,7 +1030,8 @@ export default function HomePage() {
               <div>
                 <div className="auth-modal-title">Save your runs</div>
                 <div className="auth-modal-subtitle">
-                  Log in or sign up to appear on the leaderboard.
+                  Log in or sign up to appear on the leaderboard. New accounts
+                  need to verify their email first.
                 </div>
               </div>
               <button
