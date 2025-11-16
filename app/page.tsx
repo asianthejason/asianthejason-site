@@ -382,7 +382,7 @@ export default function HomePage() {
     }
   };
 
-  // ---------- Auth actions ----------
+  // ---------- Auth actions (with email verification) ----------
   const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -431,12 +431,28 @@ export default function HomePage() {
             );
         }
 
+        // Send verification email
+        let verificationSent = false;
+        try {
+          await cred.user.sendEmailVerification({
+            url: window.location.origin + "/",
+            handleCodeInApp: false,
+          });
+          verificationSent = true;
+        } catch (err) {
+          console.error("Error sending verification email", err);
+        }
+
         // If this signup came from a Game Over prompt, save that run.
         if (pendingScore) {
           await savePendingScore(cred.user);
         }
 
-        setAuthStatus("Account created. You are now signed in.");
+        setAuthStatus(
+          verificationSent
+            ? "Account created. We just sent you a verification email — check your inbox and click the link to verify your account."
+            : "Account created. (We couldn’t send a verification email automatically — you can request one again from your account.)"
+        );
         setAuthPassword("");
         setShowAuthForm(false);
       } else {
@@ -449,7 +465,24 @@ export default function HomePage() {
           await savePendingScore(cred.user);
         }
 
-        setAuthStatus("Signed in successfully.");
+        // If the user isn't verified yet, send another verification email
+        let statusMessage = "Signed in successfully.";
+        if (!cred.user.emailVerified) {
+          try {
+            await cred.user.sendEmailVerification({
+              url: window.location.origin + "/",
+              handleCodeInApp: false,
+            });
+            statusMessage =
+              "Signed in, but your email isn’t verified yet. We just sent you another verification email.";
+          } catch (err) {
+            console.error("Error re-sending verification email on login", err);
+            statusMessage =
+              "Signed in, but your email isn’t verified yet and we couldn’t send a new verification email automatically.";
+          }
+        }
+
+        setAuthStatus(statusMessage);
         setAuthPassword("");
         setShowAuthForm(false);
       }
@@ -1283,25 +1316,6 @@ export default function HomePage() {
           font-size: 14px;
           line-height: 1.5;
           opacity: 0.9;
-        }
-
-        .tip-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 12px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px dashed rgba(255, 255, 255, 0.18);
-          font-size: 12px;
-          margin-top: 4px;
-        }
-
-        .tip-label {
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          font-weight: 600;
-          opacity: 0.85;
         }
 
         .leaderboard-subtitle {
