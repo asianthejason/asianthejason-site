@@ -2,12 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { auth } from "@/lib/firebase";
-import {
-  onAuthStateChanged,
-  signOut,
-  type User as FirebaseUser,
-} from "firebase/auth";
 
 const GAMES = [
   {
@@ -32,25 +26,40 @@ const GAMES = [
 
 export default function HomePage() {
   const currentYear = new Date().getFullYear();
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
 
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
+
+  // Hook into global firebase (loaded via <Script> on other pages)
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+    if (typeof window === "undefined") return;
+
+    const fb = (window as any).firebase;
+    if (!fb || !fb.auth) return;
+
+    const unsubscribe = fb.auth().onAuthStateChanged((user: any) => {
+      if (user) {
+        setUserDisplayName(user.displayName || user.email || "Player");
+      } else {
+        setUserDisplayName(null);
+      }
     });
-    return () => unsub();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error("Error signing out:", err);
-    }
-  };
+  const handleSignOut = () => {
+    if (typeof window === "undefined") return;
+    const fb = (window as any).firebase;
+    if (!fb || !fb.auth) return;
 
-  const displayName =
-    currentUser?.displayName || currentUser?.email || "Player";
+    fb.auth()
+      .signOut()
+      .catch((err: any) => {
+        console.error("Error signing out:", err);
+      });
+  };
 
   return (
     <>
@@ -65,13 +74,13 @@ export default function HomePage() {
                 Home
               </Link>
 
-              {currentUser && (
+              {userDisplayName && (
                 <span className="site-header-text">
-                  Signed in as <strong>{displayName}</strong>
+                  Signed in as <strong>{userDisplayName}</strong>
                 </span>
               )}
 
-              {currentUser ? (
+              {userDisplayName ? (
                 <>
                   <Link href="/profile" className="account-btn subtle">
                     Profile
@@ -85,7 +94,7 @@ export default function HomePage() {
                   </button>
                 </>
               ) : (
-                <Link href="/auth" className="account-btn primary">
+                <Link href="/profile" className="account-btn primary">
                   Login / Sign up
                 </Link>
               )}
