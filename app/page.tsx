@@ -1,1035 +1,185 @@
 // app/page.tsx
-"use client";
-
-import { useState, useEffect, FormEvent } from "react";
-import Script from "next/script";
 import Link from "next/link";
 
-type TabKey = "instructions" | "leaderboard" | "review";
-
-interface ScoreRow {
-  id: string;
-  rank: number;
-  name: string;
-  enemiesKilled: number;
-  distance: number;
-  bulletsFired: {
-    Pistol?: number;
-    Shotgun?: number;
-    Sniper?: number;
-    "Machine Gun"?: number;
-  };
-  daysAgo: number;
-}
-
-interface ReviewRow {
-  id: string;
-  uid?: string;
-  name: string;
-  rating: number;
-  comment: string;
-  createdAt?: Date | null;
-}
-
-interface AuthUser {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
-
-type AuthMode = "login" | "signup";
-
-interface PendingScore {
-  distance: number;
-  enemiesKilled: number;
-  bulletsFired: {
-    Pistol?: number;
-    Shotgun?: number;
-    Sniper?: number;
-    "Machine Gun"?: number;
-  };
-}
+const GAMES = [
+  {
+    id: "wwiii",
+    title: "WWIII — Endless Defense",
+    status: "Live",
+    description:
+      "A brutal endless defense shooter. Survive waves of enemies, manage ammo, and push your distance record.",
+    href: "/wwiii",
+    tags: ["Shooter", "Endless", "PC Browser"],
+  },
+  // When you build more games, just add them here.
+  // {
+  //   id: "next-game",
+  //   title: "My Next Game",
+  //   status: "In development",
+  //   description: "Short teaser about the game.",
+  //   href: "/next-game",
+  //   tags: ["Coming soon"],
+  // },
+];
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("instructions");
-  const [scores, setScores] = useState<ScoreRow[] | null>(null);
-
-  // Reviews state
-  const [reviews, setReviews] = useState<ReviewRow[] | null>(null);
-  const [reviewRating, setReviewRating] = useState<number>(0);
-  const [reviewComment, setReviewComment] = useState<string>("");
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-  const [reviewStatus, setReviewStatus] = useState<string | null>(null);
-
-  // Auth state
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [showAuthForm, setShowAuthForm] = useState(false);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authDisplayName, setAuthDisplayName] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authStatus, setAuthStatus] = useState<string | null>(null);
-
-  // During signup we temporarily hide auth header changes so
-  // the user never appears as "logged in" for a split second.
-  const [signupVerificationInFlight, setSignupVerificationInFlight] =
-    useState(false);
-
-  // Run that the game wants to save AFTER login/signup
-  const [pendingScore, setPendingScore] = useState<PendingScore | null>(null);
-
-  // ---------- Auth listener ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const w = window as any;
-
-    if (!w.auth && w.firebase?.auth) {
-      w.auth = w.firebase.auth();
-    }
-
-    const auth = w.auth;
-    if (!auth) {
-      console.warn("Firebase auth not available on window");
-      return;
-    }
-
-    const unsub = auth.onAuthStateChanged((user: any) => {
-      if (user) {
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-        });
-      } else {
-        setCurrentUser(null);
-      }
-      setAuthReady(true);
-    });
-
-    return () => unsub();
-  }, []);
-
-  // ---------- Keep leaderboard/review names in sync with current display name ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!authReady || !currentUser) return;
-
-    const w = window as any;
-    const db = w.db;
-    if (!db || !w.firebase?.firestore) return;
-
-    const desiredName =
-      currentUser.displayName || currentUser.email || "Unknown soldier";
-
-    if (!desiredName) return;
-
-    let cancelled = false;
-
-    const syncNames = async () => {
-      try {
-        const batch = db.batch();
-        let hasChanges = false;
-
-        // Scores docs for this user
-        const scoresSnap = await db
-          .collection("scores")
-          .where("uid", "==", currentUser.uid)
-          .get();
-
-        scoresSnap.forEach((doc: any) => {
-          const d = doc.data() || {};
-          if (d.name !== desiredName) {
-            batch.update(doc.ref, { name: desiredName });
-            hasChanges = true;
-          }
-        });
-
-        // Reviews docs for this user
-        const reviewsSnap = await db
-          .collection("reviews")
-          .where("uid", "==", currentUser.uid)
-          .get();
-
-        reviewsSnap.forEach((doc: any) => {
-          const d = doc.data() || {};
-          if (d.name !== desiredName) {
-            batch.update(doc.ref, { name: desiredName });
-            hasChanges = true;
-          }
-        });
-
-        if (!cancelled && hasChanges) {
-          await batch.commit();
-        }
-      } catch (err) {
-        console.error("Error syncing display name to scores/reviews", err);
-      }
-    };
-
-    syncNames();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authReady, currentUser?.uid, currentUser?.displayName, currentUser?.email]);
-
-  // ---------- Listen for "open auth" from Phaser ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const handler = (event: any) => {
-      const detail = event?.detail || {};
-      const run = detail.run || (window as any).wwiiiPendingScore;
-
-      if (run) {
-        setPendingScore({
-          distance: run.distance ?? 0,
-          enemiesKilled: run.enemiesKilled ?? 0,
-          bulletsFired: run.bulletsFired || {},
-        });
-      }
-
-      setShowAuthForm(true);
-      setAuthMode("signup");
-      setAuthError(null);
-      setAuthStatus(null);
-    };
-
-    window.addEventListener("wwiii-open-auth", handler as any);
-    return () =>
-      window.removeEventListener("wwiii-open-auth", handler as any);
-  }, []);
-
-  // ---------- Ensure game canvas exists; reload page if not ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const timeoutId = window.setTimeout(() => {
-      const container = document.getElementById("gameContainer");
-      const hasCanvas = !!container?.querySelector("canvas");
-
-      if (!hasCanvas) {
-        try {
-          const guardKey = "wwiiiLastReloadAt";
-          const now = Date.now();
-          const last = window.sessionStorage.getItem(guardKey);
-          if (!last || now - Number(last) > 5000) {
-            window.sessionStorage.setItem(guardKey, String(now));
-            window.location.reload();
-          }
-        } catch (err) {
-          // If sessionStorage is unavailable, just reload once
-          window.location.reload();
-        }
-      }
-    }, 1500);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, []);
-
-  // ---------- Leaderboard listener ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let unsubscribe: (() => void) | undefined;
-
-    try {
-      const w = window as any;
-      const db = w?.db;
-      if (!db) {
-        console.warn("Firestore db not found on window");
-        return;
-      }
-
-      unsubscribe = db
-        .collection("scores")
-        .orderBy("distance", "desc")
-        .limit(10)
-        .onSnapshot((snapshot: any) => {
-          if (snapshot.empty) {
-            setScores([]);
-            return;
-          }
-          const now = Date.now();
-          const rows: ScoreRow[] = snapshot.docs.map(
-            (doc: any, index: number) => {
-              const d = doc.data() || {};
-              const ts =
-                d.createdAt && d.createdAt.toDate
-                  ? d.createdAt.toDate()
-                  : new Date();
-              const daysAgo = Math.floor(
-                (now - ts.getTime()) / (1000 * 60 * 60 * 24)
-              );
-
-              return {
-                id: doc.id,
-                rank: index + 1,
-                name: d.name || "Unknown",
-                enemiesKilled: d.enemiesKilled ?? 0,
-                distance: d.distance ?? 0,
-                bulletsFired: d.bulletsFired || {},
-                daysAgo,
-              };
-            }
-          );
-
-          setScores(rows);
-        });
-    } catch (err) {
-      console.error("Error setting up leaderboard listener", err);
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  // ---------- Reviews listener ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let unsubscribe: (() => void) | undefined;
-
-    try {
-      const w = window as any;
-      const db = w?.db;
-      if (!db) {
-        console.warn("Firestore db not found on window (reviews)");
-        setReviews([]);
-        return;
-      }
-
-      unsubscribe = db
-        .collection("reviews")
-        .orderBy("createdAt", "desc")
-        .limit(50)
-        .onSnapshot((snapshot: any) => {
-          if (snapshot.empty) {
-            setReviews([]);
-            return;
-          }
-
-          const rows: ReviewRow[] = snapshot.docs.map((doc: any) => {
-            const d = doc.data() || {};
-            let createdAt: Date | null = null;
-            if (d.createdAt && d.createdAt.toDate) {
-              createdAt = d.createdAt.toDate();
-            }
-            return {
-              id: doc.id,
-              uid: d.uid,
-              name: d.name || "Unknown soldier",
-              rating: d.rating ?? 0,
-              comment: d.comment ?? "",
-              createdAt,
-            };
-          });
-
-          setReviews(rows);
-        });
-    } catch (err) {
-      console.error("Error setting up reviews listener", err);
-      setReviews([]);
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  // ---------- Save pending score to Firestore ----------
-  const savePendingScore = async (firebaseUser: any) => {
-    if (!pendingScore) return;
-    try {
-      const w = window as any;
-      const db = w.db;
-      if (!db || !w.firebase?.firestore) return;
-
-      const displayName =
-        firebaseUser.displayName ||
-        firebaseUser.email ||
-        currentUser?.displayName ||
-        currentUser?.email ||
-        "Unknown soldier";
-
-      await db.collection("scores").add({
-        name: displayName,
-        enemiesKilled: pendingScore.enemiesKilled,
-        distance: pendingScore.distance,
-        bulletsFired: pendingScore.bulletsFired || {},
-        uid: firebaseUser.uid,
-        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-
-      (window as any).dispatchEvent(
-        new CustomEvent("wwiii-run-saved", {
-          detail: { name: displayName },
-        })
-      );
-
-      setPendingScore(null);
-      setAuthStatus("Run saved to leaderboard.");
-    } catch (err) {
-      console.error("Error saving pending score", err);
-      setAuthError(
-        "We created your account, but couldn’t save this run. Future runs will save normally."
-      );
-    }
-  };
-
-  // ---------- Auth actions (with email verification) ----------
-  const handleAuthSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthStatus(null);
-    setAuthLoading(true);
-
-    const modeAtStart = authMode;
-    if (modeAtStart === "signup") {
-      setSignupVerificationInFlight(true);
-    }
-
-    try {
-      const w = window as any;
-      const auth = w.auth;
-      const db = w.db;
-      const firebase = w.firebase;
-      if (!auth) {
-        setAuthError("Authentication is not ready. Try again in a moment.");
-        return;
-      }
-
-      if (modeAtStart === "signup") {
-        const rawDisplayName = authDisplayName.trim();
-        if (!rawDisplayName) {
-          setAuthError("Please enter a display name.");
-          return;
-        }
-        const displayNameLower = rawDisplayName.toLowerCase();
-
-        // Create auth user (this signs them in)
-        const cred = await auth.createUserWithEmailAndPassword(
-          authEmail,
-          authPassword
-        );
-
-        await cred.user.updateProfile({
-          displayName: rawDisplayName,
-        });
-
-        // Store user profile document
-        if (db && firebase?.firestore) {
-          await db
-            .collection("users")
-            .doc(cred.user.uid)
-            .set(
-              {
-                displayName: rawDisplayName,
-                displayNameLower,
-                email: authEmail.trim(),
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-        }
-
-        // Send verification email (no custom continue URL)
-        try {
-          await cred.user.sendEmailVerification();
-          setAuthStatus(
-            "Account created. Check your inbox and junk mail for the verification email before logging in."
-          );
-        } catch (err: any) {
-          console.error("Error sending verification email on signup", err);
-          const code = err?.code || "";
-          if (code === "auth/too-many-requests") {
-            setAuthError(
-              "Account created, but we hit a temporary email limit. Wait a bit, then use 'Log in' and we'll try sending the verification again."
-            );
-          } else {
-            setAuthError(
-              "Account created, but we couldn’t send a verification email automatically. Try again later or contact the site owner."
-            );
-          }
-        }
-
-        // Force them to verify before being considered logged in
-        await auth.signOut();
-
-        // The current run won't be saved until after verification + login
-        setPendingScore(null);
-        setAuthPassword("");
-        // Keep the signup modal open with the status/error message
-      } else {
-        // Log in
-        const cred = await auth.signInWithEmailAndPassword(
-          authEmail,
-          authPassword
-        );
-
-        // Refresh user to get up-to-date emailVerified flag
-        await cred.user.reload();
-
-        if (!cred.user.emailVerified) {
-          // Try to send / re-send verification email
-          try {
-            await cred.user.sendEmailVerification();
-            setAuthError(
-              "You need to verify your email before logging in. We just sent a verification link to your inbox."
-            );
-          } catch (err: any) {
-            console.error("Error sending verification email on login", err);
-            const code = err?.code || "";
-            if (code === "auth/too-many-requests") {
-              setAuthError(
-                "You need to verify your email before logging in, and we’ve temporarily hit an email limit. Wait a bit and try again."
-              );
-            } else {
-              setAuthError(
-                "You need to verify your email before logging in, and we couldn’t send a new verification email automatically."
-              );
-            }
-          }
-
-          // Don't keep them signed in if not verified
-          await auth.signOut();
-          return;
-        }
-
-        // Email is verified – proceed
-        if (pendingScore) {
-          await savePendingScore(cred.user);
-        }
-
-        setAuthStatus("Signed in successfully.");
-        setAuthPassword("");
-        setShowAuthForm(false);
-      }
-    } catch (err: any) {
-      console.error("Auth error", err);
-      const code = err?.code || "";
-      let msg =
-        err?.message || "Something went wrong. Please check your details.";
-      if (code === "auth/email-already-in-use") {
-        msg = "That email is already in use. Try logging in instead.";
-      } else if (code === "auth/invalid-email") {
-        msg = "That email address doesn’t look valid.";
-      } else if (code === "auth/weak-password") {
-        msg = "Password should be at least 6 characters.";
-      } else if (code === "permission-denied") {
-        msg =
-          "We couldn't finish creating your account because of a permissions issue. Please try again or contact the site owner.";
-      }
-      setAuthError(msg);
-    } finally {
-      setAuthLoading(false);
-      if (modeAtStart === "signup") {
-        setSignupVerificationInFlight(false);
-      }
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      const w = window as any;
-      const auth = w.auth;
-      if (!auth) return;
-      await auth.signOut();
-      setAuthStatus("Signed out.");
-      setShowAuthForm(false);
-      setPendingScore(null);
-    } catch (err) {
-      console.error("Sign out error", err);
-    }
-  };
-
-  // ---------- Review submit ----------
-  const handleReviewSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setReviewError(null);
-    setReviewStatus(null);
-
-    if (!currentUser) {
-      setReviewError("You must be signed in to leave a review.");
-      return;
-    }
-    if (reviewRating < 1 || reviewRating > 5) {
-      setReviewError("Please choose a rating from 1 to 5 stars.");
-      return;
-    }
-    const trimmedComment = reviewComment.trim();
-    if (!trimmedComment) {
-      setReviewError("Please write a short comment about the game.");
-      return;
-    }
-
-    try {
-      setReviewSubmitting(true);
-      const w = window as any;
-      const db = w.db;
-      if (!db || !w.firebase?.firestore) {
-        setReviewError("Reviews are not available right now. Try again later.");
-        return;
-      }
-
-      const name =
-        currentUser.displayName || currentUser.email || "Unknown soldier";
-
-      await db.collection("reviews").add({
-        uid: currentUser.uid,
-        name,
-        rating: reviewRating,
-        comment: trimmedComment,
-        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-
-      setReviewStatus("Thanks for your review!");
-      setReviewComment("");
-    } catch (err: any) {
-      console.error("Error submitting review", err);
-      if (err?.code === "permission-denied") {
-        setReviewError(
-          "Your review was rejected by the server (permission denied). The site owner needs to update Firestore security rules for the 'reviews' collection."
-        );
-      } else {
-        setReviewError("Could not submit your review. Please try again.");
-      }
-    } finally {
-      setReviewSubmitting(false);
-    }
-  };
-
-  // For the header, we hide auth changes during signup verification
-  const headerUser =
-    signupVerificationInFlight ? null : currentUser;
-
-  const userLabel =
-    headerUser?.displayName || headerUser?.email || "Unknown soldier";
-
-  // helper to stop key events from reaching the game
-  const stopKeyEvent = (e: any) => {
-    e.stopPropagation();
-  };
-
-  // Average rating computation
-  const averageRating =
-    reviews && reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
-      : 0;
-
-  const averageRatingRounded = averageRating
-    ? Math.round(averageRating * 10) / 10
-    : 0;
+  const currentYear = new Date().getFullYear();
 
   return (
     <>
-      {/* --- External libraries --- */}
-      <Script
-        src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        id="firebase-init"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-          const firebaseConfig = {
-            apiKey: "AIzaSyAteayH-i26BMMYrTHecwlJF1S4DKmDPXI",
-            authDomain: "wwiii-game-af0e7.firebaseapp.com",
-            projectId: "wwiii-game-af0e7",
-            storageBucket: "wwiii-game-af0e7.appspot.com",
-            messagingSenderId: "906432978784",
-            appId: "1:906432978784:web:433e23330bef1e6a3ac805"
-          };
-
-          if (!window.firebase.apps || !window.firebase.apps.length) {
-            window.firebase.initializeApp(firebaseConfig);
-          }
-          window.db = window.firebase.firestore();
-          window.auth = window.firebase.auth();
-        `,
-        }}
-      />
-      <Script src="/WWIII/main.js" strategy="afterInteractive" />
-
-      {/* --- Page UI --- */}
       <main className="site">
-        {/* Site header with auth controls */}
+        {/* Header */}
         <header className="site-header">
           <div className="site-header-inner">
-            <div className="site-title">ASIANTHEJASON</div>
+            <Link href="/" className="site-title-link">
+              <span className="site-title">ASIANTHEJASON</span>
+            </Link>
+
             <div className="site-header-spacer" />
-            <div className="site-header-account">
-              {!authReady && <span className="site-header-text">Loading…</span>}
-              {authReady && headerUser && (
-                <>
-                  <span className="site-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
-              {authReady && !headerUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    setShowAuthForm(true);
-                    setAuthMode("signup");
-                    setAuthError(null);
-                    setAuthStatus(null);
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
-              )}
-            </div>
+
+            <nav className="site-header-links">
+              <Link href="/" className="site-header-link">
+                Home
+              </Link>
+              <Link href="/wwiii" className="site-header-link">
+                WWIII Game
+              </Link>
+              <Link href="/about" className="site-header-link">
+                About
+              </Link>
+              <Link href="/contact" className="site-header-link">
+                Contact
+              </Link>
+            </nav>
           </div>
         </header>
 
-        {/* Game */}
-        <section className="game-section">
-          <div className="game-shell">
-            <div id="gameContainer" className="game-container" />
+        {/* Hero / intro */}
+        <section className="home-hero">
+          <div className="home-hero-text">
+            <p className="home-pill">Indie browser games by Jason</p>
+            <h1>Welcome to my little game corner on the internet 🎮</h1>
+            <p className="home-hero-body">
+              I&apos;m building a collection of small but ambitious web games.
+              Right now there&apos;s one main game, WWIII — Endless Defense,
+              and more are on the way.
+            </p>
+            <div className="home-hero-actions">
+              <Link href="/wwiii" className="home-hero-primary">
+                Play WWIII now
+              </Link>
+              <a href="#support" className="home-hero-secondary">
+                Support the project
+              </a>
+            </div>
+          </div>
+
+          <div className="home-hero-highlight">
+            <div className="home-hero-highlight-inner">
+              <p className="home-highlight-label">Currently featured</p>
+              <h2>WWIII — Endless Defense</h2>
+              <p>
+                An endless defense shooter with upgrades, weapons, and way too
+                many enemies. Built from scratch in Phaser and Firebase.
+              </p>
+              <Link href="/wwiii" className="home-highlight-link">
+                Jump into the battle →
+              </Link>
+            </div>
           </div>
         </section>
 
-        {/* Tabs (instructions / leaderboard / review) */}
+        {/* Support / donation section */}
+        <section id="support" className="home-support">
+          <div className="home-support-shell">
+            <h2>Support the games</h2>
+            <p>
+              These games are solo-dev projects that take a lot of late nights,
+              coffee, and testing. If you enjoy what I&apos;m building and want
+              to help keep the projects going, any support is hugely
+              appreciated.
+            </p>
+            <p className="home-support-small">
+              I&apos;ll be adding more games, features, and polish over time —
+              your support goes directly into hosting, tools, and time to keep
+              improving everything.
+            </p>
+
+            {/* Replace the href with your actual donation link (PayPal, Ko-fi, etc.) */}
+            <a
+              href="#"
+              className="home-support-btn"
+              onClick={(e) => {
+                if ((e.currentTarget as HTMLAnchorElement).getAttribute("href") === "#") {
+                  e.preventDefault();
+                  alert(
+                    "Replace the donation button link in app/page.tsx with your real donation URL (PayPal, Ko-fi, etc.)."
+                  );
+                }
+              }}
+            >
+              ⛽ Fuel the project
+            </a>
+          </div>
+        </section>
+
+        {/* Games list */}
         <section className="panel-section">
           <div className="tabs-shell">
-            <div className="tabs">
-              <button
-                className={
-                  "tab-button" +
-                  (activeTab === "instructions" ? " tab-button-active" : "")
-                }
-                onClick={() => setActiveTab("instructions")}
-              >
-                Game Instructions
-              </button>
-              <button
-                className={
-                  "tab-button" +
-                  (activeTab === "leaderboard" ? " tab-button-active" : "")
-                }
-                onClick={() => setActiveTab("leaderboard")}
-              >
-                Leaderboard
-              </button>
-              <button
-                className={
-                  "tab-button" +
-                  (activeTab === "review" ? " tab-button-active" : "")
-                }
-                onClick={() => setActiveTab("review")}
-              >
-                Review
-              </button>
-            </div>
+            <header className="home-section-header">
+              <span className="home-section-pill">Games</span>
+              <div>
+                <h2>Playable now & coming soon</h2>
+                <p>
+                  This will grow over time as I ship more projects. For now,
+                  WWIII is the main attraction.
+                </p>
+              </div>
+            </header>
 
-            {/* Tab content */}
-            <div className="tab-panel">
-              {activeTab === "instructions" && (
-                <div className="instructions">
-                  <h2>How to Play</h2>
-                  <p>
-                    Survive as long as you can in a ruined world at war. Upgrade
-                    your weapons, manage ammo, and push your distance record
-                    while the enemy never stops advancing.
-                  </p>
-                  <ul>
-                    <li>A / W / D for movement.</li>
-                    <li>Shift to raise your shield.</li>
-                    <li>
-                      Left click to fire your weapon (aim with your mouse).
-                    </li>
-                    <li>Right click to reload.</li>
-                    <li>Q / E to switch weapons.</li>
-                    <li>F to open the shop.</li>
-                    <li>Earn cash by surviving and killing enemies.</li>
-                    <li>Spend money on upgrades between runs.</li>
-                  </ul>
-                </div>
-              )}
-
-              {activeTab === "leaderboard" && (
-                <div className="leaderboard">
-                  <h2>Top Runs</h2>
-                  <div className="leaderboard-table-wrapper">
-                    <table className="leaderboard-table">
-                      <thead>
-                        <tr>
-                          <th>Rank</th>
-                          <th>Days Ago</th>
-                          <th>Player</th>
-                          <th>Enemies Killed</th>
-                          <th>Pistol Shots</th>
-                          <th>Shotgun Shots</th>
-                          <th>Sniper Shots</th>
-                          <th>MG Shots</th>
-                          <th>Distance (m)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scores === null && (
-                          <tr>
-                            <td colSpan={9}>Loading…</td>
-                          </tr>
-                        )}
-
-                        {scores !== null && scores.length === 0 && (
-                          <tr>
-                            <td colSpan={9}>
-                              No scores yet. Be the first to reach the front
-                              lines.
-                            </td>
-                          </tr>
-                        )}
-
-                        {scores &&
-                          scores.map((s) => (
-                            <tr key={s.id}>
-                              <td>{s.rank}</td>
-                              <td>{s.daysAgo}</td>
-                              <td>{s.name}</td>
-                              <td>{s.enemiesKilled}</td>
-                              <td>{s.bulletsFired?.Pistol ?? 0}</td>
-                              <td>{s.bulletsFired?.Shotgun ?? 0}</td>
-                              <td>{s.bulletsFired?.Sniper ?? 0}</td>
-                              <td>{s.bulletsFired?.["Machine Gun"] ?? 0}</td>
-                              <td>{s.distance}</td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
+            <div className="games-grid">
+              {GAMES.map((game) => (
+                <article key={game.id} className="game-card">
+                  <div className="game-card-top">
+                    <h3 className="game-card-title">{game.title}</h3>
+                    <span className="game-card-status">
+                      {game.status === "Live" ? "● Live" : "○ In development"}
+                    </span>
                   </div>
-                  <p className="leaderboard-footnote">
-                    Scores update automatically when a run finishes.
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "review" && (
-                <div className="review">
-                  <h2>Reviews</h2>
-
-                  {/* Average rating */}
-                  <div className="review-summary">
-                    {reviews === null && <span>Loading reviews…</span>}
-                    {reviews !== null && reviews.length === 0 && (
-                      <span>No reviews yet. Be the first to rate the game.</span>
-                    )}
-                    {reviews !== null && reviews.length > 0 && (
-                      <>
-                        <div className="review-summary-main">
-                          <span className="review-summary-score">
-                            {averageRatingRounded.toFixed(1)}
-                          </span>
-                          <div className="review-summary-stars">
-                            {Array.from({ length: 5 }).map((_, i) => {
-                              const starIndex = i + 1;
-                              const filled =
-                                averageRating >= starIndex - 0.5;
-                              return (
-                                <span
-                                  key={starIndex}
-                                  className={
-                                    "star-display" +
-                                    (filled ? " star-display-filled" : "")
-                                  }
-                                >
-                                  ★
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="review-summary-count">
-                          Based on {reviews.length}{" "}
-                          {reviews.length === 1 ? "review" : "reviews"}
-                        </div>
-                      </>
-                    )}
+                  <p className="game-card-body">{game.description}</p>
+                  {game.tags && game.tags.length > 0 && (
+                    <ul className="game-card-tags">
+                      {game.tags.map((tag) => (
+                        <li key={tag} className="game-card-tag">
+                          {tag}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="game-card-actions">
+                    <Link
+                      href={game.href}
+                      className={
+                        game.status === "Live"
+                          ? "game-card-primary"
+                          : "game-card-secondary"
+                      }
+                    >
+                      {game.status === "Live"
+                        ? "Play now"
+                        : "View details"}
+                    </Link>
                   </div>
-
-                  {/* Review form */}
-                  <div className="review-form-shell">
-                    {!authReady && (
-                      <p className="review-info">Checking your account…</p>
-                    )}
-
-                    {authReady && !currentUser && (
-                      <div className="review-info">
-                        <p>You need to be signed in to leave a review.</p>
-                        <button
-                          type="button"
-                          className="account-btn primary"
-                          onClick={() => {
-                            setShowAuthForm(true);
-                            setAuthMode("signup");
-                            setAuthError(null);
-                            setAuthStatus(null);
-                          }}
-                        >
-                          Sign in / Sign up
-                        </button>
-                      </div>
-                    )}
-
-                    {authReady && currentUser && (
-                      <form
-                        className="review-form"
-                        onSubmit={handleReviewSubmit}
-                      >
-                        <div className="review-stars-block">
-                          <label className="review-label">Your rating</label>
-                          <div className="review-stars-buttons">
-                            {Array.from({ length: 5 }).map((_, i) => {
-                              const starValue = i + 1;
-                              const active = starValue <= reviewRating;
-                              return (
-                                <button
-                                  key={starValue}
-                                  type="button"
-                                  className={
-                                    "star-btn" +
-                                    (active ? " star-btn-active" : "")
-                                  }
-                                  onClick={() => setReviewRating(starValue)}
-                                >
-                                  ★
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="review-field">
-                          <label className="review-label">
-                            Your comment
-                          </label>
-                          <textarea
-                            value={reviewComment}
-                            onChange={(e) =>
-                              setReviewComment(e.target.value)
-                            }
-                            onKeyDown={stopKeyEvent}
-                            onKeyUp={stopKeyEvent}
-                            onKeyPress={stopKeyEvent}
-                            rows={5}
-                            placeholder="What did you think of WWIII — Endless Defense?"
-                          />
-                        </div>
-
-                        {reviewError && (
-                          <div className="auth-message auth-error">
-                            {reviewError}
-                          </div>
-                        )}
-                        {reviewStatus && (
-                          <div className="auth-message auth-status">
-                            {reviewStatus}
-                          </div>
-                        )}
-
-                        <button
-                          type="submit"
-                          className="account-btn primary review-submit-btn"
-                          disabled={reviewSubmitting}
-                        >
-                          {reviewSubmitting
-                            ? "Submitting…"
-                            : "Submit review"}
-                        </button>
-                      </form>
-                    )}
-                  </div>
-
-                  {/* Reviews list */}
-                  <div className="review-list">
-                    {reviews !== null && reviews.length > 0 && (
-                      <>
-                        <h3 className="review-list-title">Player reviews</h3>
-                        <ul className="review-list-ul">
-                          {reviews.map((r) => (
-                            <li key={r.id} className="review-item">
-                              <div className="review-item-header">
-                                <span className="review-item-name">
-                                  {r.name}
-                                </span>
-                                <span className="review-item-stars">
-                                  {Array.from({ length: 5 }).map((_, i) => {
-                                    const starValue = i + 1;
-                                    const filled = starValue <= r.rating;
-                                    return (
-                                      <span
-                                        key={starValue}
-                                        className={
-                                          "star-display" +
-                                          (filled
-                                            ? " star-display-filled"
-                                            : "")
-                                        }
-                                      >
-                                        ★
-                                      </span>
-                                    );
-                                  })}
-                                </span>
-                              </div>
-                              {r.comment && (
-                                <p className="review-item-comment">
-                                  {r.comment}
-                                </p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+                </article>
+              ))}
             </div>
           </div>
         </section>
 
+        {/* Footer */}
         <footer className="site-footer">
-          <span>© {new Date().getFullYear()} AsiantheJason</span>
-
-          <nav className="site-footer-links">
-            <Link href="/about" className="site-footer-link">
-              About
-            </Link>
+          <span>© {currentYear} ASIANTHEJASON. All rights reserved.</span>
+          <div className="site-footer-links">
             <Link href="/privacy-policy" className="site-footer-link">
               Privacy Policy
             </Link>
@@ -1039,132 +189,10 @@ export default function HomePage() {
             <Link href="/contact" className="site-footer-link">
               Contact
             </Link>
-          </nav>
+          </div>
         </footer>
       </main>
 
-      {/* Auth modal overlay */}
-      {authReady && showAuthForm && (
-        <div className="auth-overlay">
-          <div className="auth-modal">
-            <div className="auth-modal-header">
-              <div>
-                <div className="auth-modal-title">Save your runs</div>
-                <div className="auth-modal-subtitle">
-                  Log in or sign up to appear on the leaderboard. New accounts
-                  need to verify their email first.
-                </div>
-              </div>
-              <button
-                type="button"
-                className="auth-close-btn"
-                onClick={() => setShowAuthForm(false)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="auth-toggle">
-              <button
-                type="button"
-                className={
-                  "auth-toggle-btn" +
-                  (authMode === "login" ? " auth-toggle-btn-active" : "")
-                }
-                onClick={() => {
-                  setAuthMode("login");
-                  setAuthError(null);
-                  setAuthStatus(null);
-                }}
-              >
-                Log in
-              </button>
-              <button
-                type="button"
-                className={
-                  "auth-toggle-btn" +
-                  (authMode === "signup" ? " auth-toggle-btn-active" : "")
-                }
-                onClick={() => {
-                  setAuthMode("signup");
-                  setAuthError(null);
-                  setAuthStatus(null);
-                }}
-              >
-                Sign up
-              </button>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} className="auth-fields">
-              {authMode === "signup" && (
-                <div className="auth-field">
-                  <label>Display name</label>
-                  <input
-                    type="text"
-                    value={authDisplayName}
-                    onChange={(e) => setAuthDisplayName(e.target.value)}
-                    onKeyDown={stopKeyEvent}
-                    onKeyUp={stopKeyEvent}
-                    onKeyPress={stopKeyEvent}
-                    placeholder="e.g. WastelandKing"
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="auth-field">
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  onKeyDown={stopKeyEvent}
-                  onKeyUp={stopKeyEvent}
-                  onKeyPress={stopKeyEvent}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label>Password</label>
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  onKeyDown={stopKeyEvent}
-                  onKeyUp={stopKeyEvent}
-                  onKeyPress={stopKeyEvent}
-                  required
-                  minLength={6}
-                />
-              </div>
-
-              {authError && (
-                <div className="auth-message auth-error">{authError}</div>
-              )}
-              {authStatus && (
-                <div className="auth-message auth-status">{authStatus}</div>
-              )}
-
-              <button
-                type="submit"
-                className="account-btn primary auth-submit-btn"
-                disabled={authLoading}
-              >
-                {authLoading
-                  ? authMode === "signup"
-                    ? "Creating account…"
-                    : "Signing in…"
-                  : authMode === "signup"
-                  ? "Create account"
-                  : "Log in"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Styles */}
       <style jsx global>{`
         body {
           margin: 0;
@@ -1182,15 +210,31 @@ export default function HomePage() {
         }
 
         .site-header {
-          padding: 8px 24px 12px;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          backdrop-filter: blur(22px);
+          background: linear-gradient(
+            to bottom,
+            rgba(3, 6, 19, 0.95),
+            rgba(3, 6, 19, 0.75),
+            transparent
+          );
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .site-header-inner {
-          max-width: 1200px;
+          max-width: 1100px;
           margin: 0 auto;
+          padding: 10px 16px;
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 12px;
+        }
+
+        .site-title-link {
+          text-decoration: none;
+          color: inherit;
         }
 
         .site-header-spacer {
@@ -1208,216 +252,382 @@ export default function HomePage() {
           border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .site-header-account {
+        .site-header-links {
           display: flex;
-          align-items: center;
           gap: 10px;
-          font-size: 13px;
+          align-items: center;
+          font-size: 14px;
         }
 
-        .site-header-text {
+        .site-header-link {
+          text-decoration: none;
+          color: rgba(245, 245, 245, 0.9);
+          padding: 6px 10px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          transition: background 0.18s ease, border-color 0.18s ease,
+            transform 0.12s ease;
           opacity: 0.9;
         }
 
-        .game-section {
+        .site-header-link:hover {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.16);
+          transform: translateY(-1px);
+        }
+
+        .home-hero {
+          max-width: 1100px;
+          margin: 28px auto 0;
+          padding: 0 16px;
+          display: grid;
+          grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+          gap: 32px;
+          align-items: center;
+        }
+
+        .home-hero-text h1 {
+          font-size: clamp(28px, 4vw, 40px);
+          line-height: 1.1;
+          margin: 10px 0 14px;
+        }
+
+        .home-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border-radius: 999px;
+          padding: 6px 12px;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          background: radial-gradient(circle at top, #141d3a, #080a16);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #c6cff8;
+        }
+
+        .home-hero-body {
+          max-width: 520px;
+          font-size: 15px;
+          opacity: 0.88;
+        }
+
+        .home-hero-actions {
+          margin-top: 20px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .home-hero-primary,
+        .home-hero-secondary {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px 16px;
+          border-radius: 999px;
+          font-size: 14px;
+          text-decoration: none;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          transition: background 0.18s ease, transform 0.12s ease,
+            box-shadow 0.18s ease;
+        }
+
+        .home-hero-primary {
+          background: linear-gradient(135deg, #3b82f6, #6366f1);
+          color: #f9fafb;
+          box-shadow: 0 14px 40px rgba(37, 99, 235, 0.42);
+        }
+
+        .home-hero-primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 22px 60px rgba(37, 99, 235, 0.6);
+        }
+
+        .home-hero-secondary {
+          background: rgba(10, 13, 30, 0.85);
+          color: #e5e7eb;
+        }
+
+        .home-hero-secondary:hover {
+          background: rgba(15, 23, 42, 0.95);
+        }
+
+        .home-hero-highlight {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .home-hero-highlight-inner {
+          width: 100%;
+          max-width: 360px;
+          padding: 18px 18px 20px;
+          border-radius: 20px;
+          background: radial-gradient(circle at top, #11172a, #050712);
+          border: 1px solid rgba(148, 163, 252, 0.4);
+          box-shadow: 0 22px 60px rgba(15, 23, 42, 0.9);
+        }
+
+        .home-highlight-label {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          opacity: 0.7;
+        }
+
+        .home-hero-highlight-inner h2 {
+          margin: 10px 0 6px;
+          font-size: 18px;
+        }
+
+        .home-hero-highlight-inner p {
+          font-size: 13px;
+          opacity: 0.88;
+        }
+
+        .home-highlight-link {
+          display: inline-flex;
+          margin-top: 10px;
+          font-size: 13px;
+          text-decoration: none;
+          color: #c7d2fe;
+        }
+
+        .home-highlight-link:hover {
+          text-decoration: underline;
+        }
+
+        .home-support {
           display: flex;
           justify-content: center;
-          margin-top: 12px;
+          margin-top: 40px;
+          padding: 0 16px;
         }
 
-        .game-shell {
-          width: 85vw;
-          max-width: 1200px;
-        }
-
-        .game-container {
+        .home-support-shell {
           width: 100%;
-          aspect-ratio: 16 / 9;
-          border-radius: 24px;
-          overflow: hidden;
-          box-shadow: 0 22px 50px rgba(0, 0, 0, 0.9);
-          background: #000;
+          max-width: 900px;
+          border-radius: 22px;
+          padding: 20px 20px 22px;
+          background: radial-gradient(circle at top, #11172a, #050712);
+          border: 1px solid rgba(148, 163, 252, 0.35);
+          box-shadow: 0 22px 60px rgba(15, 23, 42, 0.9);
+        }
+
+        .home-support-shell h2 {
+          margin-top: 0;
+          margin-bottom: 10px;
+        }
+
+        .home-support-shell p {
+          font-size: 14px;
+          opacity: 0.9;
+        }
+
+        .home-support-small {
+          margin-top: 6px;
+          font-size: 13px;
+          opacity: 0.8;
+        }
+
+        .home-support-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 14px;
+          padding: 9px 16px;
+          border-radius: 999px;
+          text-decoration: none;
+          background: linear-gradient(135deg, #f97316, #f59e0b);
+          color: #111827;
+          font-weight: 500;
+          font-size: 14px;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 16px 40px rgba(249, 115, 22, 0.35);
+          transition: transform 0.12s ease, box-shadow 0.18s ease;
+        }
+
+        .home-support-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 24px 60px rgba(249, 115, 22, 0.5);
         }
 
         .panel-section {
           display: flex;
           justify-content: center;
-          margin-top: 24px;
+          margin-top: 32px;
+          padding: 0 16px;
         }
 
         .tabs-shell {
-          width: 85vw;
-          max-width: 900px;
-          background: rgba(9, 12, 25, 0.96);
-          border-radius: 20px;
+          width: 100%;
+          max-width: 1100px;
+          background: rgba(9, 12, 25, 0.9);
+          border-radius: 24px;
+          padding: 18px 18px 20px;
           border: 1px solid rgba(255, 255, 255, 0.12);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7);
-          overflow: hidden;
+          box-shadow: 0 26px 70px rgba(0, 0, 0, 0.85);
         }
 
-        .account-btn {
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          padding: 6px 12px;
-          font-size: 12px;
-          background: transparent;
-          color: #f5f5f5;
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-          text-decoration: none;
+        .home-section-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+          margin-bottom: 16px;
+        }
+
+        .home-section-header h2 {
+          margin: 0;
+          font-size: 20px;
+        }
+
+        .home-section-header p {
+          margin-top: 4px;
+          font-size: 14px;
+          opacity: 0.9;
+        }
+
+        .home-section-pill {
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          padding: 6px 11px;
+          border-radius: 999px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.16em;
+          background: rgba(79, 70, 229, 0.18);
+          color: #e5e7eb;
+          border: 1px solid rgba(129, 140, 248, 0.5);
+          white-space: nowrap;
         }
 
-        .account-btn.subtle {
-          border-color: rgba(255, 255, 255, 0.18);
-          opacity: 0.85;
+        .games-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          gap: 14px;
+          margin-top: 10px;
         }
 
-        .account-btn.primary {
-          border-color: #ff834a;
-          background: linear-gradient(135deg, #ff784a, #ffb347);
-          color: #120b06;
-          font-weight: 600;
+        .game-card {
+          border-radius: 18px;
+          padding: 14px 14px 16px;
+          background: radial-gradient(circle at top left, #111827, #020617);
+          border: 1px solid rgba(148, 163, 252, 0.3);
+          box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
         }
 
-        .account-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.06);
-        }
-
-        .account-btn.primary:hover:not(:disabled) {
-          filter: brightness(1.05);
-        }
-
-        .account-btn:disabled {
-          opacity: 0.6;
-          cursor: default;
-        }
-
-        .tabs {
+        .game-card-top {
           display: flex;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          background: radial-gradient(circle at top left, #171b32, #050714);
+          align-items: center;
+          gap: 10px;
+          justify-content: space-between;
+          margin-bottom: 6px;
         }
 
-        .tab-button {
-          flex: 1;
-          padding: 10px 14px;
-          border: none;
-          background: transparent;
-          color: #b7c1ff;
-          font-size: 14px;
-          cursor: pointer;
-          transition: background 0.15s, color 0.15s;
+        .game-card-title {
+          margin: 0;
+          font-size: 16px;
         }
 
-        .tab-button:hover {
-          background: rgba(255, 255, 255, 0.03);
-        }
-
-        .tab-button-active {
-          color: #ffffff;
-          background: rgba(15, 23, 42, 0.95);
-          box-shadow: inset 0 -2px 0 #ff834a;
-        }
-
-        .tab-panel {
-          padding: 18px 20px 20px;
-        }
-
-        .instructions h2,
-        .leaderboard h2,
-        .review h2 {
-          margin: 0 0 8px;
-          font-size: 18px;
-        }
-
-        .instructions p,
-        .review p {
-          margin: 0 0 12px;
-          font-size: 14px;
-          line-height: 1.5;
-          opacity: 0.9;
-        }
-
-        .instructions ul,
-        .review ul {
-          margin: 0 0 12px;
-          padding-left: 18px;
-          font-size: 14px;
-          line-height: 1.5;
-          opacity: 0.9;
-        }
-
-        .leaderboard-table-wrapper {
-          border-radius: 12px;
-          overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(4, 6, 14, 0.9);
-        }
-
-        .leaderboard-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-        }
-
-        .leaderboard-table th,
-        .leaderboard-table td {
-          padding: 8px 12px;
-          text-align: left;
-        }
-
-        .leaderboard-table thead {
-          background: rgba(15, 23, 42, 0.95);
-        }
-
-        .leaderboard-table tbody tr:nth-child(even) {
-          background: rgba(15, 23, 42, 0.8);
-        }
-
-        .leaderboard-table tbody tr:nth-child(odd) {
-          background: rgba(11, 15, 30, 0.9);
-        }
-
-        .leaderboard-table th {
-          font-weight: 600;
-          opacity: 0.9;
-        }
-
-        .leaderboard-table td:first-child {
-          font-weight: 600;
-        }
-
-        .leaderboard-footnote {
-          margin-top: 8px;
+        .game-card-status {
           font-size: 12px;
-          opacity: 0.7;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: rgba(34, 197, 94, 0.12);
+          color: #bbf7d0;
+          border: 1px solid rgba(34, 197, 94, 0.4);
+          white-space: nowrap;
+        }
+
+        .game-card-body {
+          font-size: 13px;
+          opacity: 0.9;
+          margin: 4px 0 6px;
+        }
+
+        .game-card-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          list-style: none;
+          padding: 0;
+          margin: 4px 0 10px;
+        }
+
+        .game-card-tag {
+          font-size: 11px;
+          padding: 4px 8px;
+          border-radius: 999px;
+          background: rgba(148, 163, 252, 0.14);
+          color: #e5e7eb;
+          border: 1px solid rgba(129, 140, 248, 0.5);
+        }
+
+        .game-card-actions {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .game-card-primary,
+        .game-card-secondary {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px 14px;
+          border-radius: 999px;
+          font-size: 13px;
+          text-decoration: none;
+          border: 1px solid transparent;
+          transition: background 0.18s ease, transform 0.12s ease,
+            box-shadow 0.18s ease;
+        }
+
+        .game-card-primary {
+          background: linear-gradient(135deg, #22c55e, #16a34a);
+          color: #022c22;
+          box-shadow: 0 14px 40px rgba(34, 197, 94, 0.45);
+        }
+
+        .game-card-primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 22px 60px rgba(34, 197, 94, 0.7);
+        }
+
+        .game-card-secondary {
+          background: rgba(15, 23, 42, 0.9);
+          color: #e5e7eb;
+          border-color: rgba(148, 163, 252, 0.4);
+        }
+
+        .game-card-secondary:hover {
+          background: rgba(15, 23, 42, 1);
         }
 
         .site-footer {
           margin-top: auto;
-          padding: 16px 24px 0;
+          padding: 14px 16px 0;
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
+          justify-content: center;
+        }
+
+        .site-footer span {
           font-size: 12px;
           opacity: 0.7;
-          flex-wrap: wrap;
         }
 
         .site-footer-links {
           display: flex;
-          flex-wrap: wrap;
           gap: 10px;
+          margin-left: 12px;
         }
 
         .site-footer-link {
           text-decoration: none;
-          color: inherit;
-          opacity: 0.85;
+          font-size: 12px;
+          opacity: 0.75;
+          color: #e5e7eb;
         }
 
         .site-footer-link:hover {
@@ -1425,316 +635,47 @@ export default function HomePage() {
           text-decoration: underline;
         }
 
-        /* Review styles */
-        .review-summary {
-          padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(12, 16, 32, 0.9);
-          margin-bottom: 16px;
-          font-size: 14px;
-        }
+        @media (max-width: 900px) {
+          .home-hero {
+            grid-template-columns: minmax(0, 1fr);
+          }
 
-        .review-summary-main {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .review-summary-score {
-          font-size: 26px;
-          font-weight: 700;
-        }
-
-        .review-summary-stars {
-          display: flex;
-          gap: 2px;
-        }
-
-        .review-summary-count {
-          font-size: 12px;
-          opacity: 0.8;
-          margin-top: 4px;
-        }
-
-        .star-display {
-          font-size: 16px;
-          opacity: 0.35;
-        }
-
-        .star-display-filled {
-          opacity: 1;
-          color: #fbbf24;
-        }
-
-        .review-form-shell {
-          margin-top: 6px;
-          margin-bottom: 20px;
-        }
-
-        .review-info {
-          font-size: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-        }
-
-        .review-form {
-          display: grid;
-          gap: 12px;
-        }
-
-        .review-label {
-          font-size: 12px;
-          opacity: 0.85;
-        }
-
-        .review-stars-block {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .review-stars-buttons {
-          display: inline-flex;
-          gap: 4px;
-        }
-
-        .star-btn {
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          background: rgba(15, 23, 42, 0.9);
-          width: 28px;
-          height: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          cursor: pointer;
-          padding: 0;
-        }
-
-        .star-btn-active {
-          background: #fbbf24;
-          color: #111827;
-          border-color: #fbbf24;
-        }
-
-        .review-field textarea {
-          border-radius: 10px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          padding: 8px 10px;
-          font-size: 13px;
-          background: rgba(5, 8, 20, 0.95);
-          color: #f5f5f5;
-          resize: vertical;
-          width: 100%;
-          min-height: 110px;
-        }
-
-        .review-field textarea:focus {
-          outline: none;
-          border-color: #ff834a;
-          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
-        }
-
-        .review-submit-btn {
-          margin-top: 4px;
-          width: fit-content;
-        }
-
-        .review-list {
-          margin-top: 4px;
-        }
-
-        .review-list-title {
-          margin: 0 0 6px;
-          font-size: 15px;
-        }
-
-        .review-list-ul {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-          display: grid;
-          gap: 8px;
-        }
-
-        .review-item {
-          padding: 8px 10px;
-          border-radius: 10px;
-          background: rgba(10, 13, 26, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          font-size: 13px;
-        }
-
-        .review-item-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          margin-bottom: 4px;
-        }
-
-        .review-item-name {
-          font-weight: 600;
-        }
-
-        .review-item-stars {
-          display: inline-flex;
-          gap: 2px;
-        }
-
-        .review-item-comment {
-          margin: 0;
-          opacity: 0.9;
-        }
-
-        /* Auth modal */
-        .auth-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.65);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          z-index: 9999;
-        }
-
-        .auth-modal {
-          width: 420px;
-          max-width: 90vw;
-          background: radial-gradient(circle at top, #11172a, #050712);
-          border-radius: 24px;
-          padding: 18px 20px 20px;
-          box-shadow: 0 22px 60px rgba(0, 0, 0, 0.85);
-          border: 1px solid rgba(255, 255, 255, 0.14);
-        }
-
-        .auth-modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 12px;
-          margin-bottom: 10px;
-        }
-
-        .auth-modal-title {
-          font-size: 18px;
-          font-weight: 600;
-        }
-
-        .auth-modal-subtitle {
-          font-size: 13px;
-          opacity: 0.75;
-          margin-top: 4px;
-        }
-
-        .auth-close-btn {
-          border: none;
-          background: transparent;
-          color: #9ca3af;
-          font-size: 20px;
-          line-height: 1;
-          cursor: pointer;
-        }
-
-        .auth-toggle {
-          display: inline-flex;
-          padding: 2px;
-          border-radius: 999px;
-          background: rgba(15, 23, 42, 0.9);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          margin-bottom: 10px;
-        }
-
-        .auth-toggle-btn {
-          border: none;
-          background: transparent;
-          color: #b7c1ff;
-          font-size: 12px;
-          padding: 4px 12px;
-          border-radius: 999px;
-          cursor: pointer;
-        }
-
-        .auth-toggle-btn-active {
-          background: rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-weight: 600;
-        }
-
-        .auth-fields {
-          display: grid;
-          gap: 8px;
-          margin-top: 4px;
-        }
-
-        .auth-field {
-          display: grid;
-          gap: 4px;
-        }
-
-        .auth-field label {
-          font-size: 12px;
-          opacity: 0.85;
-        }
-
-        .auth-field input {
-          border-radius: 10px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          padding: 6px 10px;
-          font-size: 13px;
-          background: rgba(5, 8, 20, 0.95);
-          color: #f5f5f5;
-        }
-
-        .auth-field input:focus {
-          outline: none;
-          border-color: #ff834a;
-          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
-        }
-
-        .auth-message {
-          font-size: 12px;
-          padding: 4px 8px;
-          border-radius: 8px;
-        }
-
-        .auth-error {
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid rgba(239, 68, 68, 0.6);
-          color: #fecaca;
-        }
-
-        .auth-status {
-          background: rgba(34, 197, 94, 0.1);
-          border: 1px solid rgba(34, 197, 94, 0.6);
-          color: #bbf7d0;
-        }
-
-        .auth-submit-btn {
-          margin-top: 4px;
-          width: 100%;
-          justify-content: center;
+          .home-hero-highlight {
+            justify-content: flex-start;
+          }
         }
 
         @media (max-width: 700px) {
-          .tab-panel {
+          .site-header-inner {
+            flex-wrap: wrap;
+            row-gap: 8px;
+          }
+
+          .home-hero {
+            margin-top: 20px;
+          }
+
+          .home-support-shell {
+            padding: 16px 14px 18px;
+          }
+
+          .tabs-shell {
             padding: 14px 14px 16px;
           }
 
-          .leaderboard-table th,
-          .leaderboard-table td {
-            padding: 6px 8px;
+          .games-grid {
+            grid-template-columns: minmax(0, 1fr);
           }
 
           .site-footer {
             flex-direction: column;
-            gap: 4px;
             align-items: center;
             text-align: center;
+            gap: 4px;
+          }
+
+          .site-footer-links {
+            margin-left: 0;
           }
         }
       `}</style>
