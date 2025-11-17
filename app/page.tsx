@@ -74,6 +74,11 @@ export default function HomePage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<string | null>(null);
 
+  // During signup we temporarily hide auth header changes so
+  // the user never appears as "logged in" for a split second.
+  const [signupVerificationInFlight, setSignupVerificationInFlight] =
+    useState(false);
+
   // Run that the game wants to save AFTER login/signup
   const [pendingScore, setPendingScore] = useState<PendingScore | null>(null);
 
@@ -332,7 +337,6 @@ export default function HomePage() {
         });
     } catch (err) {
       console.error("Error setting up reviews listener", err);
-      // If listener fails (e.g., security rules), don't stay stuck on "Loading…"
       setReviews([]);
     }
 
@@ -365,7 +369,6 @@ export default function HomePage() {
         createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Tell Phaser that the run was saved so it can update the Game Over UI.
       (window as any).dispatchEvent(
         new CustomEvent("wwiii-run-saved", {
           detail: { name: displayName },
@@ -389,6 +392,11 @@ export default function HomePage() {
     setAuthStatus(null);
     setAuthLoading(true);
 
+    const modeAtStart = authMode;
+    if (modeAtStart === "signup") {
+      setSignupVerificationInFlight(true);
+    }
+
     try {
       const w = window as any;
       const auth = w.auth;
@@ -399,7 +407,7 @@ export default function HomePage() {
         return;
       }
 
-      if (authMode === "signup") {
+      if (modeAtStart === "signup") {
         const rawDisplayName = authDisplayName.trim();
         if (!rawDisplayName) {
           setAuthError("Please enter a display name.");
@@ -433,11 +441,11 @@ export default function HomePage() {
             );
         }
 
-        // Send verification email WITHOUT custom continue URL
+        // Send verification email (no custom continue URL)
         try {
           await cred.user.sendEmailVerification();
           setAuthStatus(
-            "Account created. Check your email and verify your address before logging in."
+            "Account created. Check your inbox and junk mail for the verification email before logging in."
           );
         } catch (err: any) {
           console.error("Error sending verification email on signup", err);
@@ -453,11 +461,13 @@ export default function HomePage() {
           }
         }
 
-        // Force them to verify before being considered "logged in"
+        // Force them to verify before being considered logged in
         await auth.signOut();
-        setPendingScore(null); // current run won't be saved until after verification
+
+        // The current run won't be saved until after verification + login
+        setPendingScore(null);
         setAuthPassword("");
-        setShowAuthForm(false);
+        // Keep the signup modal open with the status/error message
       } else {
         // Log in
         const cred = await auth.signInWithEmailAndPassword(
@@ -521,6 +531,9 @@ export default function HomePage() {
       setAuthError(msg);
     } finally {
       setAuthLoading(false);
+      if (modeAtStart === "signup") {
+        setSignupVerificationInFlight(false);
+      }
     }
   };
 
@@ -580,7 +593,6 @@ export default function HomePage() {
 
       setReviewStatus("Thanks for your review!");
       setReviewComment("");
-      // Keep rating as-is so they can see what they chose
     } catch (err: any) {
       console.error("Error submitting review", err);
       if (err?.code === "permission-denied") {
@@ -595,8 +607,12 @@ export default function HomePage() {
     }
   };
 
+  // For the header, we hide auth changes during signup verification
+  const headerUser =
+    signupVerificationInFlight ? null : currentUser;
+
   const userLabel =
-    currentUser?.displayName || currentUser?.email || "Unknown soldier";
+    headerUser?.displayName || headerUser?.email || "Unknown soldier";
 
   // helper to stop key events from reaching the game
   const stopKeyEvent = (e: any) => {
@@ -654,7 +670,6 @@ export default function HomePage() {
         `,
         }}
       />
-      {/* Phaser game logic (expects parent: 'gameContainer') */}
       <Script src="/WWIII/main.js" strategy="afterInteractive" />
 
       {/* --- Page UI --- */}
@@ -666,12 +681,11 @@ export default function HomePage() {
             <div className="site-header-spacer" />
             <div className="site-header-account">
               {!authReady && <span className="site-header-text">Loading…</span>}
-              {authReady && currentUser && (
+              {authReady && headerUser && (
                 <>
                   <span className="site-header-text">
                     Signed in as <strong>{userLabel}</strong>
                   </span>
-                  {/* Profile link (only when logged in) */}
                   <Link href="/profile" className="account-btn subtle">
                     Profile
                   </Link>
@@ -684,7 +698,7 @@ export default function HomePage() {
                   </button>
                 </>
               )}
-              {authReady && !currentUser && (
+              {authReady && !headerUser && (
                 <button
                   type="button"
                   className="account-btn"
