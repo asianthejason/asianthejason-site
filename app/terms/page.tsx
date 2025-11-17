@@ -199,13 +199,36 @@ export default function TermsPage() {
       />
 
       <main className="site">
-        {/* Header (same pattern as other pages) */}
+        {/* Header with nav */}
         <header className="site-header">
           <div className="site-header-inner">
             <Link href="/" className="site-title-link">
               <span className="site-title">ASIANTHEJASON</span>
             </Link>
+
+            <nav className="site-header-nav">
+              <Link href="/" className="site-header-nav-link">
+                Game
+              </Link>
+              <Link href="/about" className="site-header-nav-link">
+                About
+              </Link>
+              <Link href="/privacy-policy" className="site-header-nav-link">
+                Privacy
+              </Link>
+              <Link
+                href="/terms"
+                className="site-header-nav-link site-header-nav-link-active"
+              >
+                Terms
+              </Link>
+              <Link href="/contact" className="site-header-nav-link">
+                Contact
+              </Link>
+            </nav>
+
             <div className="site-header-spacer" />
+
             <div className="site-header-account">
               {!authReady && <span className="site-header-text">Loading…</span>}
               {authReady && currentUser && (
@@ -251,11 +274,12 @@ export default function TermsPage() {
               <h1>Rules for playing nicely on AsiantheJason.com</h1>
               <p className="terms-updated">Last updated: 2025</p>
               <p>
-                These Terms of Use (&quot;Terms&quot;) govern your access to and use of{" "}
-                <strong>AsiantheJason.com</strong> (the &quot;Site&quot;) and games like{" "}
-                <strong>WWIII — Endless Defense</strong> (collectively, the &quot;Service&quot;).
-                By using the Site, you agree to these Terms. If you don&apos;t agree, please don&apos;t
-                use the Service — no hard feelings.
+                These Terms of Use (&quot;Terms&quot;) govern your access to and
+                use of <strong>AsiantheJason.com</strong> (the &quot;Site&quot;)
+                and games like <strong>WWIII — Endless Defense</strong>{" "}
+                (collectively, the &quot;Service&quot;). By using the Site, you
+                agree to these Terms. If you don&apos;t agree, please
+                don&apos;t use the Service — no hard feelings.
               </p>
             </header>
 
@@ -265,12 +289,13 @@ export default function TermsPage() {
                 <ul>
                   <li>
                     <strong>&quot;We&quot;, &quot;us&quot;, &quot;our&quot;</strong> means Jason
-                    Huang, also known online as <strong>AsiantheJason</strong>.
+                    Huang, also known online as{" "}
+                    <strong>AsiantheJason</strong>.
                   </li>
                   <li>
-                    <strong>&quot;You&quot;</strong> means any person using the Site or playing the
-                    game, whether you have an account or you&apos;re just dropping in for one very
-                    chaotic run.
+                    <strong>&quot;You&quot;</strong> means any person using the
+                    Site or playing the game, whether you have an account or
+                    you&apos;re just dropping in for one very chaotic run.
                   </li>
                 </ul>
               </article>
@@ -279,17 +304,17 @@ export default function TermsPage() {
                 <h2>2. Using the site &amp; game</h2>
                 <ul>
                   <li>
-                    You may use the Service for personal, non-commercial entertainment and general
-                    keyboard abuse.
+                    You may use the Service for personal, non-commercial
+                    entertainment and general keyboard abuse.
                   </li>
                   <li>
-                    Please don&apos;t attempt to break, reverse engineer, or exploit the game,
-                    leaderboards, or any part of the Site.
+                    Please don&apos;t attempt to break, reverse engineer, or
+                    exploit the game, leaderboards, or any part of the Site.
                   </li>
                   <li>
-                    Don&apos;t use the Service for anything illegal, harmful, or wildly off-topic
-                    (for example: no scams, malware, harassment, or attempts to start an actual
-                    world war).
+                    Don&apos;t use the Service for anything illegal, harmful, or
+                    wildly off-topic (for example: no scams, malware,
+                    harassment, or attempts to start an actual world war).
                   </li>
                 </ul>
               </article>
@@ -298,16 +323,17 @@ export default function TermsPage() {
                 <h2>3. Accounts &amp; security</h2>
                 <ul>
                   <li>
-                    To save runs, appear on the leaderboard, or leave reviews, you&apos;ll need an
-                    account.
+                    To save runs, appear on the leaderboard, or leave reviews,
+                    you&apos;ll need an account.
                   </li>
                   <li>
-                    You&apos;re responsible for keeping your login details secure. If your little
-                    sibling steals your account and tanks your stats, that&apos;s between you and
-                    them.
+                    You&apos;re responsible for keeping your login details
+                    secure. If your little sibling steals your account and tanks
+                    your stats, that&apos;s between you and them.
                   </li>
                   <li>
-                    We may suspend or remove accounts that violate these Terms or abuse the Service.
+                    We may suspend or remove accounts that violate these Terms
+                    or abuse the Service.
                   </li>
                 </ul>
               </article>
@@ -316,16 +342,18 @@ export default function TermsPage() {
                 <h2>4. Leaderboards, reviews &amp; content you submit</h2>
                 <ul>
                   <li>
-                    Your display name, scores, and reviews may be shown publicly on the Site. That&apos;s
-                    kind of the point of a leaderboard.
+                    Your display name, scores, and reviews may be shown publicly
+                    on the Site. That&apos;s kind of the point of a leaderboard.
                   </li>
                   <li>
-                    Don&apos;t post anything abusive, hateful, spammy, or otherwise gross. I reserve
-                    the right to remove content and, if needed, accounts.
+                    Don&apos;t post anything abusive, hateful, spammy, or
+                    otherwise gross. I reserve the right to remove content and,
+                    if needed, accounts.
                   </li>
                   <li>
-                    By submitting content (like reviews), you give us a non-exclusive license to
-                    display it on the Site and use it to improve or promote the game.
+                    By submitting content (like reviews), you give us a
+                    non-exclusive license to display it on the Site and use it
+                    to improve or promote the game.
                   </li>
                 </ul>
               </article>
@@ -334,14 +362,16 @@ export default function TermsPage() {
                 <h2>5. Ads &amp; third-party services</h2>
                 <ul>
                   <li>
-                    The Site may show ads from third-party providers (like Google AdSense). Those
-                    services may collect their own data as described in our{" "}
+                    The Site may show ads from third-party providers (like
+                    Google AdSense). Those services may collect their own data
+                    as described in our{" "}
                     <Link href="/privacy-policy">Privacy Policy</Link>.
                   </li>
                   <li>
-                    We&apos;re not responsible for the content of third-party sites you visit after
-                    clicking an ad. Please don&apos;t blame me if you end up shopping instead of
-                    grinding for a new distance record.
+                    We&apos;re not responsible for the content of third-party
+                    sites you visit after clicking an ad. Please don&apos;t
+                    blame me if you end up shopping instead of grinding for a
+                    new distance record.
                   </li>
                 </ul>
               </article>
@@ -350,13 +380,14 @@ export default function TermsPage() {
                 <h2>6. Intellectual property</h2>
                 <ul>
                   <li>
-                    The game code, art, audio, and site design are owned by Jason Huang (unless
-                    otherwise noted). Please don&apos;t copy, redistribute, or repackage them without
-                    permission.
+                    The game code, art, audio, and site design are owned by
+                    Jason Huang (unless otherwise noted). Please don&apos;t
+                    copy, redistribute, or repackage them without permission.
                   </li>
                   <li>
-                    You may share screenshots, clips, and streams of gameplay. If you do, that&apos;s
-                    awesome — just don&apos;t pretend you built the whole thing.
+                    You may share screenshots, clips, and streams of gameplay.
+                    If you do, that&apos;s awesome — just don&apos;t pretend you
+                    built the whole thing.
                   </li>
                 </ul>
               </article>
@@ -365,17 +396,19 @@ export default function TermsPage() {
                 <h2>7. Disclaimers</h2>
                 <ul>
                   <li>
-                    The Service is provided &quot;as is&quot; and &quot;as available&quot; without
-                    warranties of any kind, express or implied.
+                    The Service is provided &quot;as is&quot; and &quot;as
+                    available&quot; without warranties of any kind, express or
+                    implied.
                   </li>
                   <li>
-                    I try not to ship bugs, but this is software — crashes, balance changes, and
-                    occasional weirdness may happen.
+                    I try not to ship bugs, but this is software — crashes,
+                    balance changes, and occasional weirdness may happen.
                   </li>
                   <li>
-                    To the maximum extent allowed by law, we&apos;re not liable for any indirect,
-                    incidental, or consequential damages resulting from your use of the Service
-                    (including but not limited to lost high scores, missed sleep, or sore WASD
+                    To the maximum extent allowed by law, we&apos;re not liable
+                    for any indirect, incidental, or consequential damages
+                    resulting from your use of the Service (including but not
+                    limited to lost high scores, missed sleep, or sore WASD
                     fingers).
                   </li>
                 </ul>
@@ -386,11 +419,13 @@ export default function TermsPage() {
                 <ul>
                   <li>
                     You may stop using the Service at any time. You can also{" "}
-                    <Link href="/contact">reach out</Link> if you want your account deleted.
+                    <Link href="/contact">reach out</Link> if you want your
+                    account deleted.
                   </li>
                   <li>
-                    We may suspend or terminate access to the Service at any time, particularly if
-                    you violate these Terms or abuse the game, other players, or the infrastructure.
+                    We may suspend or terminate access to the Service at any
+                    time, particularly if you violate these Terms or abuse the
+                    game, other players, or the infrastructure.
                   </li>
                 </ul>
               </article>
@@ -399,13 +434,14 @@ export default function TermsPage() {
                 <h2>9. Changes to these Terms</h2>
                 <ul>
                   <li>
-                    We may update these Terms from time to time. When we do, we&apos;ll adjust the
-                    &quot;Last updated&quot; date at the top.
+                    We may update these Terms from time to time. When we do,
+                    we&apos;ll adjust the &quot;Last updated&quot; date at the
+                    top.
                   </li>
                   <li>
-                    If the changes are significant, we&apos;ll try to give you a heads-up, but in
-                    general, continuing to use the Service after changes means you accept the new
-                    Terms.
+                    If the changes are significant, we&apos;ll try to give you a
+                    heads-up, but in general, continuing to use the Service
+                    after changes means you accept the new Terms.
                   </li>
                 </ul>
               </article>
@@ -415,10 +451,10 @@ export default function TermsPage() {
               <div>
                 <h3>Questions about the rules?</h3>
                 <p>
-                  If anything here is confusing, or you&apos;re wondering how a specific situation
-                  fits these Terms,{" "}
-                  <Link href="/contact">send me a message</Link>. I&apos;ll respond like a human,
-                  not a wall of lawyer text.
+                  If anything here is confusing, or you&apos;re wondering how a
+                  specific situation fits these Terms,{" "}
+                  <Link href="/contact">send me a message</Link>. I&apos;ll
+                  respond like a human, not a wall of lawyer text.
                 </p>
               </div>
             </div>
@@ -454,8 +490,8 @@ export default function TermsPage() {
               <div>
                 <div className="auth-modal-title">Sign in to your account</div>
                 <div className="auth-modal-subtitle">
-                  Same account you use for the game and reviews — no extra logins, just more
-                  fine-print reading power.
+                  Same account you use for the game and reviews — no extra
+                  logins, just more fine-print reading power.
                 </div>
               </div>
               <button
@@ -599,6 +635,33 @@ export default function TermsPage() {
         .site-title-link {
           text-decoration: none;
           color: inherit;
+        }
+
+        .site-header-nav {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-left: 20px;
+          font-size: 13px;
+        }
+
+        .site-header-nav-link {
+          text-decoration: none;
+          color: inherit;
+          opacity: 0.8;
+          padding: 4px 10px;
+          border-radius: 999px;
+          transition: background 0.15s, opacity 0.15s;
+        }
+
+        .site-header-nav-link:hover {
+          background: rgba(255, 255, 255, 0.06);
+          opacity: 1;
+        }
+
+        .site-header-nav-link-active {
+          background: rgba(255, 255, 255, 0.12);
+          opacity: 1;
         }
 
         .site-header-spacer {
@@ -938,6 +1001,11 @@ export default function TermsPage() {
         @media (max-width: 800px) {
           .terms-grid {
             grid-template-columns: 1fr;
+          }
+
+          .site-header-nav {
+            flex-wrap: wrap;
+            margin-left: 12px;
           }
         }
 
