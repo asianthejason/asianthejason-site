@@ -347,6 +347,20 @@ export default function ProfilePage() {
     }
   };
 
+  // ---------- Sign out (same behavior as main page) ----------
+  const handleSignOut = async () => {
+    try {
+      const w = window as any;
+      const auth = w.auth;
+      if (!auth) return;
+      await auth.signOut();
+      // After sign-out, kick back to main page
+      window.location.href = "/";
+    } catch (err) {
+      console.error("Sign out error", err);
+    }
+  };
+
   const userLabel =
     currentUser?.displayName || currentUser?.email || "Unknown soldier";
 
@@ -393,7 +407,7 @@ export default function ProfilePage() {
       />
 
       <main className="profile-site">
-        {/* Header */}
+        {/* Header (match main page) */}
         <header className="profile-header">
           <div className="profile-header-inner">
             <Link href="/" className="site-title-link">
@@ -404,19 +418,35 @@ export default function ProfilePage() {
               {!authReady && (
                 <span className="profile-header-text">Loading…</span>
               )}
+
               {authReady && currentUser && (
-                <span className="profile-header-text">
-                  Signed in as <strong>{userLabel}</strong>
-                </span>
-              )}
-              {authReady && !currentUser && (
-                <span className="profile-header-text">
-                  Not signed in —{" "}
-                  <Link href="/" className="profile-link-inline">
-                    go back to the game to sign in
+                <>
+                  <span className="profile-header-text">
+                    Signed in as <strong>{userLabel}</strong>
+                  </span>
+                  <Link href="/profile" className="account-btn subtle">
+                    Profile
                   </Link>
-                  .
-                </span>
+                  <button
+                    type="button"
+                    className="account-btn subtle"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </button>
+                </>
+              )}
+
+              {authReady && !currentUser && (
+                <button
+                  type="button"
+                  className="account-btn"
+                  onClick={() => {
+                    window.location.href = "/";
+                  }}
+                >
+                  Sign in / Sign up
+                </button>
               )}
             </div>
           </div>
@@ -627,7 +657,7 @@ export default function ProfilePage() {
               <Link href="/about" className="site-footer-link">
                 About
               </Link>
-              <Link href="/privacy" className="site-footer-link">
+              <Link href="/privacy-policy" className="site-footer-link">
                 Privacy Policy
               </Link>
               <Link href="/terms" className="site-footer-link">
@@ -662,7 +692,7 @@ export default function ProfilePage() {
         }
 
         .profile-header-inner {
-          max-width: 900px;
+          max-width: 1200px;
           margin: 0 auto;
           display: flex;
           align-items: center;
@@ -703,6 +733,47 @@ export default function ProfilePage() {
         .profile-link-inline {
           color: #ffb347;
           text-decoration: underline;
+        }
+
+        /* Shared account button styles (match main page) */
+        .account-btn {
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          padding: 6px 12px;
+          font-size: 12px;
+          background: transparent;
+          color: #f5f5f5;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .account-btn.subtle {
+          border-color: rgba(255, 255, 255, 0.18);
+          opacity: 0.85;
+        }
+
+        .account-btn.primary {
+          border-color: #ff834a;
+          background: linear-gradient(135deg, #ff784a, #ffb347);
+          color: #120b06;
+          font-weight: 600;
+        }
+
+        .account-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .account-btn.primary:hover:not(:disabled) {
+          filter: brightness(1.05);
+        }
+
+        .account-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
         }
 
         .profile-section {
