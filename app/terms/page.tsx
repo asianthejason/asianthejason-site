@@ -203,8 +203,8 @@ export default function TermsPage() {
         {/* Shared header from components */}
         <SiteHeader
           authReady={authReady}
-          currentUser={currentUser}
           userLabel={userLabel}
+          isSignedIn={!!currentUser}
           onSignOut={handleSignOut}
           onShowAuth={() => {
             setShowAuthForm(true);
@@ -812,7 +812,7 @@ export default function TermsPage() {
           font-size: 12px;
           padding: 4px 12px;
           border-radius: 999px;
-          cursor: pointer.
+          cursor: pointer;
         }
 
         .auth-toggle-btn-active {
