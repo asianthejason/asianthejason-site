@@ -382,7 +382,7 @@ export default function HomePage() {
     }
   };
 
-  // ---------- Auth actions (with enforced email verification) ----------
+  // ---------- Auth actions (with email verification) ----------
   const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -393,6 +393,7 @@ export default function HomePage() {
       const w = window as any;
       const auth = w.auth;
       const db = w.db;
+      const firebase = w.firebase;
       if (!auth) {
         setAuthError("Authentication is not ready. Try again in a moment.");
         return;
@@ -411,12 +412,13 @@ export default function HomePage() {
           authEmail,
           authPassword
         );
+
         await cred.user.updateProfile({
           displayName: rawDisplayName,
         });
 
         // Store user profile document
-        if (db && w.firebase?.firestore) {
+        if (db && firebase?.firestore) {
           await db
             .collection("users")
             .doc(cred.user.uid)
@@ -425,69 +427,74 @@ export default function HomePage() {
                 displayName: rawDisplayName,
                 displayNameLower,
                 email: authEmail.trim(),
-                createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
               },
               { merge: true }
             );
         }
 
-        // Send verification email
-        let verificationSent = false;
+        // Send verification email WITHOUT custom continue URL
         try {
-          await cred.user.sendEmailVerification({
-            url: window.location.origin + "/",
-            handleCodeInApp: false,
-          });
-          verificationSent = true;
-        } catch (err) {
-          console.error("Error sending verification email", err);
+          await cred.user.sendEmailVerification();
+          setAuthStatus(
+            "Account created. Check your email and verify your address before logging in."
+          );
+        } catch (err: any) {
+          console.error("Error sending verification email on signup", err);
+          const code = err?.code || "";
+          if (code === "auth/too-many-requests") {
+            setAuthError(
+              "Account created, but we hit a temporary email limit. Wait a bit, then use 'Log in' and we'll try sending the verification again."
+            );
+          } else {
+            setAuthError(
+              "Account created, but we couldn’t send a verification email automatically. Try again later or contact the site owner."
+            );
+          }
         }
 
         // Force them to verify before being considered "logged in"
         await auth.signOut();
-
-        if (pendingScore) {
-          // Don't save unverified runs; clear it so the game can move on.
-          setPendingScore(null);
-        }
-
-        setAuthMode("login");
+        setPendingScore(null); // current run won't be saved until after verification
         setAuthPassword("");
-
-        setAuthStatus(
-          verificationSent
-            ? "Account created. Check your email and click the verification link, then come back here and log in."
-            : "Account created, but we couldn’t send a verification email automatically. Try again later or contact the site owner."
-        );
+        setShowAuthForm(false);
       } else {
+        // Log in
         const cred = await auth.signInWithEmailAndPassword(
           authEmail,
           authPassword
         );
 
-        // Block login if email not verified
+        // Refresh user to get up-to-date emailVerified flag
+        await cred.user.reload();
+
         if (!cred.user.emailVerified) {
-          let msg =
-            "You need to verify your email before logging in. We just sent you another verification email.";
+          // Try to send / re-send verification email
           try {
-            await cred.user.sendEmailVerification({
-              url: window.location.origin + "/",
-              handleCodeInApp: false,
-            });
-          } catch (err) {
+            await cred.user.sendEmailVerification();
+            setAuthError(
+              "You need to verify your email before logging in. We just sent a verification link to your inbox."
+            );
+          } catch (err: any) {
             console.error("Error sending verification email on login", err);
-            msg =
-              "You need to verify your email before logging in, and we couldn’t send a new verification email automatically.";
+            const code = err?.code || "";
+            if (code === "auth/too-many-requests") {
+              setAuthError(
+                "You need to verify your email before logging in, and we’ve temporarily hit an email limit. Wait a bit and try again."
+              );
+            } else {
+              setAuthError(
+                "You need to verify your email before logging in, and we couldn’t send a new verification email automatically."
+              );
+            }
           }
 
+          // Don't keep them signed in if not verified
           await auth.signOut();
-          setAuthMode("login");
-          setAuthPassword("");
-          setAuthError(msg);
           return;
         }
 
-        // Only verified users get to save runs / be logged in
+        // Email is verified – proceed
         if (pendingScore) {
           await savePendingScore(cred.user);
         }
@@ -1327,12 +1334,6 @@ export default function HomePage() {
           font-size: 14px;
           line-height: 1.5;
           opacity: 0.9;
-        }
-
-        .leaderboard-subtitle {
-          margin: 0 0 10px;
-          font-size: 13px;
-          opacity: 0.75;
         }
 
         .leaderboard-table-wrapper {
