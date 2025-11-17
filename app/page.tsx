@@ -287,51 +287,56 @@ export default function HomePage() {
 
       {/* --- Page UI --- */}
       <main className="site">
-        {/* Header nav – same as game page, plus Home button */}
+        {/* Header nav – same as game page, plus Home button, with “signed in as” on a second line */}
         <header className="site-header">
           <div className="site-header-inner">
             <div className="site-title">ASIANTHEJASON</div>
             <div className="site-header-spacer" />
             <div className="site-header-account">
-              <Link href="/" className="account-btn subtle">
-                Home
-              </Link>
+              <div className="site-header-account-top">
+                <Link href="/" className="account-btn subtle">
+                  Home
+                </Link>
 
-              {!authReady && (
-                <span className="site-header-text">Loading…</span>
-              )}
+                {!authReady && (
+                  <span className="site-header-text">Loading…</span>
+                )}
 
-              {authReady && headerUser && (
-                <>
-                  <span className="site-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
+                {authReady && headerUser && (
+                  <>
+                    <Link href="/profile" className="account-btn subtle">
+                      Profile
+                    </Link>
+                    <button
+                      type="button"
+                      className="account-btn subtle"
+                      onClick={handleSignOut}
+                    >
+                      Sign out
+                    </button>
+                  </>
+                )}
+
+                {authReady && !headerUser && (
                   <button
                     type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
+                    className="account-btn"
+                    onClick={() => {
+                      setShowAuthForm(true);
+                      setAuthMode("signup");
+                      setAuthError(null);
+                      setAuthStatus(null);
+                    }}
                   >
-                    Sign out
+                    Sign in / Sign up
                   </button>
-                </>
-              )}
+                )}
+              </div>
 
-              {authReady && !headerUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    setShowAuthForm(true);
-                    setAuthMode("signup");
-                    setAuthError(null);
-                    setAuthStatus(null);
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
+              {authReady && headerUser && (
+                <div className="site-header-account-bottom">
+                  Signed in as <strong>{userLabel}</strong>
+                </div>
               )}
             </div>
           </div>
@@ -591,7 +596,7 @@ export default function HomePage() {
           padding: 16px 0 32px;
         }
 
-        /* Header (same as game page) */
+        /* Header (same as game page, tweaked for two-line account area) */
         .site-header {
           padding: 8px 24px 12px;
         }
@@ -621,9 +626,22 @@ export default function HomePage() {
 
         .site-header-account {
           display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+          font-size: 13px;
+        }
+
+        .site-header-account-top {
+          display: flex;
           align-items: center;
           gap: 10px;
-          font-size: 13px;
+        }
+
+        .site-header-account-bottom {
+          font-size: 12px;
+          opacity: 0.9;
+          text-align: right;
         }
 
         .site-header-text {
@@ -873,7 +891,7 @@ export default function HomePage() {
           text-decoration: none;
           border: 1px solid transparent;
           transition: background 0.18s ease, transform 0.12s ease,
-            box-shadow 0.18s.ease;
+            box-shadow 0.18s ease;
         }
 
         .game-card-primary {
@@ -1083,6 +1101,14 @@ export default function HomePage() {
             gap: 4px;
             align-items: center;
             text-align: center;
+          }
+
+          .site-header-account {
+            align-items: flex-start;
+          }
+
+          .site-header-account-bottom {
+            text-align: left;
           }
         }
       `}</style>
