@@ -55,38 +55,10 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* Hero / intro */}
+        {/* Hero / title only */}
         <section className="home-hero">
           <div className="home-hero-text">
-            <p className="home-pill">Indie browser games by Jason</p>
             <h1>Welcome to my little game corner on the internet 🎮</h1>
-            <p className="home-hero-body">
-              I&apos;m building a collection of small but ambitious web games.
-              Right now there&apos;s one main game, WWIII — Endless Defense,
-              and more are on the way.
-            </p>
-            <div className="home-hero-actions">
-              <Link href="/wwiii" className="home-hero-primary">
-                Play WWIII now
-              </Link>
-              <a href="#support" className="home-hero-secondary">
-                Support the project
-              </a>
-            </div>
-          </div>
-
-          <div className="home-hero-highlight">
-            <div className="home-hero-highlight-inner">
-              <p className="home-highlight-label">Currently featured</p>
-              <h2>WWIII — Endless Defense</h2>
-              <p>
-                An endless defense shooter with upgrades, weapons, and way too
-                many enemies. Built from scratch in Phaser and Firebase.
-              </p>
-              <Link href="/wwiii" className="home-highlight-link">
-                Jump into the battle →
-              </Link>
-            </div>
           </div>
         </section>
 
@@ -267,8 +239,8 @@ export default function HomePage() {
           padding: 6px 10px;
           border-radius: 999px;
           border: 1px solid transparent;
-          transition: background 0.18s ease, border-color 0.18s ease,
-            transform 0.12s ease;
+          transition: background 0.18s.ease, border-color 0.18s.ease,
+            transform 0.12s.ease;
           opacity: 0.9;
         }
 
@@ -282,127 +254,18 @@ export default function HomePage() {
           max-width: 1100px;
           margin: 28px auto 0;
           padding: 0 16px;
-          display: grid;
-          grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-          gap: 32px;
-          align-items: center;
         }
 
         .home-hero-text h1 {
           font-size: clamp(28px, 4vw, 40px);
           line-height: 1.1;
-          margin: 10px 0 14px;
-        }
-
-        .home-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          border-radius: 999px;
-          padding: 6px 12px;
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          background: radial-gradient(circle at top, #141d3a, #080a16);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #c6cff8;
-        }
-
-        .home-hero-body {
-          max-width: 520px;
-          font-size: 15px;
-          opacity: 0.88;
-        }
-
-        .home-hero-actions {
-          margin-top: 20px;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-
-        .home-hero-primary,
-        .home-hero-secondary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 10px 16px;
-          border-radius: 999px;
-          font-size: 14px;
-          text-decoration: none;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          transition: background 0.18s ease, transform 0.12s ease,
-            box-shadow 0.18s ease;
-        }
-
-        .home-hero-primary {
-          background: linear-gradient(135deg, #3b82f6, #6366f1);
-          color: #f9fafb;
-          box-shadow: 0 14px 40px rgba(37, 99, 235, 0.42);
-        }
-
-        .home-hero-primary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 22px 60px rgba(37, 99, 235, 0.6);
-        }
-
-        .home-hero-secondary {
-          background: rgba(10, 13, 30, 0.85);
-          color: #e5e7eb;
-        }
-
-        .home-hero-secondary:hover {
-          background: rgba(15, 23, 42, 0.95);
-        }
-
-        .home-hero-highlight {
-          display: flex;
-          justify-content: flex-end;
-        }
-
-        .home-hero-highlight-inner {
-          width: 100%;
-          max-width: 360px;
-          padding: 18px 18px 20px;
-          border-radius: 20px;
-          background: radial-gradient(circle at top, #11172a, #050712);
-          border: 1px solid rgba(148, 163, 252, 0.4);
-          box-shadow: 0 22px 60px rgba(15, 23, 42, 0.9);
-        }
-
-        .home-highlight-label {
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.2em;
-          opacity: 0.7;
-        }
-
-        .home-hero-highlight-inner h2 {
-          margin: 10px 0 6px;
-          font-size: 18px;
-        }
-
-        .home-hero-highlight-inner p {
-          font-size: 13px;
-          opacity: 0.88;
-        }
-
-        .home-highlight-link {
-          display: inline-flex;
-          margin-top: 10px;
-          font-size: 13px;
-          text-decoration: none;
-          color: #c7d2fe;
-        }
-
-        .home-highlight-link:hover {
-          text-decoration: underline;
+          margin: 10px 0 0;
         }
 
         .home-support {
           display: flex;
           justify-content: center;
-          margin-top: 40px;
+          margin-top: 32px;
           padding: 0 16px;
         }
 
@@ -635,16 +498,6 @@ export default function HomePage() {
         .site-footer-link:hover {
           opacity: 1;
           text-decoration: underline;
-        }
-
-        @media (max-width: 900px) {
-          .home-hero {
-            grid-template-columns: minmax(0, 1fr);
-          }
-
-          .home-hero-highlight {
-            justify-content: flex-start;
-          }
         }
 
         @media (max-width: 700px) {
