@@ -1472,24 +1472,28 @@ function showStartScreen(scene) {
     'and earn money to upgrade weapons and defenses.'
   ];
 
-  const textStartY = centerY - 110;
+  // Move instructions up a bit and tighten spacing so they finish higher
+  const lineSpacing = 22;
+  const textStartY = centerY - 120;
+  const instructionTexts = [];
   instructions.forEach((line, i) => {
-    scene.add.text(centerX, textStartY + i * 24, line, {
+    const t = scene.add.text(centerX, textStartY + i * lineSpacing, line, {
       font: '18px Arial',
       fill: '#e5e7eb',
       align: 'center',
       wordWrap: { width: panelW - 80 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+    instructionTexts.push(t);
   });
 
-  const hint = scene.add.text(centerX, centerY + 110, 'Click Play to begin your run.', {
+  // Play button & hint moved further down so they don't overlap text
+  const hint = scene.add.text(centerX, centerY + 160, 'Click Play to begin your run.', {
     font: '18px Arial',
     fill: '#9ca3af'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
 
-  // Play button
   const BTN_W = 240, BTN_H = 70, BTN_R = 14;
-  const btnY = centerY + 40;
+  const btnY = centerY + 100;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
 
   const drawPlayBtn = (fill, stroke = 0xffffff) => {
@@ -1523,7 +1527,6 @@ function showStartScreen(scene) {
   });
 
   const startRunWrapper = () => {
-    // destroy start screen UI
     overlay.destroy();
     panel.destroy();
     title.destroy();
@@ -1531,11 +1534,8 @@ function showStartScreen(scene) {
     hint.destroy();
     btnBg.destroy();
     btnText.destroy();
-    // (instructions text)
-    // easiest is to remove all texts created in this block by leveraging scene.children?
-    // but for now we rely on these references being gone (above handles all main ones)
+    instructionTexts.forEach(t => t.destroy());
 
-    // actually start the gameplay
     startRun(scene);
   };
 
@@ -1799,17 +1799,17 @@ function showGameOver(scene) {
         authBg.on('pointerdown', () => {
           try {
             if (typeof window !== 'undefined' && window.dispatchEvent) {
-              window.wwiiiPendingScore = {
-                distance: runSummary.distance,
-                enemiesKilled: runSummary.enemiesKilled,
-                bulletsFired: runSummary.bulletsFired
-              };
+            window.wwiiiPendingScore = {
+              distance: runSummary.distance,
+              enemiesKilled: runSummary.enemiesKilled,
+              bulletsFired: runSummary.bulletsFired
+            };
 
-              window.dispatchEvent(
-                new CustomEvent('wwiii-open-auth', {
-                  detail: { run: window.wwiiiPendingScore }
-                })
-              );
+            window.dispatchEvent(
+              new CustomEvent('wwiii-open-auth', {
+                detail: { run: window.wwiiiPendingScore }
+              })
+            );
             }
           } catch (e) {
             console.error('Failed to dispatch wwiii-open-auth event', e);
