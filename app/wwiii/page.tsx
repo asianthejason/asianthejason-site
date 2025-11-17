@@ -4,7 +4,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
-import SiteHeader from "@/components/SiteHeader";
+import SiteHeader from "../components/SiteHeader";
 
 type TabKey = "instructions" | "leaderboard" | "review";
 

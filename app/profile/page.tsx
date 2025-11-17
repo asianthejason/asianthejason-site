@@ -4,7 +4,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
-import SiteHeader from "@/components/SiteHeader";
+import SiteHeader from "../components/SiteHeader";
 
 interface AuthUser {
   uid: string;
