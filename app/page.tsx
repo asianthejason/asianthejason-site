@@ -1,6 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { auth } from "@/lib/firebase";
+import {
+  onAuthStateChanged,
+  signOut,
+  type User as FirebaseUser,
+} from "firebase/auth";
 
 const GAMES = [
   {
@@ -25,11 +32,30 @@ const GAMES = [
 
 export default function HomePage() {
   const currentYear = new Date().getFullYear();
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Error signing out:", err);
+    }
+  };
+
+  const displayName =
+    currentUser?.displayName || currentUser?.email || "Player";
 
   return (
     <>
       <main className="site">
-        {/* Header - same structure as game page, plus Home button */}
+        {/* Header */}
         <header className="site-header">
           <div className="site-header-inner">
             <div className="site-title">ASIANTHEJASON</div>
@@ -38,15 +64,31 @@ export default function HomePage() {
               <Link href="/" className="account-btn subtle">
                 Home
               </Link>
-              <Link href="/wwiii" className="account-btn subtle">
-                WWIII Game
-              </Link>
-              <Link href="/about" className="account-btn subtle">
-                About
-              </Link>
-              <Link href="/contact" className="account-btn subtle">
-                Contact
-              </Link>
+
+              {currentUser && (
+                <span className="site-header-text">
+                  Signed in as <strong>{displayName}</strong>
+                </span>
+              )}
+
+              {currentUser ? (
+                <>
+                  <Link href="/profile" className="account-btn subtle">
+                    Profile
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="account-btn primary"
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <Link href="/auth" className="account-btn primary">
+                  Login / Sign up
+                </Link>
+              )}
             </div>
           </div>
         </header>
@@ -146,7 +188,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Footer - matched to game page */}
+        {/* Footer */}
         <footer className="site-footer">
           <span>© {currentYear} AsiantheJason</span>
 
@@ -183,7 +225,7 @@ export default function HomePage() {
           padding: 16px 0 32px;
         }
 
-        /* Header – same layout as game page */
+        /* Header */
         .site-header {
           padding: 8px 24px 12px;
         }
@@ -220,6 +262,11 @@ export default function HomePage() {
 
         .site-header-text {
           opacity: 0.9;
+          font-size: 12px;
+        }
+
+        .site-header-text strong {
+          font-weight: 600;
         }
 
         .account-btn {
@@ -485,7 +532,7 @@ export default function HomePage() {
           background: rgba(15, 23, 42, 1);
         }
 
-        /* Footer – same layout as game page */
+        /* Footer */
         .site-footer {
           margin-top: auto;
           padding: 16px 24px 0;
