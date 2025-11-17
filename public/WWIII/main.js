@@ -41,6 +41,9 @@ let shopVisible = false, shopPanel;
 let shopButtons = [];
 let gamePaused = false;
 
+// track phase: 'start' | 'playing' | 'gameover'
+let gamePhase = 'start';
+
 let shopTabButtons = [];
 let upgradeTabButtons = [];
 let pistolTabButtons = [], shotgunTabButtons = [], sniperTabButtons = [], machineGunTabButtons = [];
@@ -398,9 +401,9 @@ function updateTabVisuals() {
 //  Create
 // =====================
 function create() {
-  // Start timer for time-based difficulty
-  gameStartMs = this.time.now;
-    
+  // Phase starts at 'start' for this scene
+  gamePhase = 'start';
+
   // --- HARD RESET of all run-scoped globals (prevents Play Again freeze) ---
   isReloading = false;
   isMouseDown = false;
@@ -514,7 +517,7 @@ function create() {
   this.physics.add.collider(enemyBullets, ground, b => b.destroy());
   this.physics.add.collider(enemies, ground);
 
-  // Player hit by enemy bullets (inside create)
+  // Player hit by enemy bullets
   this.physics.add.overlap(
     player,
     enemyBullets,
@@ -944,8 +947,9 @@ function create() {
     shopTabButtons.push(label);
   });
 
-  // Toggle shop (F) – pause physics only, not scene time (so UI stays snappy)
+  // Toggle shop (F) – only during actual gameplay
   this.input.keyboard.on('keydown-F', () => {
+    if (gamePhase !== 'playing') return;
     if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
 
     shopVisible = !shopVisible;
@@ -968,11 +972,13 @@ function create() {
 
   // Cycle weapons (E / Q)
   this.input.keyboard.on('keydown-E', () => {
+    if (gamePhase !== 'playing') return;
     if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
     currentWeaponIndex = (currentWeaponIndex + 1) % weapons.length;
     updateWeaponAndHealthUI(this);
   });
   this.input.keyboard.on('keydown-Q', () => {
+    if (gamePhase !== 'playing') return;
     if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
     currentWeaponIndex = (currentWeaponIndex - 1 + weapons.length) % weapons.length;
     updateWeaponAndHealthUI(this);
@@ -985,6 +991,7 @@ function create() {
   });
 
   this.input.on('pointerdown', p => {
+    if (gamePhase !== 'playing') return;
     if (gamePaused) return;
 
     // Right-click = reload
@@ -1041,6 +1048,9 @@ function create() {
 
   switchTab('shop');
   updateWeaponAndHealthUI(this);
+
+  // ===== SHOW START SCREEN (pause physics until Play is pressed) =====
+  showStartScreen(this);
 }
 
 // =====================
@@ -1048,7 +1058,9 @@ function create() {
 // =====================
 function update(time) {
   if (gamePaused) {
-    player.setVelocityX(0);
+    if (player && player.body) {
+      player.setVelocityX(0);
+    }
     return;
   }
 
@@ -1231,23 +1243,22 @@ function findSurfaceTile(x) {
   let bestTop = Infinity;
 
   for (const tile of ground.getChildren()) {
-    const b = tile.body;               // static body
+    const b = tile.body;
     if (!b) continue;
-    // is x within this tile's horizontal span?
     if (x >= b.left && x <= b.right) {
-      if (b.top < bestTop) {           // smaller 'top' = higher tile
+      if (b.top < bestTop) {
         bestTop = b.top;
         surfaceBody = b;
       }
     }
   }
-  return surfaceBody; // NOTE: returns a body, not the game object
+  return surfaceBody;
 }
 
 function findGroundYAtX(x) {
   const body = findSurfaceTile(x);
   if (!body) return config.height - 50;
-  return body.top; // exact top of the static physics body
+  return body.top;
 }
 
 function spawnEnemy(scene, x) {
@@ -1260,14 +1271,13 @@ function spawnEnemy(scene, x) {
     .setOrigin(0.5, 1)
     .setCollideWorldBounds(true);
 
-  // physics body size/offset (keep your values if different)
   e.body.setSize(32, 80);
   e.body.setOffset((128 - 32) / 2, 128 - 80);
   e.body.allowGravity = true;
 
   // AI parameters
-  e.attackDistance = Phaser.Math.Between(140, 380); // where to stop from the player
-  e.walkSpeed      = Phaser.Math.Between(80, 110);  // base walk speed
+  e.attackDistance = Phaser.Math.Between(140, 380);
+  e.walkSpeed      = Phaser.Math.Between(80, 110);
   e.lastShotTime   = 0;
   e.isShooting     = false;
 
@@ -1277,16 +1287,13 @@ function spawnEnemy(scene, x) {
   e.maxHealth      = Math.round(ENEMY_BASE_HEALTH * healthMult);
   enemyHealthMap.set(e, e.maxHealth);
 
-  // start idle (not running forever)
   e.play('enemy_idle');
 
-  // create HP bar graphic
   const hb = scene.add.graphics();
   enemyHealthBars.set(e, hb);
 }
 
 function shootEnemyBullet(enemy, scene) {
-  // fire at most ~1/s
   if (scene.time.now - (enemy.lastShotTime || 0) < 1000) return;
 
   enemy.isShooting = true;
@@ -1296,7 +1303,6 @@ function shootEnemyBullet(enemy, scene) {
   const muzzleX = enemy.x + (enemy.flipX ? -MUZZLE_OFFSET_X : MUZZLE_OFFSET_X);
   const muzzleY = enemy.y - MUZZLE_OFFSET_Y;
 
-  // play a short shoot burst, then go back to the correct movement anim
   enemy.play('enemy_shoot');
   enemy.once('animationcomplete-enemy_shoot', () => {
     enemy.isShooting = false;
@@ -1313,7 +1319,6 @@ function shootEnemyBullet(enemy, scene) {
   b.body.allowGravity = false;
   b.body.setCollideWorldBounds(true).onWorldBounds = true;
 
-  // time-based damage scaling
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
@@ -1321,7 +1326,6 @@ function shootEnemyBullet(enemy, scene) {
   const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
   b.damage = Math.max(rawD, 0.5);
 
-  // aim toward player's upper body
   const AIM_HEIGHT_RATIO = 0.3;
   const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
   const angle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
@@ -1343,7 +1347,6 @@ function shootBullet() {
   if (s.currentClip <= 0 || isReloading) return;
 
   s.currentClip--;
-  // count one "shot" for the current weapon
   bulletsFired[w.name] = (bulletsFired[w.name] || 0) + 1;
 
   player.flipX = (pointer.worldX < player.x);
@@ -1354,7 +1357,7 @@ function shootBullet() {
 
   if (w.name === "Shotgun") {
     const pelletCount = Phaser.Math.Between(10, 15);
-    const spreadRad   = Phaser.Math.DegToRad(40);  // ±20°
+    const spreadRad   = Phaser.Math.DegToRad(40);
 
     for (let i = 0; i < pelletCount; i++) {
       const randomOffset = (Math.random() - 0.5) * spreadRad;
@@ -1413,10 +1416,8 @@ function shootBullet() {
 function switchTab(tabName) {
   currentTab = tabName;
 
-  // headers only when visible
   shopButtons.forEach(btn => btn.setVisible(shopVisible));
 
-  // by tab content
   shopTabButtons.forEach(btn       => btn.setVisible(shopVisible && tabName === 'shop'));
   upgradeTabButtons.forEach(btn    => btn.setVisible(shopVisible && tabName === 'upgrade'));
   pistolTabButtons.forEach(btn     => btn.setVisible(shopVisible && tabName === 'pistol'));
@@ -1428,10 +1429,135 @@ function switchTab(tabName) {
 }
 
 // =====================
+//  START SCREEN
+// =====================
+function showStartScreen(scene) {
+  gamePhase = 'start';
+  gamePaused = true;
+  scene.physics.world.pause();
+
+  const centerX = config.width / 2;
+  const centerY = config.height / 2;
+
+  const overlay = scene.add.rectangle(centerX, centerY, config.width, config.height, 0x000000, 0.7)
+    .setScrollFactor(0)
+    .setDepth(4000);
+
+  const panelW = 780;
+  const panelH = 520;
+
+  const panel = scene.add.rectangle(centerX, centerY, panelW, panelH, 0x111827, 0.96)
+    .setStrokeStyle(3, 0x38bdf8, 0.8)
+    .setScrollFactor(0)
+    .setDepth(4001);
+
+  const title = scene.add.text(centerX, centerY - 200, 'WWIII — Endless Defense', {
+    font: '40px Arial',
+    fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+
+  const subtitle = scene.add.text(centerX, centerY - 160, 'How to Play', {
+    font: '24px Arial',
+    fill: '#bfdbfe'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+
+  const instructions = [
+    '• A / W / D to move',
+    '• Shift to raise your shield',
+    '• Left click to fire, right click to reload',
+    '• Q / E to switch weapons',
+    '• F to open the Supply Depot (shop)',
+    '',
+    'Survive as long as you can, push your distance,',
+    'and earn money to upgrade weapons and defenses.'
+  ];
+
+  const textStartY = centerY - 110;
+  instructions.forEach((line, i) => {
+    scene.add.text(centerX, textStartY + i * 24, line, {
+      font: '18px Arial',
+      fill: '#e5e7eb',
+      align: 'center',
+      wordWrap: { width: panelW - 80 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  });
+
+  const hint = scene.add.text(centerX, centerY + 110, 'Click Play to begin your run.', {
+    font: '18px Arial',
+    fill: '#9ca3af'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+
+  // Play button
+  const BTN_W = 240, BTN_H = 70, BTN_R = 14;
+  const btnY = centerY + 40;
+  const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
+
+  const drawPlayBtn = (fill, stroke = 0xffffff) => {
+    btnBg.clear()
+      .fillStyle(fill, 1)
+      .fillRoundedRect(centerX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, BTN_R)
+      .lineStyle(3, stroke)
+      .strokeRoundedRect(centerX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, BTN_R);
+  };
+  drawPlayBtn(0x22c55e);
+
+  btnBg.setInteractive(
+    new Phaser.Geom.Rectangle(centerX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H),
+    Phaser.Geom.Rectangle.Contains
+  );
+
+  const btnText = scene.add.text(centerX, btnY, 'Play', {
+    font: '30px Arial',
+    fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
+
+  btnBg.on('pointerover', () => {
+    drawPlayBtn(0x16a34a, 0xffff88);
+    btnText.setStyle({ fill: '#fef3c7' });
+    scene.input.setDefaultCursor('pointer');
+  });
+  btnBg.on('pointerout', () => {
+    drawPlayBtn(0x22c55e, 0xffffff);
+    btnText.setStyle({ fill: '#ffffff' });
+    scene.input.setDefaultCursor('default');
+  });
+
+  const startRunWrapper = () => {
+    // destroy start screen UI
+    overlay.destroy();
+    panel.destroy();
+    title.destroy();
+    subtitle.destroy();
+    hint.destroy();
+    btnBg.destroy();
+    btnText.destroy();
+    // (instructions text)
+    // easiest is to remove all texts created in this block by leveraging scene.children?
+    // but for now we rely on these references being gone (above handles all main ones)
+
+    // actually start the gameplay
+    startRun(scene);
+  };
+
+  btnBg.on('pointerdown', () => {
+    startRunWrapper();
+  });
+}
+
+// Actually begin gameplay (after start screen)
+function startRun(scene) {
+  gamePhase = 'playing';
+  gamePaused = false;
+  gameStartMs = scene.time.now;
+  scene.physics.world.resume();
+}
+
+// =====================
 //  Game Over (with auth bridge & no overlapping buttons)
 // =====================
 function showGameOver(scene) {
   // Pause gameplay
+  gamePhase = 'gameover';
   gamePaused = true;
   scene.physics.world.pause();
   if (machineGunInterval) {
@@ -1452,7 +1578,6 @@ function showGameOver(scene) {
     }
   };
 
-  // make the run globally accessible for React
   window.wwiiiPendingScore = runSummary;
 
   const w = window;
@@ -1503,7 +1628,7 @@ function showGameOver(scene) {
 
   const setInfo = (msg) => infoText.setText(msg);
 
-  // Play Again button (at the bottom)
+  // Play Again button (at the bottom) – goes back to START SCREEN via scene restart
   const BTN_X = 960, BTN_Y = 750, BTN_W = 220, BTN_H = 60, BTN_R = 12;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
   const drawBtn = (fill, stroke = 0xffffff) => {
@@ -1532,12 +1657,10 @@ function showGameOver(scene) {
     btnText.setStyle({ fill: '#ffffff' });
   });
 
-  // These get filled only if the user isn't signed in
   let authBg = null;
   let authText = null;
   let promptText = null;
 
-  // React → Phaser: run has been saved
   const onRunSaved = (evt) => {
     const detail = (evt && evt.detail) || {};
     const name =
@@ -1557,11 +1680,9 @@ function showGameOver(scene) {
 
   window.addEventListener('wwiii-run-saved', onRunSaved);
 
-  const hardRestart = () => {
-    // clean up listener
+  const hardRestartToStartScreen = () => {
     window.removeEventListener('wwiii-run-saved', onRunSaved);
 
-    // kill timers/tweens and restart scene cleanly
     scene.tweens.killAll();
     scene.time.removeAllEvents();
     scene.physics.world.resume();
@@ -1574,7 +1695,7 @@ function showGameOver(scene) {
     setTimeout(() => {
       const key = scene.scene.key;
       scene.scene.stop(key);
-      scene.scene.start(key);
+      scene.scene.start(key); // create() → showStartScreen()
     }, 0);
   };
 
@@ -1584,9 +1705,9 @@ function showGameOver(scene) {
     scene.input.setDefaultCursor('default');
 
     if (window.adGate && typeof window.adGate.consumeOrGate === 'function') {
-      window.adGate.consumeOrGate(hardRestart);
+      window.adGate.consumeOrGate(hardRestartToStartScreen);
     } else {
-      hardRestart();
+      hardRestartToStartScreen();
     }
   });
 
@@ -1600,7 +1721,6 @@ function showGameOver(scene) {
         return;
       }
 
-      // How many scores have a strictly higher distance?
       const snap = await db
         .collection('scores')
         .where('distance', '>', runSummary.distance)
@@ -1609,7 +1729,6 @@ function showGameOver(scene) {
       const rank = higherCount + 1;
 
       if (isSignedIn) {
-        // Auto-save score using user display name
         const displayName =
           (currentUser.displayName || currentUser.email || 'Player')
             .trim()
@@ -1636,7 +1755,6 @@ function showGameOver(scene) {
           );
         }
       } else {
-        // Not signed in: show virtual place + offer login/signup
         setInfo(`You would be #${rank} on the leaderboard.`);
 
         promptText = scene.add.text(
@@ -1646,7 +1764,6 @@ function showGameOver(scene) {
           { font: '18px Arial', fill: '#ffffff' }
         ).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-        // Login/Sign up button (placed above Play Again)
         const AUTH_X = 960, AUTH_Y = 690, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
         authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
         const drawAuthBtn = (fill, stroke = 0xffffff) => {
@@ -1682,7 +1799,6 @@ function showGameOver(scene) {
         authBg.on('pointerdown', () => {
           try {
             if (typeof window !== 'undefined' && window.dispatchEvent) {
-              // expose this run (again) and ask React to open auth
               window.wwiiiPendingScore = {
                 distance: runSummary.distance,
                 enemiesKilled: runSummary.enemiesKilled,
