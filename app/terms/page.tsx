@@ -203,7 +203,14 @@ export default function TermsPage() {
         {/* Shared site header component */}
         <SiteHeader
           authReady={authReady}
+          user={currentUser}
           userLabel={userLabel}
+          onOpenAuth={() => {
+            setShowAuthForm(true);
+            setAuthMode("signup");
+            setAuthError(null);
+            setAuthStatus(null);
+          }}
           onSignOut={handleSignOut}
         />
 
