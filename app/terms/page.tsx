@@ -200,17 +200,11 @@ export default function TermsPage() {
       />
 
       <main className="site">
-        {/* Shared header from components */}
+        {/* Shared site header component */}
         <SiteHeader
           authReady={authReady}
           userLabel={userLabel}
           onSignOut={handleSignOut}
-          onShowAuth={() => {
-            setShowAuthForm(true);
-            setAuthMode("signup");
-            setAuthError(null);
-            setAuthStatus(null);
-          }}
         />
 
         {/* Content */}
@@ -223,10 +217,10 @@ export default function TermsPage() {
               <p>
                 These Terms of Use (&quot;Terms&quot;) govern your access to and
                 use of <strong>AsiantheJason.com</strong> (the &quot;Site&quot;)
-                and games like <strong>WWIII — Endless Defense</strong>
+                and games like <strong>WWIII — Endless Defense</strong>{" "}
                 (collectively, the &quot;Service&quot;). By using the Site, you
-                agree to these Terms. If you don&apos;t agree, please don&apos;t
-                use the Service — no hard feelings.
+                agree to these Terms. If you don&apos;t agree, please
+                don&apos;t use the Service — no hard feelings.
               </p>
             </header>
 
@@ -235,9 +229,9 @@ export default function TermsPage() {
                 <h2>1. Who&apos;s who</h2>
                 <ul>
                   <li>
-                    <strong>&quot;We&quot;, &quot;us&quot;, &quot;our&quot;</strong> means Jason
-                    Huang, also known online as{" "}
-                    <strong>AsiantheJason</strong>.
+                    <strong>&quot;We&quot;, &quot;us&quot;,
+                    &quot;our&quot;</strong> means Jason Huang, also known
+                    online as <strong>AsiantheJason</strong>.
                   </li>
                   <li>
                     <strong>&quot;You&quot;</strong> means any person using the
