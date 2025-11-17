@@ -4,6 +4,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 interface AuthUser {
   uid: string;
@@ -199,72 +200,19 @@ export default function TermsPage() {
       />
 
       <main className="site">
-        {/* Header with nav */}
-        <header className="site-header">
-          <div className="site-header-inner">
-            <Link href="/" className="site-title-link">
-              <span className="site-title">ASIANTHEJASON</span>
-            </Link>
-
-            <nav className="site-header-nav">
-              <Link href="/" className="site-header-nav-link">
-                Game
-              </Link>
-              <Link href="/about" className="site-header-nav-link">
-                About
-              </Link>
-              <Link href="/privacy-policy" className="site-header-nav-link">
-                Privacy
-              </Link>
-              <Link
-                href="/terms"
-                className="site-header-nav-link site-header-nav-link-active"
-              >
-                Terms
-              </Link>
-              <Link href="/contact" className="site-header-nav-link">
-                Contact
-              </Link>
-            </nav>
-
-            <div className="site-header-spacer" />
-
-            <div className="site-header-account">
-              {!authReady && <span className="site-header-text">Loading…</span>}
-              {authReady && currentUser && (
-                <>
-                  <span className="site-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
-              {authReady && !currentUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    setShowAuthForm(true);
-                    setAuthMode("signup");
-                    setAuthError(null);
-                    setAuthStatus(null);
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {/* Shared header from components */}
+        <SiteHeader
+          authReady={authReady}
+          currentUser={currentUser}
+          userLabel={userLabel}
+          onSignOut={handleSignOut}
+          onShowAuth={() => {
+            setShowAuthForm(true);
+            setAuthMode("signup");
+            setAuthError(null);
+            setAuthStatus(null);
+          }}
+        />
 
         {/* Content */}
         <section className="panel-section">
@@ -276,10 +224,10 @@ export default function TermsPage() {
               <p>
                 These Terms of Use (&quot;Terms&quot;) govern your access to and
                 use of <strong>AsiantheJason.com</strong> (the &quot;Site&quot;)
-                and games like <strong>WWIII — Endless Defense</strong>{" "}
+                and games like <strong>WWIII — Endless Defense</strong>
                 (collectively, the &quot;Service&quot;). By using the Site, you
-                agree to these Terms. If you don&apos;t agree, please
-                don&apos;t use the Service — no hard feelings.
+                agree to these Terms. If you don&apos;t agree, please don&apos;t
+                use the Service — no hard feelings.
               </p>
             </header>
 
@@ -620,76 +568,6 @@ export default function TermsPage() {
           padding: 16px 0 32px;
         }
 
-        .site-header {
-          padding: 8px 24px 12px;
-        }
-
-        .site-header-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .site-title-link {
-          text-decoration: none;
-          color: inherit;
-        }
-
-        .site-header-nav {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-left: 20px;
-          font-size: 13px;
-        }
-
-        .site-header-nav-link {
-          text-decoration: none;
-          color: inherit;
-          opacity: 0.8;
-          padding: 4px 10px;
-          border-radius: 999px;
-          transition: background 0.15s, opacity 0.15s;
-        }
-
-        .site-header-nav-link:hover {
-          background: rgba(255, 255, 255, 0.06);
-          opacity: 1;
-        }
-
-        .site-header-nav-link-active {
-          background: rgba(255, 255, 255, 0.12);
-          opacity: 1;
-        }
-
-        .site-header-spacer {
-          flex: 1;
-        }
-
-        .site-title {
-          font-weight: 700;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          font-size: 16px;
-          padding: 8px 16px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .site-header-account {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 13px;
-        }
-
-        .site-header-text {
-          opacity: 0.9;
-        }
-
         .panel-section {
           display: flex;
           justify-content: center;
@@ -934,7 +812,7 @@ export default function TermsPage() {
           font-size: 12px;
           padding: 4px 12px;
           border-radius: 999px;
-          cursor: pointer;
+          cursor: pointer.
         }
 
         .auth-toggle-btn-active {
@@ -1002,18 +880,9 @@ export default function TermsPage() {
           .terms-grid {
             grid-template-columns: 1fr;
           }
-
-          .site-header-nav {
-            flex-wrap: wrap;
-            margin-left: 12px;
-          }
         }
 
         @media (max-width: 700px) {
-          .site-header-inner {
-            flex-wrap: wrap;
-          }
-
           .site-footer {
             flex-direction: column;
             align-items: center;
