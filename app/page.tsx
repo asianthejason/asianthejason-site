@@ -1,4 +1,5 @@
-// app/page.tsx
+"use client";
+
 import Link from "next/link";
 
 const GAMES = [
@@ -110,7 +111,10 @@ export default function HomePage() {
               href="#"
               className="home-support-btn"
               onClick={(e) => {
-                if ((e.currentTarget as HTMLAnchorElement).getAttribute("href") === "#") {
+                if (
+                  (e.currentTarget as HTMLAnchorElement).getAttribute("href") ===
+                  "#"
+                ) {
                   e.preventDefault();
                   alert(
                     "Replace the donation button link in app/page.tsx with your real donation URL (PayPal, Ko-fi, etc.)."
@@ -165,9 +169,7 @@ export default function HomePage() {
                           : "game-card-secondary"
                       }
                     >
-                      {game.status === "Live"
-                        ? "Play now"
-                        : "View details"}
+                      {game.status === "Live" ? "Play now" : "View details"}
                     </Link>
                   </div>
                 </article>
