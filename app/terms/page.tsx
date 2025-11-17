@@ -204,7 +204,6 @@ export default function TermsPage() {
         <SiteHeader
           authReady={authReady}
           userLabel={userLabel}
-          isSignedIn={!!currentUser}
           onSignOut={handleSignOut}
           onShowAuth={() => {
             setShowAuthForm(true);
