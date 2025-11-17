@@ -4,6 +4,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 interface AuthUser {
   uid: string;
@@ -347,7 +348,7 @@ export default function ProfilePage() {
     }
   };
 
-  // ---------- Sign out (same behavior as main page) ----------
+  // ---------- Sign out ----------
   const handleSignOut = async () => {
     try {
       const w = window as any;
@@ -361,8 +362,9 @@ export default function ProfilePage() {
     }
   };
 
+  const headerUser = currentUser;
   const userLabel =
-    currentUser?.displayName || currentUser?.email || "Unknown soldier";
+    headerUser?.displayName || headerUser?.email || "Unknown soldier";
 
   return (
     <>
@@ -407,50 +409,17 @@ export default function ProfilePage() {
       />
 
       <main className="profile-site">
-        {/* Header (match main page) */}
-        <header className="profile-header">
-          <div className="profile-header-inner">
-            <Link href="/" className="site-title-link">
-              <div className="site-title">ASIANTHEJASON</div>
-            </Link>
-            <div className="profile-header-spacer" />
-            <div className="profile-header-account">
-              {!authReady && (
-                <span className="profile-header-text">Loading…</span>
-              )}
-
-              {authReady && currentUser && (
-                <>
-                  <span className="profile-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
-
-              {authReady && !currentUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    window.location.href = "/";
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {/* Shared header component */}
+        <SiteHeader
+          authReady={authReady}
+          user={headerUser}
+          userLabel={userLabel}
+          onOpenAuth={() => {
+            // No auth modal on this page; send them to main page.
+            window.location.href = "/";
+          }}
+          onSignOut={handleSignOut}
+        />
 
         {/* Content */}
         <section className="profile-section">
@@ -687,11 +656,12 @@ export default function ProfilePage() {
           padding: 16px 0 32px;
         }
 
-        .profile-header {
+        /* Shared header styles (match other pages) */
+        .site-header {
           padding: 8px 24px 12px;
         }
 
-        .profile-header-inner {
+        .site-header-inner {
           max-width: 1200px;
           margin: 0 auto;
           display: flex;
@@ -699,8 +669,8 @@ export default function ProfilePage() {
           gap: 16px;
         }
 
-        .site-title-link {
-          text-decoration: none;
+        .site-header-spacer {
+          flex: 1;
         }
 
         .site-title {
@@ -712,30 +682,33 @@ export default function ProfilePage() {
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.04);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          color: #f5f5f5;
         }
 
-        .profile-header-spacer {
-          flex: 1;
-        }
-
-        .profile-header-account {
+        .site-header-account {
           display: flex;
-          align-items: center;
-          gap: 10px;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
           font-size: 13px;
         }
 
-        .profile-header-text {
+        .site-header-account-top {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .site-header-account-bottom {
+          font-size: 12px;
+          opacity: 0.9;
+          text-align: right;
+        }
+
+        .site-header-text {
           opacity: 0.9;
         }
 
-        .profile-link-inline {
-          color: #ffb347;
-          text-decoration: underline;
-        }
-
-        /* Shared account button styles (match main page) */
+        /* Shared account button styles */
         .account-btn {
           border-radius: 999px;
           border: 1px solid rgba(255, 255, 255, 0.3);
@@ -774,6 +747,11 @@ export default function ProfilePage() {
         .account-btn:disabled {
           opacity: 0.6;
           cursor: default;
+        }
+
+        .profile-link-inline {
+          color: #ffb347;
+          text-decoration: underline;
         }
 
         .profile-section {
@@ -982,6 +960,19 @@ export default function ProfilePage() {
         }
 
         @media (max-width: 700px) {
+          .site-header-inner {
+            flex-wrap: wrap;
+            row-gap: 8px;
+          }
+
+          .site-header-account {
+            align-items: flex-start;
+          }
+
+          .site-header-account-bottom {
+            text-align: left;
+          }
+
           .profile-card {
             padding: 16px 16px 18px;
           }

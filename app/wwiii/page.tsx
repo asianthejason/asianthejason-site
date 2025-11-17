@@ -4,6 +4,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 type TabKey = "instructions" | "leaderboard" | "review";
 
@@ -608,8 +609,7 @@ export default function HomePage() {
   };
 
   // For the header, we hide auth changes during signup verification
-  const headerUser =
-    signupVerificationInFlight ? null : currentUser;
+  const headerUser = signupVerificationInFlight ? null : currentUser;
 
   const userLabel =
     headerUser?.displayName || headerUser?.email || "Unknown soldier";
@@ -674,47 +674,19 @@ export default function HomePage() {
 
       {/* --- Page UI --- */}
       <main className="site">
-        {/* Site header with auth controls */}
-        <header className="site-header">
-          <div className="site-header-inner">
-            <div className="site-title">ASIANTHEJASON</div>
-            <div className="site-header-spacer" />
-            <div className="site-header-account">
-              {!authReady && <span className="site-header-text">Loading…</span>}
-              {authReady && headerUser && (
-                <>
-                  <span className="site-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
-              {authReady && !headerUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    setShowAuthForm(true);
-                    setAuthMode("signup");
-                    setAuthError(null);
-                    setAuthStatus(null);
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {/* Shared header component */}
+        <SiteHeader
+          authReady={authReady}
+          user={headerUser}
+          userLabel={userLabel}
+          onOpenAuth={() => {
+            setShowAuthForm(true);
+            setAuthMode("signup");
+            setAuthError(null);
+            setAuthStatus(null);
+          }}
+          onSignOut={handleSignOut}
+        />
 
         {/* Game */}
         <section className="game-section">
@@ -1181,80 +1153,7 @@ export default function HomePage() {
           padding: 16px 0 32px;
         }
 
-        .site-header {
-          padding: 8px 24px 12px;
-        }
-
-        .site-header-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .site-header-spacer {
-          flex: 1;
-        }
-
-        .site-title {
-          font-weight: 700;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          font-size: 16px;
-          padding: 8px 16px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .site-header-account {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 13px;
-        }
-
-        .site-header-text {
-          opacity: 0.9;
-        }
-
-        .game-section {
-          display: flex;
-          justify-content: center;
-          margin-top: 12px;
-        }
-
-        .game-shell {
-          width: 85vw;
-          max-width: 1200px;
-        }
-
-        .game-container {
-          width: 100%;
-          aspect-ratio: 16 / 9;
-          border-radius: 24px;
-          overflow: hidden;
-          box-shadow: 0 22px 50px rgba(0, 0, 0, 0.9);
-          background: #000;
-        }
-
-        .panel-section {
-          display: flex;
-          justify-content: center;
-          margin-top: 24px;
-        }
-
-        .tabs-shell {
-          width: 85vw;
-          max-width: 900px;
-          background: rgba(9, 12, 25, 0.96);
-          border-radius: 20px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7);
-          overflow: hidden;
-        }
-
+        /* Shared button styles for header + page */
         .account-btn {
           border-radius: 999px;
           border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1293,6 +1192,42 @@ export default function HomePage() {
         .account-btn:disabled {
           opacity: 0.6;
           cursor: default;
+        }
+
+        .game-section {
+          display: flex;
+          justify-content: center;
+          margin-top: 12px;
+        }
+
+        .game-shell {
+          width: 85vw;
+          max-width: 1200px;
+        }
+
+        .game-container {
+          width: 100%;
+          aspect-ratio: 16 / 9;
+          border-radius: 24px;
+          overflow: hidden;
+          box-shadow: 0 22px 50px rgba(0, 0, 0, 0.9);
+          background: #000;
+        }
+
+        .panel-section {
+          display: flex;
+          justify-content: center;
+          margin-top: 24px;
+        }
+
+        .tabs-shell {
+          width: 85vw;
+          max-width: 900px;
+          background: rgba(9, 12, 25, 0.96);
+          border-radius: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7);
+          overflow: hidden;
         }
 
         .tabs {

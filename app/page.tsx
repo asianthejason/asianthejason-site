@@ -4,6 +4,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 interface AuthUser {
   uid: string;
@@ -287,60 +288,19 @@ export default function HomePage() {
 
       {/* --- Page UI --- */}
       <main className="site">
-        {/* Header nav – same as game page, plus Home button, with “signed in as” on a second line */}
-        <header className="site-header">
-          <div className="site-header-inner">
-            <div className="site-title">ASIANTHEJASON</div>
-            <div className="site-header-spacer" />
-            <div className="site-header-account">
-              <div className="site-header-account-top">
-                <Link href="/" className="account-btn subtle">
-                  Home
-                </Link>
-
-                {!authReady && (
-                  <span className="site-header-text">Loading…</span>
-                )}
-
-                {authReady && headerUser && (
-                  <>
-                    <Link href="/profile" className="account-btn subtle">
-                      Profile
-                    </Link>
-                    <button
-                      type="button"
-                      className="account-btn subtle"
-                      onClick={handleSignOut}
-                    >
-                      Sign out
-                    </button>
-                  </>
-                )}
-
-                {authReady && !headerUser && (
-                  <button
-                    type="button"
-                    className="account-btn"
-                    onClick={() => {
-                      setShowAuthForm(true);
-                      setAuthMode("signup");
-                      setAuthError(null);
-                      setAuthStatus(null);
-                    }}
-                  >
-                    Sign in / Sign up
-                  </button>
-                )}
-              </div>
-
-              {authReady && headerUser && (
-                <div className="site-header-account-bottom">
-                  Signed in as <strong>{userLabel}</strong>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
+        {/* Shared header component */}
+        <SiteHeader
+          authReady={authReady}
+          user={headerUser}
+          userLabel={userLabel}
+          onOpenAuth={() => {
+            setShowAuthForm(true);
+            setAuthMode("signup");
+            setAuthError(null);
+            setAuthStatus(null);
+          }}
+          onSignOut={handleSignOut}
+        />
 
         {/* Hero / title */}
         <section className="home-hero">
@@ -596,62 +556,7 @@ export default function HomePage() {
           padding: 16px 0 32px;
         }
 
-        /* Header (same as game page, tweaked for two-line account area) */
-        .site-header {
-          padding: 8px 24px 12px;
-        }
-
-        .site-header-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .site-header-spacer {
-          flex: 1;
-        }
-
-        .site-title {
-          font-weight: 700;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          font-size: 16px;
-          padding: 8px 16px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .site-header-account {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 4px;
-          font-size: 13px;
-        }
-
-        .site-header-account-top {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .site-header-account-bottom {
-          font-size: 12px;
-          opacity: 0.9;
-          text-align: right;
-        }
-
-        .site-header-text {
-          opacity: 0.9;
-        }
-
-        .site-header-text strong {
-          font-weight: 600;
-        }
-
+        /* We keep button styles global so SiteHeader can use them */
         .account-btn {
           border-radius: 999px;
           border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1075,11 +980,6 @@ export default function HomePage() {
         }
 
         @media (max-width: 700px) {
-          .site-header-inner {
-            flex-wrap: wrap;
-            row-gap: 8px;
-          }
-
           .home-hero {
             margin-top: 20px;
           }
@@ -1101,14 +1001,6 @@ export default function HomePage() {
             gap: 4px;
             align-items: center;
             text-align: center;
-          }
-
-          .site-header-account {
-            align-items: flex-start;
-          }
-
-          .site-header-account-bottom {
-            text-align: left;
           }
         }
       `}</style>

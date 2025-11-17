@@ -4,6 +4,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 interface AuthUser {
   uid: string;
@@ -278,49 +279,19 @@ export default function ContactPage() {
       />
 
       <main className="site">
-        {/* Header (same pattern as home/about/terms/privacy) */}
-        <header className="site-header">
-          <div className="site-header-inner">
-            <Link href="/" className="site-title-link">
-              <span className="site-title">ASIANTHEJASON</span>
-            </Link>
-            <div className="site-header-spacer" />
-            <div className="site-header-account">
-              {!authReady && <span className="site-header-text">Loading…</span>}
-              {authReady && currentUser && (
-                <>
-                  <span className="site-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
-              {authReady && !currentUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    setShowAuthForm(true);
-                    setAuthMode("signup");
-                    setAuthError(null);
-                    setAuthStatus(null);
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {/* Shared header nav */}
+        <SiteHeader
+          authReady={authReady}
+          user={currentUser}
+          userLabel={userLabel}
+          onOpenAuth={() => {
+            setShowAuthForm(true);
+            setAuthMode("signup");
+            setAuthError(null);
+            setAuthStatus(null);
+          }}
+          onSignOut={handleSignOut}
+        />
 
         {/* Contact content */}
         <section className="panel-section">
@@ -329,9 +300,9 @@ export default function ContactPage() {
               <span className="contact-pill">Contact</span>
               <h1>Say hi, send feedback, or report a bug 🐛</h1>
               <p>
-                Whether you found a bug, have an idea for WWIII — Endless Defense, or just want to
-                tell me your distance PB, drop a message here. I read them personally (usually
-                with coffee).
+                Whether you found a bug, have an idea for WWIII — Endless
+                Defense, or just want to tell me your distance PB, drop a
+                message here. I read them personally (usually with coffee).
               </p>
             </header>
 
@@ -394,10 +365,14 @@ export default function ContactPage() {
                   </div>
 
                   {contactError && (
-                    <div className="auth-message auth-error">{contactError}</div>
+                    <div className="auth-message auth-error">
+                      {contactError}
+                    </div>
                   )}
                   {contactStatus && (
-                    <div className="auth-message auth-status">{contactStatus}</div>
+                    <div className="auth-message auth-status">
+                      {contactStatus}
+                    </div>
                   )}
 
                   <button
@@ -413,25 +388,30 @@ export default function ContactPage() {
               <aside className="contact-side-card">
                 <h2>Helpful details (optional)</h2>
                 <ul>
-                  <li>What platform &amp; browser you&apos;re on (e.g. Windows + Chrome).</li>
                   <li>
-                    If it&apos;s a bug: what you were doing right before things went sideways.
+                    What platform &amp; browser you&apos;re on (e.g. Windows +
+                    Chrome).
                   </li>
                   <li>
-                    If it&apos;s feedback: what you&apos;d love to see next — new weapons, balance
-                    tweaks, or extra chaos.
+                    If it&apos;s a bug: what you were doing right before things
+                    went sideways.
+                  </li>
+                  <li>
+                    If it&apos;s feedback: what you&apos;d love to see next —
+                    new weapons, balance tweaks, or extra chaos.
                   </li>
                 </ul>
                 <p>
                   You can also reach me through any links listed in your{" "}
-                  <Link href="/about">About</Link> / profile ecosystem if I add more later.
+                  <Link href="/about">About</Link> / profile ecosystem if I add
+                  more later.
                 </p>
               </aside>
             </div>
           </div>
         </section>
 
-        {/* Footer nav (no Game link) */}
+        {/* Footer nav */}
         <footer className="site-footer">
           <span>© {new Date().getFullYear()} AsiantheJason</span>
 
@@ -460,8 +440,8 @@ export default function ContactPage() {
               <div>
                 <div className="auth-modal-title">Sign in to your account</div>
                 <div className="auth-modal-subtitle">
-                  Same login you use for the game and reviews — no extra accounts, just easier
-                  feedback.
+                  Same login you use for the game and reviews — no extra
+                  accounts, just easier feedback.
                 </div>
               </div>
               <button

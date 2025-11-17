@@ -4,6 +4,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 interface AuthUser {
   uid: string;
@@ -203,49 +204,19 @@ export default function AboutPage() {
       />
 
       <main className="site">
-        {/* Header nav (matching home) */}
-        <header className="site-header">
-          <div className="site-header-inner">
-            <Link href="/" className="site-title-link">
-              <span className="site-title">ASIANTHEJASON</span>
-            </Link>
-            <div className="site-header-spacer" />
-            <div className="site-header-account">
-              {!authReady && <span className="site-header-text">Loading…</span>}
-              {authReady && currentUser && (
-                <>
-                  <span className="site-header-text">
-                    Signed in as <strong>{userLabel}</strong>
-                  </span>
-                  <Link href="/profile" className="account-btn subtle">
-                    Profile
-                  </Link>
-                  <button
-                    type="button"
-                    className="account-btn subtle"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
-              {authReady && !currentUser && (
-                <button
-                  type="button"
-                  className="account-btn"
-                  onClick={() => {
-                    setShowAuthForm(true);
-                    setAuthMode("signup");
-                    setAuthError(null);
-                    setAuthStatus(null);
-                  }}
-                >
-                  Sign in / Sign up
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {/* Shared header nav */}
+        <SiteHeader
+          authReady={authReady}
+          user={currentUser}
+          userLabel={userLabel}
+          onOpenAuth={() => {
+            setShowAuthForm(true);
+            setAuthMode("signup");
+            setAuthError(null);
+            setAuthStatus(null);
+          }}
+          onSignOut={handleSignOut}
+        />
 
         {/* About content */}
         <section className="panel-section">
@@ -254,9 +225,11 @@ export default function AboutPage() {
               <span className="about-pill">About</span>
               <h1>Hi, I&apos;m Jason — a.k.a. AsiantheJason 👋</h1>
               <p>
-                I&apos;m a teacher, game dev, and professional button-masher. Online I go by{" "}
-                <strong>AsiantheJason</strong>, and yes, I&apos;m the one to blame for{" "}
-                <strong>WWIII — Endless Defense</strong> and <strong>Animated Escape</strong>.
+                I&apos;m a teacher, game dev, and professional button-masher.
+                Online I go by <strong>AsiantheJason</strong>, and yes,
+                I&apos;m the one to blame for{" "}
+                <strong>WWIII — Endless Defense</strong> and{" "}
+                <strong>Animated Escape</strong>.
               </p>
             </div>
 
@@ -264,42 +237,46 @@ export default function AboutPage() {
               <article className="about-card">
                 <h2>What I do</h2>
                 <p>
-                  I build games and tools that mix problem-solving, strategy, and just enough chaos
-                  to keep things fun. By day I teach math, computer science, and robotics; by night
-                  I&apos;m usually tweaking spawn rates and wondering if that boss is still too
+                  I build games and tools that mix problem-solving, strategy,
+                  and just enough chaos to keep things fun. By day I teach math,
+                  computer science, and robotics; by night I&apos;m usually
+                  tweaking spawn rates and wondering if that boss is still too
                   easy.
                 </p>
                 <p>
-                  My goal: games that feel good to play, backed by real engineering and a lot of
-                  late-night debugging.
+                  My goal: games that feel good to play, backed by real
+                  engineering and a lot of late-night debugging.
                 </p>
               </article>
 
               <article className="about-card">
                 <h2>About WWIII — Endless Defense</h2>
                 <p>
-                  <strong>WWIII — Endless Defense</strong> started as a &quot;weekend&quot; project
-                  and then decided to become a full web experience: online leaderboard, reviews,
-                  stats, and the occasional &quot;why did I die there&quot; moment.
+                  <strong>WWIII — Endless Defense</strong> started as a
+                  &quot;weekend&quot; project and then decided to become a full
+                  web experience: online leaderboard, reviews, stats, and the
+                  occasional &quot;why did I die there&quot; moment.
                 </p>
                 <p>
-                  You move with <strong>WASD</strong>, you shoot stuff, you try not to panic, and
-                  somewhere in the middle you realize you&apos;re min-maxing ammo like it&apos;s a
-                  math contest.
+                  You move with <strong>WASD</strong>, you shoot stuff, you try
+                  not to panic, and somewhere in the middle you realize
+                  you&apos;re min-maxing ammo like it&apos;s a math contest.
                 </p>
               </article>
 
               <article className="about-card">
                 <h2>Animated Escape &amp; other experiments</h2>
                 <p>
-                  I&apos;m also the creator of <strong>Animated Escape</strong>, another passion
-                  project that plays with animation, timing, and &quot;just one more run&quot;
-                  energy.
+                  I&apos;m also the creator of{" "}
+                  <strong>Animated Escape</strong>, another passion project that
+                  plays with animation, timing, and &quot;just one more
+                  run&quot; energy.
                 </p>
                 <p>
-                  I like using games as a sandbox for ideas: physics, AI, level design, and
-                  sneaking in more math than most people realize. If it makes you think{" "}
-                  <em>and</em> laugh a little, I&apos;m happy.
+                  I like using games as a sandbox for ideas: physics, AI, level
+                  design, and sneaking in more math than most people realize. If
+                  it makes you think <em>and</em> laugh a little, I&apos;m
+                  happy.
                 </p>
               </article>
 
@@ -307,10 +284,14 @@ export default function AboutPage() {
                 <h2>Fun facts (questionable importance)</h2>
                 <ul>
                   <li>Yes, I do read the leaderboard like sports stats.</li>
-                  <li>Keyboard shortcuts are my cardio. My WASD fingers are absolutely jacked.</li>
                   <li>
-                    If you find a bug, it&apos;s a &quot;feature in beta.&quot; If you find two,
-                    congratulations, you&apos;re now part of QA.
+                    Keyboard shortcuts are my cardio. My WASD fingers are
+                    absolutely jacked.
+                  </li>
+                  <li>
+                    If you find a bug, it&apos;s a &quot;feature in
+                    beta.&quot; If you find two, congratulations, you&apos;re
+                    now part of QA.
                   </li>
                 </ul>
               </article>
@@ -320,8 +301,9 @@ export default function AboutPage() {
               <div>
                 <h3>Want to keep playing?</h3>
                 <p>
-                  Hit the game, climb the <strong>Leaderboard</strong>, or drop your thoughts in a{" "}
-                  <strong>Review</strong>. I actually read them. Probably with snacks.
+                  Hit the game, climb the <strong>Leaderboard</strong>, or drop
+                  your thoughts in a <strong>Review</strong>. I actually read
+                  them. Probably with snacks.
                 </p>
               </div>
               <div className="about-cta-buttons">
@@ -363,10 +345,12 @@ export default function AboutPage() {
           <div className="auth-modal">
             <div className="auth-modal-header">
               <div>
-                <div className="auth-modal-title">Sign in to save your runs</div>
+                <div className="auth-modal-title">
+                  Sign in to save your runs
+                </div>
                 <div className="auth-modal-subtitle">
-                  Use the same account for the game, reviews, and more experiments I probably
-                  shouldn&apos;t ship yet.
+                  Use the same account for the game, reviews, and more
+                  experiments I probably shouldn&apos;t ship yet.
                 </div>
               </div>
               <button
