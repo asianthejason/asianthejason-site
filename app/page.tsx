@@ -29,29 +29,25 @@ export default function HomePage() {
   return (
     <>
       <main className="site">
-        {/* Header */}
+        {/* Header - same structure as game page, plus Home button */}
         <header className="site-header">
           <div className="site-header-inner">
-            <Link href="/" className="site-title-link">
-              <span className="site-title">ASIANTHEJASON</span>
-            </Link>
-
+            <div className="site-title">ASIANTHEJASON</div>
             <div className="site-header-spacer" />
-
-            <nav className="site-header-links">
-              <Link href="/" className="site-header-link">
+            <div className="site-header-account">
+              <Link href="/" className="account-btn subtle">
                 Home
               </Link>
-              <Link href="/wwiii" className="site-header-link">
+              <Link href="/wwiii" className="account-btn subtle">
                 WWIII Game
               </Link>
-              <Link href="/about" className="site-header-link">
+              <Link href="/about" className="account-btn subtle">
                 About
               </Link>
-              <Link href="/contact" className="site-header-link">
+              <Link href="/contact" className="account-btn subtle">
                 Contact
               </Link>
-            </nav>
+            </div>
           </div>
         </header>
 
@@ -150,10 +146,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Footer */}
+        {/* Footer - matched to game page */}
         <footer className="site-footer">
-          <span>© {currentYear} ASIANTHEJASON. All rights reserved.</span>
-          <div className="site-footer-links">
+          <span>© {currentYear} AsiantheJason</span>
+
+          <nav className="site-footer-links">
+            <Link href="/about" className="site-footer-link">
+              About
+            </Link>
             <Link href="/privacy-policy" className="site-footer-link">
               Privacy Policy
             </Link>
@@ -163,7 +163,7 @@ export default function HomePage() {
             <Link href="/contact" className="site-footer-link">
               Contact
             </Link>
-          </div>
+          </nav>
         </footer>
       </main>
 
@@ -183,32 +183,17 @@ export default function HomePage() {
           padding: 16px 0 32px;
         }
 
+        /* Header – same layout as game page */
         .site-header {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          backdrop-filter: blur(22px);
-          background: linear-gradient(
-            to bottom,
-            rgba(3, 6, 19, 0.95),
-            rgba(3, 6, 19, 0.75),
-            transparent
-          );
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          padding: 8px 24px 12px;
         }
 
         .site-header-inner {
-          max-width: 1100px;
+          max-width: 1200px;
           margin: 0 auto;
-          padding: 10px 16px;
           display: flex;
           align-items: center;
-          gap: 12px;
-        }
-
-        .site-title-link {
-          text-decoration: none;
-          color: inherit;
+          gap: 16px;
         }
 
         .site-header-spacer {
@@ -226,34 +211,62 @@ export default function HomePage() {
           border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .site-header-links {
+        .site-header-account {
           display: flex;
-          gap: 10px;
           align-items: center;
-          font-size: 14px;
+          gap: 10px;
+          font-size: 13px;
         }
 
-        .site-header-link {
-          text-decoration: none;
-          color: rgba(245, 245, 245, 0.9);
-          padding: 6px 10px;
-          border-radius: 999px;
-          border: 1px solid transparent;
-          transition: background 0.18s.ease, border-color 0.18s.ease,
-            transform 0.12s.ease;
+        .site-header-text {
           opacity: 0.9;
         }
 
-        .site-header-link:hover {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.16);
-          transform: translateY(-1px);
+        .account-btn {
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          padding: 6px 12px;
+          font-size: 12px;
+          background: transparent;
+          color: #f5f5f5;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
+        .account-btn.subtle {
+          border-color: rgba(255, 255, 255, 0.18);
+          opacity: 0.85;
+        }
+
+        .account-btn.primary {
+          border-color: #ff834a;
+          background: linear-gradient(135deg, #ff784a, #ffb347);
+          color: #120b06;
+          font-weight: 600;
+        }
+
+        .account-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .account-btn.primary:hover:not(:disabled) {
+          filter: brightness(1.05);
+        }
+
+        .account-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        /* Hero */
         .home-hero {
           max-width: 1100px;
           margin: 28px auto 0;
-          padding: 0 16px;
+          padding: 0 24px;
         }
 
         .home-hero-text h1 {
@@ -262,11 +275,12 @@ export default function HomePage() {
           margin: 10px 0 0;
         }
 
+        /* Support / donation */
         .home-support {
           display: flex;
           justify-content: center;
           margin-top: 32px;
-          padding: 0 16px;
+          padding: 0 24px;
         }
 
         .home-support-shell {
@@ -318,11 +332,12 @@ export default function HomePage() {
           box-shadow: 0 24px 60px rgba(249, 115, 22, 0.5);
         }
 
+        /* Games panel */
         .panel-section {
           display: flex;
           justify-content: center;
           margin-top: 32px;
-          padding: 0 16px;
+          padding: 0 24px;
         }
 
         .tabs-shell {
@@ -470,29 +485,29 @@ export default function HomePage() {
           background: rgba(15, 23, 42, 1);
         }
 
+        /* Footer – same layout as game page */
         .site-footer {
           margin-top: auto;
-          padding: 14px 16px 0;
+          padding: 16px 24px 0;
           display: flex;
-          justify-content: center;
-        }
-
-        .site-footer span {
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
           font-size: 12px;
           opacity: 0.7;
+          flex-wrap: wrap;
         }
 
         .site-footer-links {
           display: flex;
+          flex-wrap: wrap;
           gap: 10px;
-          margin-left: 12px;
         }
 
         .site-footer-link {
           text-decoration: none;
-          font-size: 12px;
-          opacity: 0.75;
-          color: #e5e7eb;
+          color: inherit;
+          opacity: 0.85;
         }
 
         .site-footer-link:hover {
@@ -524,13 +539,7 @@ export default function HomePage() {
 
           .site-footer {
             flex-direction: column;
-            align-items: center;
-            text-align: center;
-            gap: 4px;
-          }
-
-          .site-footer-links {
-            margin-left: 0;
+            align-items: flex-start;
           }
         }
       `}</style>
