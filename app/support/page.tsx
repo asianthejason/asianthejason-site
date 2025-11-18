@@ -8,7 +8,7 @@ import SiteHeader from "../components/SiteHeader";
 
 import {
   Elements,
-  PaymentElement,
+  CardElement,
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
@@ -26,42 +26,86 @@ const stripePromise = loadStripe(
 
 type AmountOption = 3 | 5 | 10 | "custom";
 
-type DonationFormProps = {
-  amount: number;
-  onSuccess: () => void;
-};
-
-function DonationForm({ amount, onSuccess }: DonationFormProps) {
+function DonationForm() {
   const stripe = useStripe();
   const elements = useElements();
+
+  const [amountOption, setAmountOption] = useState<AmountOption | null>(5);
+  const [customAmount, setCustomAmount] = useState<string>("");
+
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Compute numeric amount (in dollars)
+  const numericAmount = (() => {
+    if (amountOption === "custom") {
+      const n = Number(customAmount);
+      return isFinite(n) && n > 0 ? n : 0;
+    }
+    if (amountOption === 3 || amountOption === 5 || amountOption === 10) {
+      return amountOption;
+    }
+    return 0;
+  })();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) return;
 
+    if (!numericAmount || numericAmount <= 0) {
+      setMessage("Please choose a donation amount (minimum $1).");
+      return;
+    }
+
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) {
+      setMessage("Card field is not ready yet. Please try again.");
+      return;
+    }
+
     setSubmitting(true);
     setMessage(null);
 
     try {
-      const { error, paymentIntent } = await stripe.confirmPayment({
-        elements,
-        redirect: "if_required",
+      // 1) Create the PaymentIntent on the server with the chosen amount
+      const res = await fetch("/api/create-payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: numericAmount }),
       });
 
+      const data = await res.json();
+
+      if (!res.ok || !data.clientSecret) {
+        throw new Error(data.error || "Could not start payment.");
+      }
+
+      const clientSecret: string = data.clientSecret;
+
+      // 2) Confirm the card payment with that PaymentIntent
+      const { error, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: cardElement,
+          },
+        }
+      );
+
       if (error) {
-        console.error("Stripe confirmPayment error", error);
+        console.error("Stripe confirmCardPayment error", error);
         setMessage(error.message || "Payment failed. Please try again.");
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
         setMessage("Thank you for supporting the project! ❤️");
 
-        // Let the user see the message briefly, then reset via parent.
-        setTimeout(() => {
-          onSuccess();
-        }, 1200);
+        // Clear all fields: amount + custom input + card element
+        setAmountOption(null);
+        setCustomAmount("");
+        cardElement.clear();
       } else {
-        setMessage("Payment processing… if this persists, contact support.");
+        setMessage(
+          "Payment processing… if this persists, please contact support."
+        );
       }
     } catch (err: any) {
       console.error("Stripe payment error", err);
@@ -73,16 +117,102 @@ function DonationForm({ amount, onSuccess }: DonationFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="donation-form">
-      <PaymentElement />
+      <div className="donation-amount-picker">
+        <span className="support-label">Choose an amount</span>
+        <div className="donation-amount-buttons">
+          {[3, 5, 10].map((v) => (
+            <button
+              key={v}
+              type="button"
+              className={
+                "donation-chip" +
+                (amountOption === v ? " donation-chip-active" : "")
+              }
+              onClick={() => {
+                setAmountOption(v as AmountOption);
+                setMessage(null);
+              }}
+            >
+              ${v}
+            </button>
+          ))}
+          <button
+            type="button"
+            className={
+              "donation-chip" +
+              (amountOption === "custom" ? " donation-chip-active" : "")
+            }
+            onClick={() => {
+              setAmountOption("custom");
+              setMessage(null);
+            }}
+          >
+            Custom
+          </button>
+        </div>
 
-      {message && <div className="auth-message auth-status">{message}</div>}
+        {amountOption === "custom" && (
+          <div className="donation-custom-input">
+            <span className="support-label">Custom amount</span>
+            <div className="donation-custom-field">
+              <span className="donation-currency">$</span>
+              <input
+                type="number"
+                min={1}
+                step="0.5"
+                value={customAmount}
+                onChange={(e) => {
+                  setCustomAmount(e.target.value);
+                  setMessage(null);
+                }}
+                placeholder="5.00"
+              />
+            </div>
+            <p className="support-hint">
+              Minimum $1.00. Please enter a whole or decimal amount.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Card field directly under the amount picker */}
+      <div className="card-element-wrapper">
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: "14px",
+                color: "#f5f5f5",
+                "::placeholder": { color: "#9ca3af" },
+              },
+            },
+          }}
+        />
+      </div>
+
+      {message && (
+        <div
+          className={
+            "auth-message " +
+            (message.startsWith("Thank you")
+              ? "auth-status"
+              : "auth-error")
+          }
+        >
+          {message}
+        </div>
+      )}
 
       <button
         type="submit"
         className="account-btn primary donation-submit-btn"
         disabled={submitting || !stripe || !elements}
       >
-        {submitting ? "Processing…" : `Donate $${amount.toFixed(2)}`}
+        {submitting
+          ? "Processing…"
+          : numericAmount > 0
+          ? `Submit payment ($${numericAmount.toFixed(2)})`
+          : "Submit payment"}
       </button>
     </form>
   );
@@ -91,16 +221,6 @@ function DonationForm({ amount, onSuccess }: DonationFormProps) {
 export default function SupportPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
-
-  // Donation amount state
-  const [amountOption, setAmountOption] = useState<AmountOption>(5);
-  const [customAmount, setCustomAmount] = useState<string>("");
-
-  // Stripe PaymentIntent state
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [creatingIntent, setCreatingIntent] = useState(false);
-  const [piError, setPiError] = useState<string | null>(null);
-  const [donationComplete, setDonationComplete] = useState(false);
 
   // Share button feedback
   const [copied, setCopied] = useState(false);
@@ -153,58 +273,6 @@ export default function SupportPage() {
     }
   };
 
-  // ---------- Compute numeric amount (in dollars) ----------
-  const numericAmount = (() => {
-    if (amountOption === "custom") {
-      const n = Number(customAmount);
-      return isFinite(n) && n > 0 ? n : 0;
-    }
-    return amountOption;
-  })();
-
-  // ---------- Manually create PaymentIntent when user clicks  ----------
-  const handleStartCheckout = async () => {
-    if (!numericAmount || numericAmount <= 0) {
-      setPiError("Enter a valid donation amount (minimum $1).");
-      return;
-    }
-
-    try {
-      setCreatingIntent(true);
-      setPiError(null);
-      setClientSecret(null);
-      setDonationComplete(false);
-
-      const res = await fetch("/api/create-payment-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: numericAmount }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.clientSecret) {
-        throw new Error(data.error || "Failed to create payment intent.");
-      }
-
-      setClientSecret(data.clientSecret);
-    } catch (err: any) {
-      console.error("PI error", err);
-      setPiError(err.message || "Could not start donation.");
-      setClientSecret(null);
-    } finally {
-      setCreatingIntent(false);
-    }
-  };
-
-  const handleDonationSuccess = () => {
-    // Clear everything so the form is "fresh" again.
-    setDonationComplete(true);
-    setClientSecret(null);
-    setCustomAmount("");
-    setAmountOption(5);
-  };
-
   const handleCopyLink = async () => {
     try {
       const url =
@@ -244,15 +312,6 @@ export default function SupportPage() {
       "_blank"
     );
   };
-
-  const elementsOptions = clientSecret
-    ? {
-        clientSecret,
-        appearance: {
-          theme: "night" as const,
-        },
-      }
-    : undefined;
 
   return (
     <>
@@ -372,114 +431,14 @@ export default function SupportPage() {
                   Stripe. Thank you for keeping the lights on 🙏
                 </p>
 
-                <div className="donation-amount-picker">
-                  <span className="support-label">Choose an amount</span>
-                  <div className="donation-amount-buttons">
-                    {[3, 5, 10].map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        className={
-                          "donation-chip" +
-                          (amountOption === v ? " donation-chip-active" : "")
-                        }
-                        onClick={() => {
-                          setAmountOption(v as AmountOption);
-                          setDonationComplete(false);
-                        }}
-                      >
-                        ${v}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={
-                        "donation-chip" +
-                        (amountOption === "custom"
-                          ? " donation-chip-active"
-                          : "")
-                      }
-                      onClick={() => {
-                        setAmountOption("custom");
-                        setDonationComplete(false);
-                      }}
-                    >
-                      Custom
-                    </button>
-                  </div>
-
-                  {amountOption === "custom" && (
-                    <div className="donation-custom-input">
-                      <span className="support-label">Custom amount</span>
-                      <div className="donation-custom-field">
-                        <span className="donation-currency">$</span>
-                        <input
-                          type="number"
-                          min={1}
-                          step="0.5"
-                          value={customAmount}
-                          onChange={(e) => {
-                            setCustomAmount(e.target.value);
-                            setDonationComplete(false);
-                          }}
-                          placeholder="5.00"
-                        />
-                      </div>
-                      <p className="support-hint">
-                        Minimum $1.00. Please enter a whole or decimal
-                        amount.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {piError && (
-                  <div className="auth-message auth-error">{piError}</div>
-                )}
-
-                {/* If a donation just completed, show a simple thank-you */}
-                {donationComplete && !clientSecret && (
-                  <div className="support-hint">
-                    Thanks again for the support! 🎉{" "}
-                    <button
-                      type="button"
-                      className="account-btn subtle"
-                      onClick={() => setDonationComplete(false)}
-                    >
-                      Donate again
-                    </button>
-                  </div>
-                )}
-
-                {/* If we have a clientSecret, show Stripe form; otherwise show "Continue" button */}
-                {!donationComplete &&
-                  (elementsOptions ? (
-                    <Elements
-                      stripe={stripePromise}
-                      options={elementsOptions}
-                      key={clientSecret || "no-intent"}
-                    >
-                      <DonationForm
-                        amount={numericAmount}
-                        onSuccess={handleDonationSuccess}
-                      />
-                    </Elements>
-                  ) : (
-                    <button
-                      type="button"
-                      className="account-btn primary donation-submit-btn"
-                      onClick={handleStartCheckout}
-                      disabled={creatingIntent || numericAmount <= 0}
-                    >
-                      {creatingIntent
-                        ? "Preparing checkout…"
-                        : numericAmount > 0
-                        ? `Continue to secure checkout ($${numericAmount.toFixed(
-                            2
-                          )})`
-                        : "Enter an amount to continue"}
-                    </button>
-                  ))}
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    appearance: { theme: "night" },
+                  }}
+                >
+                  <DonationForm />
+                </Elements>
 
                 <p className="support-caption">
                   Payments are processed securely via Stripe. Your card
@@ -679,6 +638,14 @@ export default function SupportPage() {
           font-size: 13px;
           width: 100%;
           outline: none;
+        }
+
+        .card-element-wrapper {
+          margin-top: 10px;
+          padding: 10px 10px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(5, 8, 20, 0.95);
         }
 
         .donation-form {
