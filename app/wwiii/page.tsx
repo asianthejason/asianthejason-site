@@ -695,6 +695,13 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* NEW: Game title under game, above tabs */}
+        <section className="game-title-section">
+          <div className="game-title-shell">
+            <h1 className="game-title">WWIII - Endless Defence</h1>
+          </div>
+        </section>
+
         {/* Tabs (instructions / leaderboard / review) */}
         <section className="panel-section">
           <div className="tabs-shell">
@@ -1214,10 +1221,34 @@ export default function HomePage() {
           background: #000;
         }
 
+        /* New title styles */
+        .game-title-section {
+          display: flex;
+          justify-content: center;
+          margin-top: 10px;
+        }
+
+        .game-title-shell {
+          width: 85vw;
+          max-width: 900px;
+          display: flex;
+          justify-content: center;
+        }
+
+        .game-title {
+          margin: 0;
+          font-size: 22px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          text-align: center;
+          opacity: 0.95;
+        }
+
         .panel-section {
           display: flex;
           justify-content: center;
-          margin-top: 24px;
+          margin-top: 18px;
         }
 
         .tabs-shell {
@@ -1670,6 +1701,10 @@ export default function HomePage() {
             gap: 4px;
             align-items: center;
             text-align: center;
+          }
+
+          .game-title {
+            font-size: 18px;
           }
         }
       `}</style>
