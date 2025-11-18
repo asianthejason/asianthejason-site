@@ -24,27 +24,25 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
 );
 
-// Include null so there is no default amount on load
-type AmountOption = 3 | 5 | 10 | "custom" | null;
+type AmountOption = 3 | 5 | 10 | "custom";
 
-function DonationForm({
-  amount,
-  onSuccess,
-}: {
+type DonationFormProps = {
   amount: number;
   onSuccess: () => void;
-}) {
+};
+
+function DonationForm({ amount, onSuccess }: DonationFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) return;
 
     setSubmitting(true);
-    setErrorMessage(null);
+    setMessage(null);
 
     try {
       const { error, paymentIntent } = await stripe.confirmPayment({
@@ -54,18 +52,20 @@ function DonationForm({
 
       if (error) {
         console.error("Stripe confirmPayment error", error);
-        setErrorMessage(error.message || "Payment failed. Please try again.");
+        setMessage(error.message || "Payment failed. Please try again.");
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
-        // Let parent know a donation completed; parent will clear the form.
-        onSuccess();
+        setMessage("Thank you for supporting the project! ❤️");
+
+        // Let the user see the message briefly, then reset via parent.
+        setTimeout(() => {
+          onSuccess();
+        }, 1200);
       } else {
-        setErrorMessage(
-          "Payment processing… if this persists, contact support."
-        );
+        setMessage("Payment processing… if this persists, contact support.");
       }
     } catch (err: any) {
       console.error("Stripe payment error", err);
-      setErrorMessage("Something went wrong. Please try again.");
+      setMessage("Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -75,9 +75,7 @@ function DonationForm({
     <form onSubmit={handleSubmit} className="donation-form">
       <PaymentElement />
 
-      {errorMessage && (
-        <div className="auth-message auth-error">{errorMessage}</div>
-      )}
+      {message && <div className="auth-message auth-status">{message}</div>}
 
       <button
         type="submit"
@@ -95,15 +93,13 @@ export default function SupportPage() {
   const [authReady, setAuthReady] = useState(false);
 
   // Donation amount state
-  const [amountOption, setAmountOption] = useState<AmountOption>(null);
+  const [amountOption, setAmountOption] = useState<AmountOption>(5);
   const [customAmount, setCustomAmount] = useState<string>("");
 
   // Stripe PaymentIntent state
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [piLoading, setPiLoading] = useState(false);
+  const [creatingIntent, setCreatingIntent] = useState(false);
   const [piError, setPiError] = useState<string | null>(null);
-
-  // Donation completion
   const [donationComplete, setDonationComplete] = useState(false);
 
   // Share button feedback
@@ -163,27 +159,21 @@ export default function SupportPage() {
       const n = Number(customAmount);
       return isFinite(n) && n > 0 ? n : 0;
     }
-    if (amountOption === 3 || amountOption === 5 || amountOption === 10) {
-      return amountOption;
-    }
-    return 0;
+    return amountOption;
   })();
 
-  // ---------- Start payment: create PaymentIntent once ----------
-  const handleStartPayment = async () => {
-    if (clientSecret) {
-      // PaymentIntent already created for this flow
-      return;
-    }
-
+  // ---------- Manually create PaymentIntent when user clicks  ----------
+  const handleStartCheckout = async () => {
     if (!numericAmount || numericAmount <= 0) {
-      setPiError("Please choose a valid amount first.");
+      setPiError("Enter a valid donation amount (minimum $1).");
       return;
     }
 
     try {
-      setPiLoading(true);
+      setCreatingIntent(true);
       setPiError(null);
+      setClientSecret(null);
+      setDonationComplete(false);
 
       const res = await fetch("/api/create-payment-intent", {
         method: "POST",
@@ -193,7 +183,7 @@ export default function SupportPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !data.clientSecret) {
         throw new Error(data.error || "Failed to create payment intent.");
       }
 
@@ -203,8 +193,16 @@ export default function SupportPage() {
       setPiError(err.message || "Could not start donation.");
       setClientSecret(null);
     } finally {
-      setPiLoading(false);
+      setCreatingIntent(false);
     }
+  };
+
+  const handleDonationSuccess = () => {
+    // Clear everything so the form is "fresh" again.
+    setDonationComplete(true);
+    setClientSecret(null);
+    setCustomAmount("");
+    setAmountOption(5);
   };
 
   const handleCopyLink = async () => {
@@ -247,23 +245,14 @@ export default function SupportPage() {
     );
   };
 
-  const resetDonationState = () => {
-    setAmountOption(null);
-    setCustomAmount("");
-    setClientSecret(null);
-    setPiError(null);
-    setPiLoading(false);
-  };
-
-  const elementsOptions =
-    clientSecret && numericAmount
-      ? {
-          clientSecret,
-          appearance: {
-            theme: "night" as const,
-          },
-        }
-      : undefined;
+  const elementsOptions = clientSecret
+    ? {
+        clientSecret,
+        appearance: {
+          theme: "night" as const,
+        },
+      }
+    : undefined;
 
   return (
     <>
@@ -396,10 +385,7 @@ export default function SupportPage() {
                         }
                         onClick={() => {
                           setAmountOption(v as AmountOption);
-                          setCustomAmount("");
                           setDonationComplete(false);
-                          setClientSecret(null);
-                          setPiError(null);
                         }}
                       >
                         ${v}
@@ -416,8 +402,6 @@ export default function SupportPage() {
                       onClick={() => {
                         setAmountOption("custom");
                         setDonationComplete(false);
-                        setClientSecret(null);
-                        setPiError(null);
                       }}
                     >
                       Custom
@@ -437,8 +421,6 @@ export default function SupportPage() {
                           onChange={(e) => {
                             setCustomAmount(e.target.value);
                             setDonationComplete(false);
-                            setClientSecret(null);
-                            setPiError(null);
                           }}
                           placeholder="5.00"
                         />
@@ -455,56 +437,49 @@ export default function SupportPage() {
                   <div className="auth-message auth-error">{piError}</div>
                 )}
 
-                {donationComplete && (
-                  <div className="auth-message auth-status">
-                    Thank you for supporting the project! ❤️
+                {/* If a donation just completed, show a simple thank-you */}
+                {donationComplete && !clientSecret && (
+                  <div className="support-hint">
+                    Thanks again for the support! 🎉{" "}
+                    <button
+                      type="button"
+                      className="account-btn subtle"
+                      onClick={() => setDonationComplete(false)}
+                    >
+                      Donate again
+                    </button>
                   </div>
                 )}
 
                 {/* If we have a clientSecret, show Stripe form; otherwise show "Continue" button */}
-                {elementsOptions && stripePromise && !donationComplete ? (
-                  <Elements
-                    stripe={stripePromise}
-                    options={elementsOptions}
-                  >
-                    <DonationForm
-                      amount={numericAmount}
-                      onSuccess={() => {
-                        // Clear all state after a successful payment
-                        setDonationComplete(true);
-                        resetDonationState();
-                      }}
-                    />
-                  </Elements>
-                ) : (
-                  !donationComplete && (
+                {!donationComplete &&
+                  (elementsOptions ? (
+                    <Elements
+                      stripe={stripePromise}
+                      options={elementsOptions}
+                      key={clientSecret || "no-intent"}
+                    >
+                      <DonationForm
+                        amount={numericAmount}
+                        onSuccess={handleDonationSuccess}
+                      />
+                    </Elements>
+                  ) : (
                     <button
                       type="button"
                       className="account-btn primary donation-submit-btn"
-                      disabled={piLoading}
-                      onClick={handleStartPayment}
+                      onClick={handleStartCheckout}
+                      disabled={creatingIntent || numericAmount <= 0}
                     >
-                      {piLoading
-                        ? "Preparing payment…"
-                        : numericAmount
-                        ? `Continue with $${numericAmount.toFixed(2)}`
-                        : "Choose an amount to continue"}
+                      {creatingIntent
+                        ? "Preparing checkout…"
+                        : numericAmount > 0
+                        ? `Continue to secure checkout ($${numericAmount.toFixed(
+                            2
+                          )})`
+                        : "Enter an amount to continue"}
                     </button>
-                  )
-                )}
-
-                {donationComplete && (
-                  <button
-                    type="button"
-                    className="account-btn subtle donation-submit-btn"
-                    onClick={() => {
-                      setDonationComplete(false);
-                      resetDonationState();
-                    }}
-                  >
-                    Make another donation
-                  </button>
-                )}
+                  ))}
 
                 <p className="support-caption">
                   Payments are processed securely via Stripe. Your card
@@ -715,7 +690,6 @@ export default function SupportPage() {
         .donation-submit-btn {
           width: 100%;
           justify-content: center;
-          margin-top: 8px;
         }
 
         .site-footer {
