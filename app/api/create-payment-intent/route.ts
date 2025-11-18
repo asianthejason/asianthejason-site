@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Frontend sends whole dollar amount, convert to cents for Stripe
+    // Frontend sends whole dollar amount; convert to cents for Stripe
     const amountInCents = Math.round(numericAmount * 100);
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       currency: "cad",
       description: "Donation to AsiantheJason game project",
 
-      // 🔒 Only allow card payments, no Klarna / Affirm / Link, etc.
+      // Only allow card payments, no Klarna / Affirm / Link, etc.
       payment_method_types: ["card"],
       automatic_payment_methods: {
         enabled: false,
