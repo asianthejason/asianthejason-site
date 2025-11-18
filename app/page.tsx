@@ -325,24 +325,10 @@ export default function HomePage() {
               improving everything.
             </p>
 
-            {/* Replace the href with your actual donation link (PayPal, Ko-fi, etc.) */}
-            <a
-              href="#"
-              className="home-support-btn"
-              onClick={(e) => {
-                if (
-                  (e.currentTarget as HTMLAnchorElement).getAttribute("href") ===
-                  "#"
-                ) {
-                  e.preventDefault();
-                  alert(
-                    "Replace the donation button link in app/page.tsx with your real donation URL (PayPal, Ko-fi, etc.)."
-                  );
-                }
-              }}
-            >
+            {/* Now links to the new /support page */}
+            <Link href="/support" className="home-support-btn">
               ⛽ Fuel the project
-            </a>
+            </Link>
           </div>
         </section>
 
