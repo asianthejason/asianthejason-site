@@ -46,9 +46,19 @@ function DonationForm({ amount }: { amount: number }) {
       });
 
       if (error) {
+        console.error("Stripe confirmPayment error", error);
         setMessage(error.message || "Payment failed. Please try again.");
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
         setMessage("Thank you for supporting the project! ❤️");
+
+        // Clear all fields by reloading the page after a brief delay.
+        // This gives the user a moment to see the success message,
+        // then loads a fresh PaymentIntent and empty PaymentElement.
+        setTimeout(() => {
+          if (typeof window !== "undefined") {
+            window.location.reload();
+          }
+        }, 1500);
       } else {
         setMessage("Payment processing… if this persists, contact support.");
       }
@@ -62,6 +72,7 @@ function DonationForm({ amount }: { amount: number }) {
 
   return (
     <form onSubmit={handleSubmit} className="donation-form">
+      {/* Stripe Payment Element (now card-only because of the server config) */}
       <PaymentElement />
 
       {message && <div className="auth-message auth-status">{message}</div>}
@@ -139,7 +150,7 @@ export default function SupportPage() {
     }
   };
 
-  // ---------- Compute numeric amount ----------
+  // ---------- Compute numeric amount (in dollars) ----------
   const numericAmount = (() => {
     if (amountOption === "custom") {
       const n = Number(customAmount);
@@ -424,7 +435,12 @@ export default function SupportPage() {
                 )}
 
                 {elementsOptions && stripePromise ? (
-                  <Elements stripe={stripePromise} options={elementsOptions}>
+                  <Elements
+                    stripe={stripePromise}
+                    options={elementsOptions}
+                    // key ensures Elements remounts if clientSecret changes
+                    key={clientSecret || "no-intent"}
+                  >
                     <DonationForm amount={numericAmount} />
                   </Elements>
                 ) : (
@@ -646,7 +662,6 @@ export default function SupportPage() {
           justify-content: center;
         }
 
-        /* Shared site footer */
         .site-footer {
           margin-top: auto;
           padding: 16px 24px 0;
@@ -676,7 +691,6 @@ export default function SupportPage() {
           text-decoration: underline;
         }
 
-        /* Shared account button styles (same as other pages) */
         .account-btn {
           border-radius: 999px;
           border: 1px solid rgba(255, 255, 255, 0.3);
