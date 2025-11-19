@@ -738,6 +738,7 @@ export default function ProfilePage() {
 
         .account-btn:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.06);
+          color: #ffffff;
         }
 
         .account-btn.primary:hover:not(:disabled) {
@@ -874,6 +875,7 @@ export default function ProfilePage() {
 
         .profile-btn:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.06);
+          color: #ffffff;
         }
 
         .profile-btn.primary:hover:not(:disabled) {

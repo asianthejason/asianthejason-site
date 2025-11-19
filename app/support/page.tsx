@@ -717,6 +717,7 @@ export default function SupportPage() {
 
         .account-btn:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.06);
+          color: #ffffff;
         }
 
         .account-btn.primary:hover:not(:disabled) {
