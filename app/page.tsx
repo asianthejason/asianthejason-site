@@ -4,6 +4,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import Image from "next/image";
 import SiteHeader from "./components/SiteHeader";
 
 interface AuthUser {
@@ -23,6 +24,8 @@ const GAMES = [
       "A brutal endless defense shooter. Survive waves of enemies, manage ammo, and push your distance record.",
     href: "/wwiii",
     tags: ["Shooter", "Endless", "PC Browser"],
+    // Thumbnail image in /public
+    thumbnail: "/wwiii-image.png",
   },
   // Add more games here later.
 ];
@@ -349,33 +352,55 @@ export default function HomePage() {
             <div className="games-grid">
               {GAMES.map((game) => (
                 <article key={game.id} className="game-card">
-                  <div className="game-card-top">
-                    <h3 className="game-card-title">{game.title}</h3>
-                    <span className="game-card-status">
-                      {game.status === "Live" ? "● Live" : "○ In development"}
-                    </span>
-                  </div>
-                  <p className="game-card-body">{game.description}</p>
-                  {game.tags && game.tags.length > 0 && (
-                    <ul className="game-card-tags">
-                      {game.tags.map((tag) => (
-                        <li key={tag} className="game-card-tag">
-                          {tag}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="game-card-actions">
-                    <Link
-                      href={game.href}
-                      className={
-                        game.status === "Live"
-                          ? "game-card-primary"
-                          : "game-card-secondary"
-                      }
-                    >
-                      {game.status === "Live" ? "Play now" : "View details"}
-                    </Link>
+                  <div className="game-card-layout">
+                    {game.thumbnail && (
+                      <div className="game-card-media">
+                        <div className="game-card-image-wrapper">
+                          <Image
+                            src={game.thumbnail}
+                            alt={game.title}
+                            fill
+                            className="game-card-image"
+                            sizes="(max-width: 800px) 100vw, 320px"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="game-card-main">
+                      <div className="game-card-top">
+                        <h3 className="game-card-title">{game.title}</h3>
+                        <span className="game-card-status">
+                          {game.status === "Live"
+                            ? "● Live"
+                            : "○ In development"}
+                        </span>
+                      </div>
+                      <p className="game-card-body">{game.description}</p>
+                      {game.tags && game.tags.length > 0 && (
+                        <ul className="game-card-tags">
+                          {game.tags.map((tag) => (
+                            <li key={tag} className="game-card-tag">
+                              {tag}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="game-card-actions">
+                        <Link
+                          href={game.href}
+                          className={
+                            game.status === "Live"
+                              ? "game-card-primary"
+                              : "game-card-secondary"
+                          }
+                        >
+                          {game.status === "Live"
+                            ? "Play now"
+                            : "View details"}
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -551,7 +576,8 @@ export default function HomePage() {
           background: transparent;
           color: #f5f5f5;
           cursor: pointer;
-          transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s,
+            color 0.15s;
           text-decoration: none;
           display: inline-flex;
           align-items: center;
@@ -718,6 +744,33 @@ export default function HomePage() {
           background: radial-gradient(circle at top left, #111827, #020617);
           border: 1px solid rgba(148, 163, 252, 0.3);
           box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+        }
+
+        .game-card-layout {
+          display: flex;
+          gap: 16px;
+        }
+
+        .game-card-media {
+          flex: 0 0 260px;
+        }
+
+        .game-card-image-wrapper {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 16 / 9;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+        }
+
+        .game-card-image {
+          object-fit: cover;
+        }
+
+        .game-card-main {
+          flex: 1;
+          min-width: 0;
         }
 
         .game-card-top {
@@ -964,6 +1017,16 @@ export default function HomePage() {
           margin-top: 4px;
           width: 100%;
           justify-content: center;
+        }
+
+        @media (max-width: 800px) {
+          .game-card-layout {
+            flex-direction: column;
+          }
+
+          .game-card-media {
+            flex: 0 0 auto;
+          }
         }
 
         @media (max-width: 700px) {
