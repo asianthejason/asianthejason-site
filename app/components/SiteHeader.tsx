@@ -68,6 +68,11 @@ export default function SiteHeader({
                   Sign in / Sign up
                 </button>
               )}
+
+              {/* Always show Donate on the far right */}
+              <Link href="/support" className="account-btn primary">
+                Donate
+              </Link>
             </div>
 
             {/* second row: "Signed in as ..." */}
