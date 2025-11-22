@@ -541,13 +541,18 @@ function create() {
     this
   );
 
-  // Bullets vs enemies (pierce after damage)
+  // Bullets vs enemies (pierce after damage, but ONLY when enemy is in firing range/on-screen)
   this.physics.add.overlap(bullets, enemies, (b, e) => {
     // ignore repeated overlaps with same enemy for this bullet
     b.hitEnemies ??= new Set();
     if (b.hitEnemies.has(e)) return;
     b.hitEnemies.add(e);
     if (!e.active) return;
+
+    // NEW: gate damage so enemies can't be hit while off-screen
+    if (!isEnemyInFiringRange(this, e)) {
+      return;
+    }
 
     // ---- DAMAGE ----
     let damage;
@@ -1337,12 +1342,11 @@ function spawnEnemy(scene, x) {
   enemyHealthBars.set(e, hb);
 }
 
-function shootEnemyBullet(enemy, scene) {
-  // ===== ONLY SHOOT WHEN ENEMY IS (ROUGHLY) ON SCREEN =====
+// Helper: is an enemy in range to fire / valid target? (roughly on-screen + small margin)
+function isEnemyInFiringRange(scene, enemy) {
   const cam = scene.cameras.main;
   const view = cam.worldView;
 
-  // Small margin so they can start/finish shots just off the edge
   const margin = 40;
   const expandedView = new Phaser.Geom.Rectangle(
     view.x - margin,
@@ -1352,7 +1356,12 @@ function shootEnemyBullet(enemy, scene) {
   );
 
   const enemyBounds = enemy.getBounds();
-  if (!Phaser.Geom.Rectangle.Overlaps(expandedView, enemyBounds)) {
+  return Phaser.Geom.Rectangle.Overlaps(expandedView, enemyBounds);
+}
+
+function shootEnemyBullet(enemy, scene) {
+  // ===== ONLY SHOOT WHEN ENEMY IS (ROUGHLY) ON SCREEN =====
+  if (!isEnemyInFiringRange(scene, enemy)) {
     // Enemy is off-screen → no shooting
     return;
   }
