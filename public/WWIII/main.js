@@ -1294,6 +1294,26 @@ function spawnEnemy(scene, x) {
 }
 
 function shootEnemyBullet(enemy, scene) {
+  // ===== ONLY SHOOT WHEN ENEMY IS (ROUGHLY) ON SCREEN =====
+  const cam = scene.cameras.main;
+  const view = cam.worldView;
+
+  // Small margin so they can start/finish shots just off the edge
+  const margin = 40;
+  const expandedView = new Phaser.Geom.Rectangle(
+    view.x - margin,
+    view.y - margin,
+    view.width + margin * 2,
+    view.height + margin * 2
+  );
+
+  const enemyBounds = enemy.getBounds();
+  if (!Phaser.Geom.Rectangle.Overlaps(expandedView, enemyBounds)) {
+    // Enemy is off-screen → no shooting
+    return;
+  }
+
+  // Original firing rate check
   if (scene.time.now - (enemy.lastShotTime || 0) < 1000) return;
 
   enemy.isShooting = true;
@@ -1632,7 +1652,8 @@ function showGameOver(scene) {
   const BTN_X = 960, BTN_Y = 750, BTN_W = 220, BTN_H = 60, BTN_R = 12;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
   const drawBtn = (fill, stroke = 0xffffff) => {
-    btnBg.clear()
+    btnBg
+      .clear()
       .fillStyle(fill, 1)
       .fillRoundedRect(BTN_X - BTN_W / 2, BTN_Y - BTN_H / 2, BTN_W, BTN_H, BTN_R)
       .lineStyle(3, stroke)
@@ -1767,7 +1788,8 @@ function showGameOver(scene) {
         const AUTH_X = 960, AUTH_Y = 690, AUTH_W = 260, AUTH_H = 50, AUTH_R = 10;
         authBg = scene.add.graphics().setScrollFactor(0).setDepth(3002);
         const drawAuthBtn = (fill, stroke = 0xffffff) => {
-          authBg.clear()
+          authBg
+            .clear()
             .fillStyle(fill, 1)
             .fillRoundedRect(AUTH_X - AUTH_W / 2, AUTH_Y - AUTH_H / 2, AUTH_W, AUTH_H, AUTH_R)
             .lineStyle(2, stroke, 1)
@@ -1799,17 +1821,17 @@ function showGameOver(scene) {
         authBg.on('pointerdown', () => {
           try {
             if (typeof window !== 'undefined' && window.dispatchEvent) {
-            window.wwiiiPendingScore = {
-              distance: runSummary.distance,
-              enemiesKilled: runSummary.enemiesKilled,
-              bulletsFired: runSummary.bulletsFired
-            };
+              window.wwiiiPendingScore = {
+                distance: runSummary.distance,
+                enemiesKilled: runSummary.enemiesKilled,
+                bulletsFired: runSummary.bulletsFired
+              };
 
-            window.dispatchEvent(
-              new CustomEvent('wwiii-open-auth', {
-                detail: { run: window.wwiiiPendingScore }
-              })
-            );
+              window.dispatchEvent(
+                new CustomEvent('wwiii-open-auth', {
+                  detail: { run: window.wwiiiPendingScore }
+                })
+              );
             }
           } catch (e) {
             console.error('Failed to dispatch wwiii-open-auth event', e);
