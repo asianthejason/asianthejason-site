@@ -1398,7 +1398,8 @@ function shootBullet() {
 
       b.body.setVelocity(Math.cos(angle) * 600, Math.sin(angle) * 600);
 
-      this.time.delayedCall(400, () => { if (b.active) b.destroy(); });
+      // doubled lifetime from 400ms → 800ms
+      this.time.delayedCall(800, () => { if (b.active) b.destroy(); });
     }
   } else {
     const angle = Math.atan2(pointer.worldY - muzzleY, pointer.worldX - muzzleX);
