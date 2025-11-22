@@ -101,6 +101,10 @@ const PIERCE_COUNTS = {
   'Machine Gun': 2
 };
 
+// --- Shotgun spread tuning ---
+const SHOTGUN_BASE_SPREAD_DEG = 40; // original full spread in degrees
+let shotgunSpreadRad = Phaser.Math.DegToRad(SHOTGUN_BASE_SPREAD_DEG);
+
 const weapons = [
   { name: "Pistol",      clipSize: 12, totalAmmo: 48,  reloadTime: 0, fireRate: 0,   damageRange: [30, 35] },
   { name: "Shotgun",     clipSize: 4,  totalAmmo: 24,  reloadTime: 0, fireRate: 0,   damageRange: [20, 25] },
@@ -452,6 +456,9 @@ function create() {
     currentClip: w.clipSize,
     totalAmmo: w.totalAmmo - w.clipSize
   }));
+
+  // reset shotgun spread each run
+  shotgunSpreadRad = Phaser.Math.DegToRad(SHOTGUN_BASE_SPREAD_DEG);
 
   // Animations
   this.anims.create({ key: 'player_idle', frames: this.anims.generateFrameNumbers('playeridle', { start: 0, end: 6 }), frameRate: 28, repeat: -1 });
@@ -814,6 +821,27 @@ function create() {
       targetTabs,
       1 // fixed price
     );
+
+    // Extra Shotgun-only upgrade: tighten spread
+    if (weaponName === 'Shotgun') {
+      createUpgrade.call(
+        this,
+        panelX,
+        contentStartY + upgradeSpacing * 2,
+        'Tighten Shotgun Spread -10%',
+        200,
+        () => {
+          // reduce spread by 10% of its current value, clamped to minimum 5 degrees
+          const MIN_SPREAD_DEG = 5;
+          shotgunSpreadRad = Math.max(
+            Phaser.Math.DegToRad(MIN_SPREAD_DEG),
+            shotgunSpreadRad * 0.9
+          );
+        },
+        targetTabs,
+        1.5
+      );
+    }
   });
 
   // ===== Shop Rows (clips + bulk) =====
@@ -1377,7 +1405,8 @@ function shootBullet() {
 
   if (w.name === "Shotgun") {
     const pelletCount = Phaser.Math.Between(10, 15);
-    const spreadRad   = Phaser.Math.DegToRad(40);
+    // use current (upgradable) spread value
+    const spreadRad   = shotgunSpreadRad;
 
     for (let i = 0; i < pelletCount; i++) {
       const randomOffset = (Math.random() - 0.5) * spreadRad;
