@@ -6,7 +6,7 @@ import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
 
-type TabKey = "instructions" | "leaderboard" | "review";
+type TabKey = "instructions" | "updates" | "leaderboard" | "review";
 
 interface ScoreRow {
   id: string;
@@ -30,6 +30,12 @@ interface ReviewRow {
   rating: number;
   comment: string;
   createdAt?: Date | null;
+}
+
+interface UpdateRow {
+  id: string;
+  text: string;
+  createdAt: Date | null;
 }
 
 interface AuthUser {
@@ -63,6 +69,13 @@ export default function HomePage() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewStatus, setReviewStatus] = useState<string | null>(null);
 
+  // Updates state
+  const [updates, setUpdates] = useState<UpdateRow[] | null>(null);
+  const [updateText, setUpdateText] = useState<string>("");
+  const [updateSubmitting, setUpdateSubmitting] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -75,13 +88,17 @@ export default function HomePage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<string | null>(null);
 
-  // During signup we temporarily hide auth header changes so
-  // the user never appears as "logged in" for a split second.
+  // During signup we temporarily hide auth header changes
   const [signupVerificationInFlight, setSignupVerificationInFlight] =
     useState(false);
 
   // Run that the game wants to save AFTER login/signup
   const [pendingScore, setPendingScore] = useState<PendingScore | null>(null);
+
+  // Admin test
+  const isAdmin =
+    currentUser?.email &&
+    currentUser.email.toLowerCase() === "asianthejason@gmail.com";
 
   // ---------- Auth listener ----------
   useEffect(() => {
@@ -224,7 +241,6 @@ export default function HomePage() {
             window.location.reload();
           }
         } catch (err) {
-          // If sessionStorage is unavailable, just reload once
           window.location.reload();
         }
       }
@@ -346,6 +362,56 @@ export default function HomePage() {
     };
   }, []);
 
+  // ---------- Updates listener ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let unsubscribe: (() => void) | undefined;
+
+    try {
+      const w = window as any;
+      const db = w?.db;
+      if (!db) {
+        console.warn("Firestore db not found on window (updates)");
+        setUpdates([]);
+        return;
+      }
+
+      unsubscribe = db
+        .collection("updates")
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .onSnapshot((snapshot: any) => {
+          if (snapshot.empty) {
+            setUpdates([]);
+            return;
+          }
+
+          const rows: UpdateRow[] = snapshot.docs.map((doc: any) => {
+            const d = doc.data() || {};
+            let createdAt: Date | null = null;
+            if (d.createdAt && d.createdAt.toDate) {
+              createdAt = d.createdAt.toDate();
+            }
+            return {
+              id: doc.id,
+              text: d.text ?? "",
+              createdAt,
+            };
+          });
+
+          setUpdates(rows);
+        });
+    } catch (err) {
+      console.error("Error setting up updates listener", err);
+      setUpdates([]);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   // ---------- Save pending score to Firestore ----------
   const savePendingScore = async (firebaseUser: any) => {
     if (!pendingScore) return;
@@ -416,7 +482,6 @@ export default function HomePage() {
         }
         const displayNameLower = rawDisplayName.toLowerCase();
 
-        // Create auth user (this signs them in)
         const cred = await auth.createUserWithEmailAndPassword(
           authEmail,
           authPassword
@@ -426,7 +491,6 @@ export default function HomePage() {
           displayName: rawDisplayName,
         });
 
-        // Store user profile document
         if (db && firebase?.firestore) {
           await db
             .collection("users")
@@ -442,7 +506,6 @@ export default function HomePage() {
             );
         }
 
-        // Send verification email (no custom continue URL)
         try {
           await cred.user.sendEmailVerification();
           setAuthStatus(
@@ -462,25 +525,19 @@ export default function HomePage() {
           }
         }
 
-        // Force them to verify before being considered logged in
         await auth.signOut();
 
-        // The current run won't be saved until after verification + login
         setPendingScore(null);
         setAuthPassword("");
-        // Keep the signup modal open with the status/error message
       } else {
-        // Log in
         const cred = await auth.signInWithEmailAndPassword(
           authEmail,
           authPassword
         );
 
-        // Refresh user to get up-to-date emailVerified flag
         await cred.user.reload();
 
         if (!cred.user.emailVerified) {
-          // Try to send / re-send verification email
           try {
             await cred.user.sendEmailVerification();
             setAuthError(
@@ -500,12 +557,10 @@ export default function HomePage() {
             }
           }
 
-          // Don't keep them signed in if not verified
           await auth.signOut();
           return;
         }
 
-        // Email is verified – proceed
         if (pendingScore) {
           await savePendingScore(cred.user);
         }
@@ -608,6 +663,53 @@ export default function HomePage() {
     }
   };
 
+  // ---------- Updates submit (admin only) ----------
+  const handleUpdateSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setUpdateError(null);
+    setUpdateStatus(null);
+
+    if (!isAdmin) {
+      setUpdateError("Only the admin can post updates.");
+      return;
+    }
+
+    const trimmed = updateText.trim();
+    if (!trimmed) {
+      setUpdateError("Write something for this update first.");
+      return;
+    }
+
+    try {
+      setUpdateSubmitting(true);
+      const w = window as any;
+      const db = w.db;
+      if (!db || !w.firebase?.firestore) {
+        setUpdateError("Updates are not available right now. Try again later.");
+        return;
+      }
+
+      await db.collection("updates").add({
+        text: trimmed,
+        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      setUpdateStatus("Update posted.");
+      setUpdateText("");
+    } catch (err: any) {
+      console.error("Error submitting update", err);
+      if (err?.code === "permission-denied") {
+        setUpdateError(
+          "The update was rejected by the server (permission denied). Check the Firestore rules for the 'updates' collection."
+        );
+      } else {
+        setUpdateError("Could not submit this update. Please try again.");
+      }
+    } finally {
+      setUpdateSubmitting(false);
+    }
+  };
+
   // For the header, we hide auth changes during signup verification
   const headerUser = signupVerificationInFlight ? null : currentUser;
 
@@ -628,6 +730,13 @@ export default function HomePage() {
   const averageRatingRounded = averageRating
     ? Math.round(averageRating * 10) / 10
     : 0;
+
+  const formatUpdateHeading = (date: Date | null) => {
+    if (!date) return "Update";
+    const monthName = date.toLocaleString(undefined, { month: "long" });
+    const day = date.getDate();
+    return `${monthName} ${day} Update`;
+  };
 
   return (
     <>
@@ -702,7 +811,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Tabs (instructions / leaderboard / review) */}
+        {/* Tabs */}
         <section className="panel-section">
           <div className="tabs-shell">
             <div className="tabs">
@@ -714,6 +823,15 @@ export default function HomePage() {
                 onClick={() => setActiveTab("instructions")}
               >
                 Game Instructions
+              </button>
+              <button
+                className={
+                  "tab-button" +
+                  (activeTab === "updates" ? " tab-button-active" : "")
+                }
+                onClick={() => setActiveTab("updates")}
+              >
+                Updates
               </button>
               <button
                 className={
@@ -755,12 +873,108 @@ export default function HomePage() {
                     <li>Q / E to switch weapons.</li>
                     <li>F to open the shop.</li>
                     <li>Pistol has unlimited reloads</li>
-                    <li>Shotguns fire multiple bullets at a time with a spread, the bullet range is shorter</li>
-                    <li>Sniper is extremely effective with headshots but weak without. Bullets have 4 pierce</li>
-                    <li>Machine Gun auto fires when left click is held. Bullets have 2 pierce</li>
+                    <li>
+                      Shotguns fire multiple bullets at a time with a spread,
+                      the bullet range is shorter
+                    </li>
+                    <li>
+                      Sniper is extremely effective with headshots but weak
+                      without. Bullets have 4 pierce
+                    </li>
+                    <li>
+                      Machine Gun auto fires when left click is held. Bullets
+                      have 2 pierce
+                    </li>
                     <li>Earn cash by surviving and killing enemies.</li>
                     <li>Spend money on upgrades between runs.</li>
                   </ul>
+                </div>
+              )}
+
+              {activeTab === "updates" && (
+                <div className="updates">
+                  <h2>Updates</h2>
+
+                  {/* Admin-only composer */}
+                  {isAdmin && (
+                    <div className="updates-form-shell">
+                      <form
+                        className="updates-form"
+                        onSubmit={handleUpdateSubmit}
+                      >
+                        <div className="updates-field">
+                          <label className="updates-label">
+                            New update (only visible to you to edit)
+                          </label>
+                          <textarea
+                            value={updateText}
+                            onChange={(e) => setUpdateText(e.target.value)}
+                            onKeyDown={stopKeyEvent}
+                            onKeyUp={stopKeyEvent}
+                            onKeyPress={stopKeyEvent}
+                            rows={4}
+                            placeholder="Write the latest development notes, balance tweaks, or plans for WWIII — Endless Defence."
+                          />
+                        </div>
+
+                        {updateError && (
+                          <div className="auth-message auth-error">
+                            {updateError}
+                          </div>
+                        )}
+                        {updateStatus && (
+                          <div className="auth-message auth-status">
+                            {updateStatus}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          className="account-btn primary updates-submit-btn"
+                          disabled={updateSubmitting}
+                        >
+                          {updateSubmitting ? "Posting…" : "Post update"}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  {!isAdmin && (
+                    <p className="updates-viewer-note">
+                      These are official updates about WWIII — Endless Defence.
+                    </p>
+                  )}
+
+                  {/* Updates list */}
+                  <div className="updates-list">
+                    {updates === null && <p>Loading updates…</p>}
+                    {updates !== null && updates.length === 0 && (
+                      <p>No updates posted yet.</p>
+                    )}
+                    {updates !== null && updates.length > 0 && (
+                      <ul className="updates-list-ul">
+                        {updates.map((u) => (
+                          <li key={u.id} className="update-item">
+                            <div className="update-heading">
+                              {formatUpdateHeading(u.createdAt)}
+                            </div>
+                            {u.text && (
+                              <p className="update-body">
+                                {u.text.split("\n").map((line, idx) => (
+                                  <span key={idx}>
+                                    {line}
+                                    {idx < u.text.split("\n").length - 1 && (
+                                      <br />
+                                    )}
+                                  </span>
+                                ))}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -917,9 +1131,7 @@ export default function HomePage() {
                         </div>
 
                         <div className="review-field">
-                          <label className="review-label">
-                            Your comment
-                          </label>
+                          <label className="review-label">Your comment</label>
                           <textarea
                             value={reviewComment}
                             onChange={(e) =>
@@ -1299,13 +1511,15 @@ export default function HomePage() {
 
         .instructions h2,
         .leaderboard h2,
-        .review h2 {
+        .review h2,
+        .updates h2 {
           margin: 0 0 8px;
           font-size: 18px;
         }
 
         .instructions p,
-        .review p {
+        .review p,
+        .updates p {
           margin: 0 0 12px;
           font-size: 14px;
           line-height: 1.5;
@@ -1560,6 +1774,76 @@ export default function HomePage() {
         .review-item-comment {
           margin: 0;
           opacity: 0.9;
+        }
+
+        /* Updates styles */
+        .updates-form-shell {
+          margin-bottom: 18px;
+        }
+
+        .updates-form {
+          display: grid;
+          gap: 10px;
+        }
+
+        .updates-field textarea {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 8px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+          resize: vertical;
+          width: 100%;
+          min-height: 90px;
+        }
+
+        .updates-field textarea:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .updates-label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .updates-submit-btn {
+          margin-top: 2px;
+          width: fit-content;
+        }
+
+        .updates-viewer-note {
+          font-size: 13px;
+          opacity: 0.8;
+          margin-bottom: 10px;
+        }
+
+        .updates-list-ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: grid;
+          gap: 10px;
+        }
+
+        .update-item {
+          padding: 10px 12px;
+          border-radius: 10px;
+          background: rgba(10, 13, 26, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          font-size: 13px;
+        }
+
+        .update-heading {
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+
+        .update-body {
+          margin: 0;
+          white-space: pre-wrap;
         }
 
         /* Auth modal */
