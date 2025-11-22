@@ -97,7 +97,7 @@ const HEADSHOT_HEIGHT_RATIO = 0.15; // top 15% considered head
 const PIERCE_COUNTS = {
   'Pistol':      1,
   'Shotgun':     1,
-  'Sniper':      2,
+  'Sniper':      4,  // was 2, now 4 enemies
   'Machine Gun': 2
 };
 
