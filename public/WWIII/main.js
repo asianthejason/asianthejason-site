@@ -842,6 +842,22 @@ function create() {
         1.5
       );
     }
+
+    // Extra Pistol-only upgrade: increase pierce
+    if (weaponName === 'Pistol') {
+      createUpgrade.call(
+        this,
+        panelX,
+        contentStartY + upgradeSpacing * 2,
+        'Upgrade Pistol Pierce +1',
+        100,
+        () => {
+          PIERCE_COUNTS.Pistol += 1;
+        },
+        targetTabs,
+        1.5 // price ×1.5 each purchase
+      );
+    }
   });
 
   // ===== Shop Rows (clips + bulk) =====

@@ -754,6 +754,10 @@ export default function HomePage() {
                     <li>Right click to reload.</li>
                     <li>Q / E to switch weapons.</li>
                     <li>F to open the shop.</li>
+                    <li>Pistol has unlimited reloads</li>
+                    <li>Shotguns fire multiple bullets at a time with a spread, the bullet range is shorter</li>
+                    <li>Sniper is extremely effective with headshots but weak without. Bullets have 4 pierce</li>
+                    <li>Machine Gun auto fires when left click is held. Bullets have 2 pierce</li>
                     <li>Earn cash by surviving and killing enemies.</li>
                     <li>Spend money on upgrades between runs.</li>
                   </ul>
