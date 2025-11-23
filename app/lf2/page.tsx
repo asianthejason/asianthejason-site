@@ -345,6 +345,7 @@ export default function LF2Page() {
 
       setReviewStatus("Thanks for your review!");
       setReviewComment("");
+      setReviewRating(0); // <--- reset stars to unselected after submit
     } catch (err: any) {
       console.error("Error submitting LF2 review", err);
       if (err?.code === "permission-denied") {
