@@ -26,10 +26,18 @@ define(['LF/global', 'LF/network', 'LF/soundpack', 'LF/match', 'LF/util', 'LF/to
         // window sizing
         window_state =
         {
-          maximized: false,
-          wide: false,
-          allow_wide: false
+          maximized: true,
+          width: 804,
+          height: 590,
+          allow_wide: true,
+          game_resize: 1,
+          wide: false
         }
+
+        // Always start maximized inside the iframe
+        util.container.classList.add('maximized')
+        util.div('extra_UI').classList.add('maximized')
+
         function onresize() {
           if (window.innerWidth < global.application.window.outer_width ||
             window.innerHeight < global.application.window.outer_height) {
