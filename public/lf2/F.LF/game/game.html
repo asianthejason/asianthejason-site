@@ -10,6 +10,7 @@
 <body>
 <div class='LFroot'>
 	<div class='container'>
+		<!-- Caption kept for JS, but hidden via CSS -->
 		<div class='window_caption'>
 			<div class='window_caption_title'>
 				F.LF
@@ -26,17 +27,7 @@
 		</div>
 		<div class='window'>
 			<div class='frontpage'>
-				<div class='frontpage_text' style='right:0;bottom:0;text-align:right;'>
-					Original work<br>
-					by Marti Wong, Starsky Wong<br>
-					<span class='number'>1999-2005, </span>all rights reserved<br>
-					<a href='http://www.littlefighter.com' target='_blank' style='letter-spacing:-0.2px;'>http://www.LittleFighter.com</a>
-				</div>
-				<div class='frontpage_text' style='left:0;bottom:0;'>
-					Open Source Implementation<br>
-					by Project F, <span class='number'>2011-2014</span><br>
-					<a href='http://project-f.github.io' target='_blank' style='letter-spacing:-0.2px;'>http://project-f.github.io</a>
-				</div>
+				<!-- bottom corner credits removed / hidden -->
 				<div class='frontpage_content'>
 				</div>
 			</div>
@@ -103,4 +94,20 @@
 {"root":"../","package":"../LF2_19"}
 </pre>
 <script data-main="game.js" src="../third_party/require.js"></script>
+
+<!-- Auto-maximize the game window on load -->
+<script>
+  window.addEventListener('load', function () {
+    try {
+      var btn = document.querySelector('.maximize_button');
+      if (btn && typeof btn.onclick === 'function') {
+        btn.onclick();
+      }
+    } catch (e) {
+      if (window.console && console.log) {
+        console.log('auto-maximize failed', e);
+      }
+    }
+  });
+</script>
 </body>
