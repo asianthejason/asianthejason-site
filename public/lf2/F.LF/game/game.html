@@ -27,7 +27,7 @@
 		</div>
 		<div class='window'>
 			<div class='frontpage'>
-				<!-- bottom corner credits removed / hidden -->
+				<!-- bottom corner credits removed / hidden via CSS -->
 				<div class='frontpage_content'>
 				</div>
 			</div>
@@ -95,19 +95,26 @@
 </pre>
 <script data-main="game.js" src="../third_party/require.js"></script>
 
-<!-- Auto-maximize the game window on load -->
+<!-- Auto-maximize the game window on load by simulating a click -->
 <script>
   window.addEventListener('load', function () {
-    try {
-      var btn = document.querySelector('.maximize_button');
-      if (btn && typeof btn.onclick === 'function') {
-        btn.onclick();
+    // small delay so game.js has time to attach its handlers
+    setTimeout(function () {
+      try {
+        var btn = document.querySelector('.maximize_button');
+        if (btn) {
+          var evt = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true
+          });
+          btn.dispatchEvent(evt);
+        }
+      } catch (e) {
+        if (window.console && console.log) {
+          console.log('auto-maximize failed', e);
+        }
       }
-    } catch (e) {
-      if (window.console && console.log) {
-        console.log('auto-maximize failed', e);
-      }
-    }
+    }, 300);
   });
 </script>
 </body>
