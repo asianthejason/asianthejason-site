@@ -607,15 +607,6 @@ export default function LF2Page() {
               <button
                 className={
                   "tab-button" +
-                  (activeTab === "updates" ? " tab-button-active" : "")
-                }
-                onClick={() => setActiveTab("updates")}
-              >
-                Updates
-              </button>
-              <button
-                className={
-                  "tab-button" +
                   (activeTab === "leaderboard" ? " tab-button-active" : "")
                 }
                 onClick={() => setActiveTab("leaderboard")}
