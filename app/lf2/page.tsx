@@ -6,7 +6,7 @@ import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
 
-type TabKey = "instructions" | "leaderboard" | "review";
+type TabKey = "instructions" | "updates" | "leaderboard" | "review";
 
 interface ScoreRow {
   id: string;
@@ -22,6 +22,12 @@ interface ReviewRow {
   name: string;
   rating: number;
   comment: string;
+  createdAt?: Date | null;
+}
+
+interface UpdateRow {
+  id: string;
+  text: string;
   createdAt?: Date | null;
 }
 
@@ -47,6 +53,13 @@ export default function LF2Page() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewStatus, setReviewStatus] = useState<string | null>(null);
 
+  // Updates state
+  const [updates, setUpdates] = useState<UpdateRow[] | null>(null);
+  const [updatesLoaded, setUpdatesLoaded] = useState(false);
+  const [updateDraft, setUpdateDraft] = useState("");
+  const [updateSubmitting, setUpdateSubmitting] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -60,6 +73,19 @@ export default function LF2Page() {
   const [authStatus, setAuthStatus] = useState<string | null>(null);
 
   const currentYear = new Date().getFullYear();
+  const isAdmin =
+    currentUser?.email &&
+    currentUser.email.toLowerCase() === "asianthejason@gmail.com";
+
+  // Helper: format "Month Day Update"
+  const formatUpdateTitle = (d: Date | null | undefined) => {
+    if (!d) return "Update";
+    const formatter = new Intl.DateTimeFormat(undefined, {
+      month: "long",
+      day: "numeric",
+    });
+    return `${formatter.format(d)} Update`;
+  };
 
   // Stop key events from reaching the game iframe when typing
   const stopKeyEvent = (e: any) => {
@@ -210,6 +236,71 @@ export default function LF2Page() {
     };
   }, []);
 
+  // ---------- Updates listener (lf2Updates) ----------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let unsubscribe: (() => void) | undefined;
+
+    try {
+      const w = window as any;
+      const db = w?.db;
+      if (!db) {
+        console.warn("Firestore db not found on window (lf2Updates)");
+        setUpdates([]);
+        setUpdatesLoaded(true);
+        return;
+      }
+
+      unsubscribe = db
+        .collection("lf2Updates")
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .onSnapshot(
+          (snapshot: any) => {
+            if (snapshot.empty) {
+              setUpdates([]);
+              setUpdatesLoaded(true);
+              return;
+            }
+
+            const rows: UpdateRow[] = snapshot.docs.map((doc: any) => {
+              const d = doc.data() || {};
+              let createdAt: Date | null = null;
+              if (d.createdAt && d.createdAt.toDate) {
+                createdAt = d.createdAt.toDate();
+              }
+              return {
+                id: doc.id,
+                text: d.text ?? "",
+                createdAt,
+              };
+            });
+
+            setUpdates(rows);
+            setUpdatesLoaded(true);
+            setUpdateError(null);
+          },
+          (err: any) => {
+            console.error("Error listening to lf2 updates", err);
+            setUpdateError(
+              "Could not load updates. Check Firestore rules for the 'lf2Updates' collection."
+            );
+            setUpdates([]);
+            setUpdatesLoaded(true);
+          }
+        );
+    } catch (err) {
+      console.error("Error setting up LF2 updates listener", err);
+      setUpdates([]);
+      setUpdatesLoaded(true);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   // ---------- Auth submit (signup / login) ----------
   const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -300,6 +391,53 @@ export default function LF2Page() {
       setShowAuthForm(false);
     } catch (err) {
       console.error("Sign out error", err);
+    }
+  };
+
+  // ---------- Update submit (admin only, lf2Updates) ----------
+  const handleUpdateSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setUpdateError(null);
+
+    const trimmed = updateDraft.trim();
+    if (!trimmed) {
+      setUpdateError("Write something before posting an update.");
+      return;
+    }
+
+    if (!isAdmin) {
+      setUpdateError("Only the admin account can post updates.");
+      return;
+    }
+
+    try {
+      setUpdateSubmitting(true);
+      const w = window as any;
+      const db = w.db;
+      if (!db || !w.firebase?.firestore) {
+        setUpdateError(
+          "Updates are not available right now. Check Firestore initialization."
+        );
+        return;
+      }
+
+      await db.collection("lf2Updates").add({
+        text: trimmed,
+        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      setUpdateDraft("");
+    } catch (err: any) {
+      console.error("Error posting LF2 update", err);
+      if (err?.code === "permission-denied") {
+        setUpdateError(
+          "The update was rejected by the server (permission denied). Check the Firestore rules for the 'lf2Updates' collection."
+        );
+      } else {
+        setUpdateError("Could not post update. Please try again.");
+      }
+    } finally {
+      setUpdateSubmitting(false);
     }
   };
 
@@ -444,7 +582,7 @@ export default function LF2Page() {
           </div>
         </section>
 
-        {/* Tabs (instructions / leaderboard / review) */}
+        {/* Tabs (instructions / updates / leaderboard / review) */}
         <section className="panel-section">
           <div className="tabs-shell">
             <div className="tabs">
@@ -456,6 +594,24 @@ export default function LF2Page() {
                 onClick={() => setActiveTab("instructions")}
               >
                 Game Instructions
+              </button>
+              <button
+                className={
+                  "tab-button" +
+                  (activeTab === "updates" ? " tab-button-active" : "")
+                }
+                onClick={() => setActiveTab("updates")}
+              >
+                Updates
+              </button>
+              <button
+                className={
+                  "tab-button" +
+                  (activeTab === "updates" ? " tab-button-active" : "")
+                }
+                onClick={() => setActiveTab("updates")}
+              >
+                Updates
               </button>
               <button
                 className={
@@ -506,6 +662,74 @@ export default function LF2Page() {
                     and more. Each character has unique moves, so experiment and
                     find your favourite.
                   </p>
+                </div>
+              )}
+
+              {activeTab === "updates" && (
+                <div className="updates">
+                  <h2>Updates</h2>
+
+                  {isAdmin && (
+                    <form
+                      className="update-form"
+                      onSubmit={handleUpdateSubmit}
+                    >
+                      <label className="update-label">
+                        New update (only you can post)
+                      </label>
+                      <textarea
+                        className="update-textarea"
+                        rows={4}
+                        value={updateDraft}
+                        onChange={(e) => setUpdateDraft(e.target.value)}
+                        onKeyDown={stopKeyEvent}
+                        onKeyUp={stopKeyEvent}
+                        onKeyPress={stopKeyEvent}
+                        placeholder="Share patch notes or announcements for Little Fighter 2 - Remastered."
+                      />
+                      {updateError && (
+                        <div className="auth-message auth-error">
+                          {updateError}
+                        </div>
+                      )}
+                      <button
+                        type="submit"
+                        className="account-btn primary update-submit-btn"
+                        disabled={updateSubmitting}
+                      >
+                        {updateSubmitting ? "Posting…" : "Post update"}
+                      </button>
+                    </form>
+                  )}
+
+                  {!isAdmin && (
+                    <p className="updates-info">
+                      Latest updates and patch notes from the developer.
+                    </p>
+                  )}
+
+                  <div className="updates-list">
+                    {!updatesLoaded && <p>Loading updates…</p>}
+
+                    {updatesLoaded &&
+                      (!updates || updates.length === 0) &&
+                      !updateError && <p>No updates posted yet.</p>}
+
+                    {updatesLoaded && updates && updates.length > 0 && (
+                      <ul className="updates-list-ul">
+                        {updates.map((u) => (
+                          <li key={u.id} className="update-item">
+                            <div className="update-item-title">
+                              {formatUpdateTitle(u.createdAt ?? null)}
+                            </div>
+                            {u.text && (
+                              <p className="update-item-body">{u.text}</p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1050,6 +1274,7 @@ export default function LF2Page() {
         }
 
         .instructions h2,
+        .updates h2,
         .leaderboard h2,
         .review h2 {
           margin: 0 0 8px;
@@ -1057,6 +1282,7 @@ export default function LF2Page() {
         }
 
         .instructions p,
+        .updates p,
         .leaderboard p,
         .review p {
           margin: 0 0 12px;
@@ -1152,6 +1378,78 @@ export default function LF2Page() {
         .site-footer-link:hover {
           opacity: 1;
           text-decoration: underline;
+        }
+
+        /* Updates styles */
+        .updates {
+          display: grid;
+          gap: 10px;
+        }
+
+        .update-form {
+          display: grid;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+
+        .update-label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .update-textarea {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 8px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+          resize: vertical;
+          width: 100%;
+        }
+
+        .update-textarea:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .update-submit-btn {
+          margin-top: 4px;
+          width: fit-content;
+        }
+
+        .updates-info {
+          font-size: 13px;
+          opacity: 0.8;
+          margin-bottom: 10px;
+        }
+
+        .updates-list-ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: grid;
+          gap: 10px;
+        }
+
+        .update-item {
+          padding: 8px 10px;
+          border-radius: 10px;
+          background: rgba(10, 13, 26, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          font-size: 13px;
+        }
+
+        .update-item-title {
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+
+        .update-item-body {
+          margin: 0;
+          white-space: pre-wrap;
+          opacity: 0.92;
         }
 
         /* Review styles (same as WWIII page, adapted) */
