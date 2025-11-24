@@ -1702,8 +1702,9 @@ function showStartMainScreen(scene) {
     'and earn money to upgrade weapons and defenses.'
   ];
 
-  const lineSpacing = 22;
-  const textStartY = centerY - 120;
+  // moved up & tightened so buttons don't overlap
+  const lineSpacing = 20;
+  const textStartY = centerY - 140;
   instructions.forEach((line, i) => {
     const t = scene.add.text(centerX, textStartY + i * lineSpacing, line, {
       font: '18px Arial',
@@ -1714,9 +1715,9 @@ function showStartMainScreen(scene) {
     startScreenObjects.push(t);
   });
 
-  // Play button
+  // Play button (moved slightly down)
   const PLAY_W = 240, PLAY_H = 70, PLAY_R = 14;
-  const playY = centerY + 80;
+  const playY = centerY + 100;
   const playBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
   startScreenObjects.push(playBg);
 
@@ -1756,9 +1757,9 @@ function showStartMainScreen(scene) {
     startRun(scene);
   });
 
-  // Control Settings button (secondary)
+  // Control Settings button (moved further down)
   const CTRL_W = 220, CTRL_H = 50, CTRL_R = 12;
-  const ctrlY = centerY + 150;
+  const ctrlY = centerY + 180;
   const ctrlBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
   startScreenObjects.push(ctrlBg);
 
@@ -1846,7 +1847,8 @@ function showControlSettingsScreen(scene) {
     { action: 'heal',      label: 'Use Med Kit' }
   ];
 
-  const controlsStartY = centerY - 90;
+  // moved up a bit so there's more space for Back + hint
+  const controlsStartY = centerY - 110;
   const rowSpacing = 40;
 
   const controlValueTexts = {};
@@ -1896,7 +1898,10 @@ function showControlSettingsScreen(scene) {
     text.on('pointerout', hoverOff);
   });
 
-  const hint = scene.add.text(centerX, controlsStartY + controlRows.length * rowSpacing + 10,
+  // Hint just below the last row, above the Back button
+  const hint = scene.add.text(
+    centerX,
+    controlsStartY + controlRows.length * rowSpacing - 10,
     'Some keys (Shift, Ctrl, Alt, Meta) are reserved and cannot be used.',
     { font: '14px Arial', fill: '#9ca3af' }
   ).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
@@ -1946,9 +1951,9 @@ function showControlSettingsScreen(scene) {
     valueText.on('pointerdown', startRebind);
   });
 
-  // Back button → return to main start screen
+  // Back button → return to main start screen (moved down a bit)
   const BACK_W = 180, BACK_H = 50, BACK_R = 12;
-  const backY = centerY + panelH / 2 - 60;
+  const backY = centerY + panelH / 2 - 40;
   const backBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
   startScreenObjects.push(backBg);
 
