@@ -127,6 +127,9 @@ let lastShotTime = 0;
 let playerMaxHealth = 100;
 let playerHealth    = 100;
 
+// Medical kit cost (used by shop + H hotkey)
+const MEDKIT_COST = 30;
+
 // Shield
 let shieldGroup, shieldBody, shieldKey;
 
@@ -182,6 +185,53 @@ function updatePlayerHealthBar() {
   const pct = Phaser.Math.Clamp(playerHealth / playerMaxHealth, 0, 1);
   playerHealthBar.fillStyle(0x00ff00);
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
+}
+
+// Centralized logic for buying a Medical Kit (used by shop button + H hotkey)
+function tryBuyMedicalKit(scene, label) {
+  const cost = MEDKIT_COST;
+
+  if (playerMoney >= cost && playerHealth < playerMaxHealth) {
+    // Successful purchase + heal to full
+    playerMoney -= cost;
+    playerHealth = playerMaxHealth;
+    moneyText.setText(`$${playerMoney}`);
+    updateWeaponAndHealthUI(scene);
+    updatePlayerHealthBar();
+
+    if (label) {
+      label.setText(`Healed to full HP!`);
+      scene.time.delayedCall(1000, () =>
+        label.setText(`Buy Medical Kit - $${cost}`)
+      );
+    }
+  } else if (playerHealth >= playerMaxHealth) {
+    // Already full HP
+    if (label) {
+      label.setText(`You're already at full HP!`);
+      scene.time.delayedCall(1000, () =>
+        label.setText(`Buy Medical Kit - $${cost}`)
+      );
+    } else if (scene.topStatusText) {
+      const w = weapons[currentWeaponIndex];
+      const hpDisplay = playerHealth.toFixed(1);
+      scene.topStatusText.setText(
+        `❤️ HP: ${hpDisplay}/${playerMaxHealth} (already full)   🔫 Damage: ${w.damageRange[0]} - ${w.damageRange[1]}`
+      );
+      scene.time.delayedCall(1000, () => updateWeaponAndHealthUI(scene));
+    }
+  } else {
+    // Not enough money
+    if (label) {
+      label.setText(`Not enough money for Medical Kit`);
+      scene.time.delayedCall(1000, () =>
+        label.setText(`Buy Medical Kit - $${cost}`)
+      );
+    } else if (scene.topStatusText) {
+      scene.topStatusText.setText(`Not enough money for Medical Kit ($${cost})`);
+      scene.time.delayedCall(1000, () => updateWeaponAndHealthUI(scene));
+    }
+  }
 }
 
 // -------- Quantity pill using Rectangle (no custom draw) --------
@@ -873,7 +923,7 @@ function create() {
 
     // Pistol row → Medical Kit (full-width box)
     if (i === 0) {
-      const cost = 30;
+      const cost = MEDKIT_COST;
 
       const FULL_W = 520, FULL_H = 68, fullX = 960;
       const fullBg = this.add.rectangle(fullX, y, FULL_W, FULL_H, 0x020617, 0.96)
@@ -910,19 +960,7 @@ function create() {
       label .on('pointerout',  hoverOff);
 
       const buyKit = () => {
-        if (playerMoney >= cost && playerHealth < playerMaxHealth) {
-          playerMoney -= cost;
-          playerHealth = playerMaxHealth;
-          moneyText.setText(`$${playerMoney}`);
-          updateWeaponAndHealthUI(this);
-          updatePlayerHealthBar();
-        } else if (playerHealth >= playerMaxHealth) {
-          label.setText(`You're already at full HP!`);
-          this.time.delayedCall(1000, () => label.setText(`Buy Medical Kit - $${cost}`));
-        } else {
-          label.setText(`Not enough money for Medical Kit`);
-          this.time.delayedCall(1000, () => label.setText(`Buy Medical Kit - $${cost}`));
-        }
+        tryBuyMedicalKit(this, label);
       };
       fullBg.on('pointerdown', buyKit);
       label .on('pointerdown', buyKit);
@@ -1031,6 +1069,13 @@ function create() {
     if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
     currentWeaponIndex = (currentWeaponIndex - 1 + weapons.length) % weapons.length;
     updateWeaponAndHealthUI(this);
+  });
+
+  // Hotkey H: instantly buy Medical Kit (heal to full) if affordable
+  this.input.keyboard.on('keydown-H', () => {
+    if (gamePhase !== 'playing') return;
+    if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+    tryBuyMedicalKit(this, null);
   });
 
   // Mouse shooting / reload
