@@ -159,9 +159,11 @@ let moveUpPressed = false;
 let globalKeyDownHandler = null;
 let globalKeyUpHandler   = null;
 
+// start screen objects (for swapping main <-> controls)
+let startScreenObjects = [];
+
 function normalizeKeyName(key) {
   if (!key) return '';
-  // For single characters, normalize to uppercase. Others like "ArrowLeft" stay as-is.
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
@@ -192,6 +194,12 @@ function saveControlBindings() {
   } catch (e) {
     console.warn('Failed to save control bindings', e);
   }
+}
+
+function clearStartScreen(scene) {
+  startScreenObjects.forEach(o => o && o.destroy());
+  startScreenObjects = [];
+  scene.input.setDefaultCursor('default');
 }
 
 // =====================
@@ -954,7 +962,6 @@ function create() {
         'Tighten Shotgun Spread -10%',
         200,
         () => {
-          // reduce spread by 10% of its current value, clamped to minimum 5 degrees
           const MIN_SPREAD_DEG = 5;
           shotgunSpreadRad = Math.max(
             Phaser.Math.DegToRad(MIN_SPREAD_DEG),
@@ -1501,7 +1508,6 @@ function isEnemyInFiringRange(scene, enemy) {
 function shootEnemyBullet(enemy, scene) {
   // ===== ONLY SHOOT WHEN ENEMY IS (ROUGHLY) ON SCREEN =====
   if (!isEnemyInFiringRange(scene, enemy)) {
-    // Enemy is off-screen → no shooting
     return;
   }
 
@@ -1569,7 +1575,6 @@ function shootBullet() {
 
   if (w.name === "Shotgun") {
     const pelletCount = Phaser.Math.Between(10, 15);
-    // use current (upgradable) spread value
     const spreadRad   = shotgunSpreadRad;
 
     for (let i = 0; i < pelletCount; i++) {
@@ -1591,7 +1596,6 @@ function shootBullet() {
 
       b.body.setVelocity(Math.cos(angle) * 600, Math.sin(angle) * 600);
 
-      // doubled lifetime from 400ms → 800ms
       this.time.delayedCall(800, () => { if (b.active) b.destroy(); });
     }
   } else {
@@ -1649,16 +1653,19 @@ function showStartScreen(scene) {
   gamePhase = 'start';
   gamePaused = true;
   scene.physics.world.pause();
+  showStartMainScreen(scene);
+}
+
+function showStartMainScreen(scene) {
+  clearStartScreen(scene);
 
   const centerX = config.width / 2;
   const centerY = config.height / 2;
 
-  const startUi = [];
-
   const overlay = scene.add.rectangle(centerX, centerY, config.width, config.height, 0x000000, 0.7)
     .setScrollFactor(0)
     .setDepth(4000);
-  startUi.push(overlay);
+  startScreenObjects.push(overlay);
 
   const panelW = 780;
   const panelH = 520;
@@ -1667,19 +1674,19 @@ function showStartScreen(scene) {
     .setStrokeStyle(3, 0x38bdf8, 0.8)
     .setScrollFactor(0)
     .setDepth(4001);
-  startUi.push(panel);
+  startScreenObjects.push(panel);
 
   const title = scene.add.text(centerX, centerY - 200, 'WWIII — Endless Defense', {
     font: '40px Arial',
     fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-  startUi.push(title);
+  startScreenObjects.push(title);
 
   const subtitle = scene.add.text(centerX, centerY - 160, 'How to Play', {
     font: '24px Arial',
     fill: '#bfdbfe'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-  startUi.push(subtitle);
+  startScreenObjects.push(subtitle);
 
   const b = controlBindings || getDefaultBindings();
 
@@ -1695,10 +1702,8 @@ function showStartScreen(scene) {
     'and earn money to upgrade weapons and defenses.'
   ];
 
-  // Move instructions up a bit and tighten spacing so they finish higher
   const lineSpacing = 22;
   const textStartY = centerY - 120;
-  const instructionTexts = [];
   instructions.forEach((line, i) => {
     const t = scene.add.text(centerX, textStartY + i * lineSpacing, line, {
       font: '18px Arial',
@@ -1706,53 +1711,130 @@ function showStartScreen(scene) {
       align: 'center',
       wordWrap: { width: panelW - 80 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-    instructionTexts.push(t);
-    startUi.push(t);
+    startScreenObjects.push(t);
   });
 
   // Play button
-  const BTN_W = 240, BTN_H = 70, BTN_R = 14;
-  const btnY = centerY + 70;
-  const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
-  startUi.push(btnBg);
+  const PLAY_W = 240, PLAY_H = 70, PLAY_R = 14;
+  const playY = centerY + 80;
+  const playBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
+  startScreenObjects.push(playBg);
 
   const drawPlayBtn = (fill, stroke = 0xffffff) => {
-    btnBg.clear()
+    playBg.clear()
       .fillStyle(fill, 1)
-      .fillRoundedRect(centerX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, BTN_R)
+      .fillRoundedRect(centerX - PLAY_W / 2, playY - PLAY_H / 2, PLAY_W, PLAY_H, PLAY_R)
       .lineStyle(3, stroke)
-      .strokeRoundedRect(centerX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, BTN_R);
+      .strokeRoundedRect(centerX - PLAY_W / 2, playY - PLAY_H / 2, PLAY_W, PLAY_H, PLAY_R);
   };
   drawPlayBtn(0x22c55e);
 
-  btnBg.setInteractive(
-    new Phaser.Geom.Rectangle(centerX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H),
+  playBg.setInteractive(
+    new Phaser.Geom.Rectangle(centerX - PLAY_W / 2, playY - PLAY_H / 2, PLAY_W, PLAY_H),
     Phaser.Geom.Rectangle.Contains
   );
 
-  const btnText = scene.add.text(centerX, btnY, 'Play', {
+  const playText = scene.add.text(centerX, playY, 'Play', {
     font: '30px Arial',
     fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
-  startUi.push(btnText);
+  startScreenObjects.push(playText);
 
-  btnBg.on('pointerover', () => {
+  playBg.on('pointerover', () => {
     drawPlayBtn(0x16a34a, 0xffff88);
-    btnText.setStyle({ fill: '#fef3c7' });
+    playText.setStyle({ fill: '#fef3c7' });
     scene.input.setDefaultCursor('pointer');
   });
-  btnBg.on('pointerout', () => {
+  playBg.on('pointerout', () => {
     drawPlayBtn(0x22c55e, 0xffffff);
-    btnText.setStyle({ fill: '#ffffff' });
+    playText.setStyle({ fill: '#ffffff' });
     scene.input.setDefaultCursor('default');
   });
 
-  // ===== Control settings under the Play button =====
-  const controlsTitle = scene.add.text(centerX, centerY + 120, 'Control Settings', {
+  playBg.on('pointerdown', () => {
+    clearStartScreen(scene);
+    startRun(scene);
+  });
+
+  // Control Settings button (secondary)
+  const CTRL_W = 220, CTRL_H = 50, CTRL_R = 12;
+  const ctrlY = centerY + 150;
+  const ctrlBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
+  startScreenObjects.push(ctrlBg);
+
+  const drawCtrlBtn = (fill, stroke = 0x38bdf8) => {
+    ctrlBg.clear()
+      .fillStyle(fill, 1)
+      .fillRoundedRect(centerX - CTRL_W / 2, ctrlY - CTRL_H / 2, CTRL_W, CTRL_H, CTRL_R)
+      .lineStyle(2, stroke)
+      .strokeRoundedRect(centerX - CTRL_W / 2, ctrlY - CTRL_H / 2, CTRL_W, CTRL_H, CTRL_R);
+  };
+  drawCtrlBtn(0x111827, 0x38bdf8);
+
+  ctrlBg.setInteractive(
+    new Phaser.Geom.Rectangle(centerX - CTRL_W / 2, ctrlY - CTRL_H / 2, CTRL_W, CTRL_H),
+    Phaser.Geom.Rectangle.Contains
+  );
+
+  const ctrlText = scene.add.text(centerX, ctrlY, 'Control Settings', {
     font: '20px Arial',
     fill: '#bfdbfe'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
+  startScreenObjects.push(ctrlText);
+
+  ctrlBg.on('pointerover', () => {
+    drawCtrlBtn(0x0f172a, 0x93c5fd);
+    ctrlText.setStyle({ fill: '#e5e7eb' });
+    scene.input.setDefaultCursor('pointer');
+  });
+  ctrlBg.on('pointerout', () => {
+    drawCtrlBtn(0x111827, 0x38bdf8);
+    ctrlText.setStyle({ fill: '#bfdbfe' });
+    scene.input.setDefaultCursor('default');
+  });
+
+  ctrlBg.on('pointerdown', () => {
+    showControlSettingsScreen(scene);
+  });
+
+  const hint = scene.add.text(centerX, ctrlY + 40, 'Adjust controls, then click Back to return.', {
+    font: '16px Arial',
+    fill: '#9ca3af'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-  startUi.push(controlsTitle);
+  startScreenObjects.push(hint);
+}
+
+function showControlSettingsScreen(scene) {
+  clearStartScreen(scene);
+
+  const centerX = config.width / 2;
+  const centerY = config.height / 2;
+
+  const overlay = scene.add.rectangle(centerX, centerY, config.width, config.height, 0x000000, 0.7)
+    .setScrollFactor(0)
+    .setDepth(4000);
+  startScreenObjects.push(overlay);
+
+  const panelW = 780;
+  const panelH = 520;
+
+  const panel = scene.add.rectangle(centerX, centerY, panelW, panelH, 0x111827, 0.96)
+    .setStrokeStyle(3, 0x38bdf8, 0.8)
+    .setScrollFactor(0)
+    .setDepth(4001);
+  startScreenObjects.push(panel);
+
+  const title = scene.add.text(centerX, centerY - 200, 'Control Settings', {
+    font: '34px Arial',
+    fill: '#ffffff'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startScreenObjects.push(title);
+
+  const subtitle = scene.add.text(centerX, centerY - 160, 'Click a key name, then press a new key to rebind.', {
+    font: '18px Arial',
+    fill: '#9ca3af'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startScreenObjects.push(subtitle);
 
   const controlRows = [
     { action: 'moveLeft',  label: 'Move Left' },
@@ -1764,8 +1846,8 @@ function showStartScreen(scene) {
     { action: 'heal',      label: 'Use Med Kit' }
   ];
 
-  const controlsStartY = centerY + 150;
-  const rowSpacing = 20;
+  const controlsStartY = centerY - 90;
+  const rowSpacing = 40;
 
   const controlValueTexts = {};
   const controlBgRects = [];
@@ -1773,14 +1855,14 @@ function showStartScreen(scene) {
   controlRows.forEach((row, i) => {
     const y = controlsStartY + i * rowSpacing;
 
-    const labelText = scene.add.text(centerX - 140, y, row.label, {
-      font: '16px Arial',
+    const labelText = scene.add.text(centerX - 160, y, row.label, {
+      font: '18px Arial',
       fill: '#e5e7eb',
       align: 'right'
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(4002);
-    startUi.push(labelText);
+    startScreenObjects.push(labelText);
 
-    const boxW = 80, boxH = 24;
+    const boxW = 90, boxH = 28;
     const boxX = centerX + 40;
 
     const rect = scene.add.rectangle(boxX, y, boxW, boxH, 0x020617, 0.95)
@@ -1788,15 +1870,15 @@ function showStartScreen(scene) {
       .setScrollFactor(0)
       .setDepth(4002)
       .setInteractive({ useHandCursor: true });
-    startUi.push(rect);
+    startScreenObjects.push(rect);
     controlBgRects.push(rect);
 
     const keyName = controlBindings[row.action] || DEFAULT_BINDINGS[row.action];
     const text = scene.add.text(boxX, y, keyName, {
-      font: '14px Arial',
+      font: '16px Arial',
       fill: '#e5e7eb'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4003);
-    startUi.push(text);
+    startScreenObjects.push(text);
     controlValueTexts[row.action] = text;
 
     const hoverOn = () => {
@@ -1814,33 +1896,28 @@ function showStartScreen(scene) {
     text.on('pointerout', hoverOff);
   });
 
-  const controlsHint = scene.add.text(centerX, centerY + 150 + controlRows.length * rowSpacing + 16,
-    'Click a key name, then press a new key to rebind.',
+  const hint = scene.add.text(centerX, controlsStartY + controlRows.length * rowSpacing + 10,
+    'Some keys (Shift, Ctrl, Alt, Meta) are reserved and cannot be used.',
     { font: '14px Arial', fill: '#9ca3af' }
   ).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-  startUi.push(controlsHint);
-
-  const hint = scene.add.text(centerX, centerY + 150 + controlRows.length * rowSpacing + 42,
-    'Click Play to begin your run.',
-    { font: '18px Arial', fill: '#9ca3af' }
-  ).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-  startUi.push(hint);
+  startScreenObjects.push(hint);
 
   // Rebinding logic
   let awaitingRebindAction = null;
 
   const beginRebind = (action) => {
     awaitingRebindAction = action;
-    controlsHint.setText(`Press a key for "${controlRows.find(r => r.action === action).label}"...`);
+    const row = controlRows.find(r => r.action === action);
+    subtitle.setText(`Press a key for "${row.label}"...`);
 
     scene.input.keyboard.once('keydown', (ev) => {
       const rawKey = ev.key;
       const invalid = ['Shift', 'Control', 'Alt', 'Meta'];
       if (invalid.includes(rawKey)) {
-        controlsHint.setText('That key cannot be used. Try another.');
+        subtitle.setText('That key cannot be used. Try another.');
         awaitingRebindAction = null;
         scene.time.delayedCall(1000, () => {
-          controlsHint.setText('Click a key name, then press a new key to rebind.');
+          subtitle.setText('Click a key name, then press a new key to rebind.');
         });
         return;
       }
@@ -1852,7 +1929,7 @@ function showStartScreen(scene) {
         controlValueTexts[action].setText(norm);
       }
 
-      controlsHint.setText('Click a key name, then press a new key to rebind.');
+      subtitle.setText('Click a key name, then press a new key to rebind.');
       awaitingRebindAction = null;
     });
   };
@@ -1869,13 +1946,45 @@ function showStartScreen(scene) {
     valueText.on('pointerdown', startRebind);
   });
 
-  const startRunWrapper = () => {
-    startUi.forEach(obj => obj.destroy());
-    startRun(scene);
-  };
+  // Back button → return to main start screen
+  const BACK_W = 180, BACK_H = 50, BACK_R = 12;
+  const backY = centerY + panelH / 2 - 60;
+  const backBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
+  startScreenObjects.push(backBg);
 
-  btnBg.on('pointerdown', () => {
-    startRunWrapper();
+  const drawBackBtn = (fill, stroke = 0x38bdf8) => {
+    backBg.clear()
+      .fillStyle(fill, 1)
+      .fillRoundedRect(centerX - BACK_W / 2, backY - BACK_H / 2, BACK_W, BACK_H, BACK_R)
+      .lineStyle(2, stroke)
+      .strokeRoundedRect(centerX - BACK_W / 2, backY - BACK_H / 2, BACK_W, BACK_H, BACK_R);
+  };
+  drawBackBtn(0x111827, 0x38bdf8);
+
+  backBg.setInteractive(
+    new Phaser.Geom.Rectangle(centerX - BACK_W / 2, backY - BACK_H / 2, BACK_W, BACK_H),
+    Phaser.Geom.Rectangle.Contains
+  );
+
+  const backText = scene.add.text(centerX, backY, 'Back', {
+    font: '20px Arial',
+    fill: '#bfdbfe'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
+  startScreenObjects.push(backText);
+
+  backBg.on('pointerover', () => {
+    drawBackBtn(0x0f172a, 0x93c5fd);
+    backText.setStyle({ fill: '#e5e7eb' });
+    scene.input.setDefaultCursor('pointer');
+  });
+  backBg.on('pointerout', () => {
+    drawBackBtn(0x111827, 0x38bdf8);
+    backText.setStyle({ fill: '#bfdbfe' });
+    scene.input.setDefaultCursor('default');
+  });
+
+  backBg.on('pointerdown', () => {
+    showStartMainScreen(scene);
   });
 }
 
