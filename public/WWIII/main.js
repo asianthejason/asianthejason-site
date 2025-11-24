@@ -23,7 +23,7 @@ let isReloading = false;
 let isMouseDown = false;
 let machineGunInterval = null;
 
-let player, keys, pointer;
+let player, pointer;
 let bullets, enemyBullets, enemies, ground;
 let playerHealthBar;
 // --- Run stats for Firebase leaderboard ---
@@ -127,11 +127,72 @@ let lastShotTime = 0;
 let playerMaxHealth = 100;
 let playerHealth    = 100;
 
-// Medical kit cost (used by shop + H hotkey)
+// Medical kit cost (used by shop + heal hotkey)
 const MEDKIT_COST = 30;
 
 // Shield
 let shieldGroup, shieldBody, shieldKey;
+
+// =====================
+//  Customizable controls
+// =====================
+
+// Default bindings (stored & compared as normalized key names)
+const DEFAULT_BINDINGS = {
+  moveLeft: 'A',
+  moveUp: 'W',
+  moveRight: 'D',
+  openShop: 'F',
+  weaponPrev: 'Q',
+  weaponNext: 'E',
+  heal: 'H'
+};
+
+let controlBindings = null;
+
+// movement state driven by keydown/keyup instead of Phaser addKeys
+let moveLeftPressed = false;
+let moveRightPressed = false;
+let moveUpPressed = false;
+
+// global keyboard handlers so we can detach on scene restart
+let globalKeyDownHandler = null;
+let globalKeyUpHandler   = null;
+
+function normalizeKeyName(key) {
+  if (!key) return '';
+  // For single characters, normalize to uppercase. Others like "ArrowLeft" stay as-is.
+  return key.length === 1 ? key.toUpperCase() : key;
+}
+
+function getDefaultBindings() {
+  return { ...DEFAULT_BINDINGS };
+}
+
+function loadControlBindings() {
+  const defaults = getDefaultBindings();
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { ...defaults };
+  }
+  try {
+    const raw = window.localStorage.getItem('wwiiiControls');
+    if (!raw) return { ...defaults };
+    const parsed = JSON.parse(raw);
+    return { ...defaults, ...parsed };
+  } catch (e) {
+    console.warn('Failed to load control bindings, using defaults', e);
+    return { ...defaults };
+  }
+}
+
+function saveControlBindings() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem('wwiiiControls', JSON.stringify(controlBindings));
+  } catch (e) {
+    console.warn('Failed to save control bindings', e);
+  }
+}
 
 // =====================
 //  Preload
@@ -187,7 +248,7 @@ function updatePlayerHealthBar() {
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
 }
 
-// Centralized logic for buying a Medical Kit (used by shop button + H hotkey)
+// Centralized logic for buying a Medical Kit (used by shop button + heal hotkey)
 function tryBuyMedicalKit(scene, label) {
   const cost = MEDKIT_COST;
 
@@ -481,6 +542,13 @@ function create() {
   shopVisible = false;
   gamePaused = false;
 
+  moveLeftPressed = false;
+  moveRightPressed = false;
+  moveUpPressed = false;
+
+  // Load control bindings (or defaults)
+  controlBindings = loadControlBindings();
+
   // fresh containers for UI objects (old arrays held destroyed objects)
   shopButtons = [];
   shopTabButtons = [];
@@ -524,7 +592,7 @@ function create() {
   });
   this.anims.create({
     key: 'enemy_walk',
-    frames: this.anims.generateFrameNumbers('enemyrun', { start: 0, end: 9 }),
+    frames: this.anims.generateFrameNumbers('enemyrun',  { start: 0, end: 9 }),
     frameRate: 14,
     repeat: -1
   });
@@ -556,9 +624,9 @@ function create() {
 
   this.physics.add.collider(player, ground);
 
-  keys     = this.input.keyboard.addKeys({ up: Phaser.Input.Keyboard.KeyCodes.W, left: Phaser.Input.Keyboard.KeyCodes.A, right: Phaser.Input.Keyboard.KeyCodes.D });
-  shieldKey= this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
-  pointer  = this.input.activePointer;
+  // Shield is still Shift (not customizable for now)
+  shieldKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+  pointer   = this.input.activePointer;
 
   // Shield
   shieldGroup = this.physics.add.staticGroup();
@@ -707,7 +775,7 @@ function create() {
     .setDepth(2001)
     .setVisible(false);
 
-  const panelSubtitle = this.add.text(960, subtitleY, 'Press F to open / close the shop', {
+  const panelSubtitle = this.add.text(960, subtitleY, 'Press your Shop key to open / close', {
     font: '14px "Inter", Arial',
     fill: '#9ca3af'
   })
@@ -1034,49 +1102,69 @@ function create() {
     shopTabButtons.push(label);
   });
 
-  // Toggle shop (F) – only during actual gameplay
-  this.input.keyboard.on('keydown-F', () => {
+  // ------ Global key handlers (use customizable bindings) ------
+  const self = this;
+
+  if (globalKeyDownHandler) {
+    this.input.keyboard.off('keydown', globalKeyDownHandler);
+  }
+  if (globalKeyUpHandler) {
+    this.input.keyboard.off('keyup', globalKeyUpHandler);
+  }
+
+  globalKeyDownHandler = function (event) {
+    const keyName = normalizeKeyName(event.key);
+    // Movement states (even if not playing, so they are "ready")
+    if (keyName === controlBindings.moveLeft)  moveLeftPressed = true;
+    if (keyName === controlBindings.moveRight) moveRightPressed = true;
+    if (keyName === controlBindings.moveUp)    moveUpPressed = true;
+
+    // Gameplay actions only while playing
     if (gamePhase !== 'playing') return;
-    if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+    if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
-    shopVisible = !shopVisible;
-    gamePaused  = shopVisible;
+    if (keyName === controlBindings.openShop) {
+      shopVisible = !shopVisible;
+      gamePaused  = shopVisible;
 
-    shopPanel.setVisible(shopVisible);
-
-    if (shopVisible) {
-      this.physics.world.pause();
-    } else {
-      this.physics.world.resume();
+      shopPanel.setVisible(shopVisible);
+      if (shopVisible) {
+        self.physics.world.pause();
+      } else {
+        self.physics.world.resume();
+      }
+      shopButtons.forEach(btn => btn.setVisible(shopVisible));
+      switchTab(currentTab);
+      return;
     }
 
-    // headers
-    shopButtons.forEach(btn => btn.setVisible(shopVisible));
+    if (keyName === controlBindings.weaponNext) {
+      currentWeaponIndex = (currentWeaponIndex + 1) % weapons.length;
+      updateWeaponAndHealthUI(self);
+      return;
+    }
 
-    // content by tab
-    switchTab(currentTab);
-  });
+    if (keyName === controlBindings.weaponPrev) {
+      currentWeaponIndex = (currentWeaponIndex - 1 + weapons.length) % weapons.length;
+      updateWeaponAndHealthUI(self);
+      return;
+    }
 
-  // Cycle weapons (E / Q)
-  this.input.keyboard.on('keydown-E', () => {
-    if (gamePhase !== 'playing') return;
-    if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
-    currentWeaponIndex = (currentWeaponIndex + 1) % weapons.length;
-    updateWeaponAndHealthUI(this);
-  });
-  this.input.keyboard.on('keydown-Q', () => {
-    if (gamePhase !== 'playing') return;
-    if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
-    currentWeaponIndex = (currentWeaponIndex - 1 + weapons.length) % weapons.length;
-    updateWeaponAndHealthUI(this);
-  });
+    if (keyName === controlBindings.heal) {
+      tryBuyMedicalKit(self, null);
+      return;
+    }
+  };
 
-  // Hotkey H: instantly buy Medical Kit (heal to full) if affordable
-  this.input.keyboard.on('keydown-H', () => {
-    if (gamePhase !== 'playing') return;
-    if (document.activeElement && ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
-    tryBuyMedicalKit(this, null);
-  });
+  globalKeyUpHandler = function (event) {
+    const keyName = normalizeKeyName(event.key);
+    if (keyName === controlBindings.moveLeft)  moveLeftPressed = false;
+    if (keyName === controlBindings.moveRight) moveRightPressed = false;
+    if (keyName === controlBindings.moveUp)    moveUpPressed = false;
+  };
+
+  this.input.keyboard.on('keydown', globalKeyDownHandler);
+  this.input.keyboard.on('keyup', globalKeyUpHandler);
 
   // Mouse shooting / reload
   this.input.on('pointerup', () => {
@@ -1240,15 +1328,21 @@ function update(time) {
 
   // Movement & jumping (locked when shielding)
   if (!shieldKey.isDown) {
-    if (keys.left.isDown) { player.setVelocityX(-200); lastDirection = -1; }
-    else if (keys.right.isDown) { player.setVelocityX(200); lastDirection = 1; }
-    else if (player.body.onFloor()) player.setVelocityX(0);
+    if (moveLeftPressed && !moveRightPressed) {
+      player.setVelocityX(-200);
+      lastDirection = -1;
+    } else if (moveRightPressed && !moveLeftPressed) {
+      player.setVelocityX(200);
+      lastDirection = 1;
+    } else if (player.body.onFloor()) {
+      player.setVelocityX(0);
+    }
 
-    if (keys.up.isDown && player.body.onFloor() && !isJumping) {
+    if (moveUpPressed && player.body.onFloor() && !isJumping) {
       player.setVelocityY(jumpVelocity);
       isJumping = true; jumpStartTime = time;
     }
-    if (!keys.up.isDown && isJumping) {
+    if (!moveUpPressed && isJumping) {
       isJumping = false;
       if (player.body.velocity.y < 0) player.setVelocityY(player.body.velocity.y * 0.5);
     }
@@ -1297,8 +1391,8 @@ function update(time) {
   } else {
     const currentAnim = player.anims.currentAnim && player.anims.currentAnim.key;
     if (currentAnim !== 'player_shoot') {
-      if (keys.left.isDown)  { player.setVelocityX(-200); player.play('player_walk', true); player.flipX = true; }
-      else if (keys.right.isDown) { player.setVelocityX(200); player.play('player_walk', true); player.flipX = false; }
+      if (moveLeftPressed && !moveRightPressed)  { player.setVelocityX(-200); player.play('player_walk', true); player.flipX = true; }
+      else if (moveRightPressed && !moveLeftPressed) { player.setVelocityX(200); player.play('player_walk', true); player.flipX = false; }
       else { if (player.body.onFloor()) player.setVelocityX(0); player.play('player_idle', true); }
     }
   }
@@ -1559,9 +1653,12 @@ function showStartScreen(scene) {
   const centerX = config.width / 2;
   const centerY = config.height / 2;
 
+  const startUi = [];
+
   const overlay = scene.add.rectangle(centerX, centerY, config.width, config.height, 0x000000, 0.7)
     .setScrollFactor(0)
     .setDepth(4000);
+  startUi.push(overlay);
 
   const panelW = 780;
   const panelH = 520;
@@ -1570,23 +1667,29 @@ function showStartScreen(scene) {
     .setStrokeStyle(3, 0x38bdf8, 0.8)
     .setScrollFactor(0)
     .setDepth(4001);
+  startUi.push(panel);
 
   const title = scene.add.text(centerX, centerY - 200, 'WWIII — Endless Defense', {
     font: '40px Arial',
     fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startUi.push(title);
 
   const subtitle = scene.add.text(centerX, centerY - 160, 'How to Play', {
     font: '24px Arial',
     fill: '#bfdbfe'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startUi.push(subtitle);
+
+  const b = controlBindings || getDefaultBindings();
 
   const instructions = [
-    '• A / W / D to move',
+    `• ${b.moveLeft} / ${b.moveUp} / ${b.moveRight} to move`,
     '• Shift to raise your shield',
     '• Left click to fire, right click to reload',
-    '• Q / E to switch weapons',
-    '• F to open the Supply Depot (shop)',
+    `• ${b.weaponPrev} / ${b.weaponNext} to switch weapons`,
+    `• ${b.openShop} to open the Supply Depot (shop)`,
+    `• ${b.heal} to use Medical Kit`,
     '',
     'Survive as long as you can, push your distance,',
     'and earn money to upgrade weapons and defenses.'
@@ -1604,17 +1707,14 @@ function showStartScreen(scene) {
       wordWrap: { width: panelW - 80 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
     instructionTexts.push(t);
+    startUi.push(t);
   });
 
-  // Play button & hint moved further down so they don't overlap text
-  const hint = scene.add.text(centerX, centerY + 160, 'Click Play to begin your run.', {
-    font: '18px Arial',
-    fill: '#9ca3af'
-  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
-
+  // Play button
   const BTN_W = 240, BTN_H = 70, BTN_R = 14;
-  const btnY = centerY + 100;
+  const btnY = centerY + 70;
   const btnBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
+  startUi.push(btnBg);
 
   const drawPlayBtn = (fill, stroke = 0xffffff) => {
     btnBg.clear()
@@ -1634,6 +1734,7 @@ function showStartScreen(scene) {
     font: '30px Arial',
     fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
+  startUi.push(btnText);
 
   btnBg.on('pointerover', () => {
     drawPlayBtn(0x16a34a, 0xffff88);
@@ -1646,16 +1747,130 @@ function showStartScreen(scene) {
     scene.input.setDefaultCursor('default');
   });
 
-  const startRunWrapper = () => {
-    overlay.destroy();
-    panel.destroy();
-    title.destroy();
-    subtitle.destroy();
-    hint.destroy();
-    btnBg.destroy();
-    btnText.destroy();
-    instructionTexts.forEach(t => t.destroy());
+  // ===== Control settings under the Play button =====
+  const controlsTitle = scene.add.text(centerX, centerY + 120, 'Control Settings', {
+    font: '20px Arial',
+    fill: '#bfdbfe'
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startUi.push(controlsTitle);
 
+  const controlRows = [
+    { action: 'moveLeft',  label: 'Move Left' },
+    { action: 'moveUp',    label: 'Jump / Up' },
+    { action: 'moveRight', label: 'Move Right' },
+    { action: 'openShop',  label: 'Open Shop' },
+    { action: 'weaponPrev',label: 'Previous Weapon' },
+    { action: 'weaponNext',label: 'Next Weapon' },
+    { action: 'heal',      label: 'Use Med Kit' }
+  ];
+
+  const controlsStartY = centerY + 150;
+  const rowSpacing = 20;
+
+  const controlValueTexts = {};
+  const controlBgRects = [];
+
+  controlRows.forEach((row, i) => {
+    const y = controlsStartY + i * rowSpacing;
+
+    const labelText = scene.add.text(centerX - 140, y, row.label, {
+      font: '16px Arial',
+      fill: '#e5e7eb',
+      align: 'right'
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(4002);
+    startUi.push(labelText);
+
+    const boxW = 80, boxH = 24;
+    const boxX = centerX + 40;
+
+    const rect = scene.add.rectangle(boxX, y, boxW, boxH, 0x020617, 0.95)
+      .setStrokeStyle(2, 0x4b5563, 0.9)
+      .setScrollFactor(0)
+      .setDepth(4002)
+      .setInteractive({ useHandCursor: true });
+    startUi.push(rect);
+    controlBgRects.push(rect);
+
+    const keyName = controlBindings[row.action] || DEFAULT_BINDINGS[row.action];
+    const text = scene.add.text(boxX, y, keyName, {
+      font: '14px Arial',
+      fill: '#e5e7eb'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(4003);
+    startUi.push(text);
+    controlValueTexts[row.action] = text;
+
+    const hoverOn = () => {
+      rect.setStrokeStyle(2, 0x38bdf8, 1);
+      scene.input.setDefaultCursor('pointer');
+    };
+    const hoverOff = () => {
+      rect.setStrokeStyle(2, 0x4b5563, 0.9);
+      scene.input.setDefaultCursor('default');
+    };
+
+    rect.on('pointerover', hoverOn);
+    rect.on('pointerout', hoverOff);
+    text.on('pointerover', hoverOn);
+    text.on('pointerout', hoverOff);
+  });
+
+  const controlsHint = scene.add.text(centerX, centerY + 150 + controlRows.length * rowSpacing + 16,
+    'Click a key name, then press a new key to rebind.',
+    { font: '14px Arial', fill: '#9ca3af' }
+  ).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startUi.push(controlsHint);
+
+  const hint = scene.add.text(centerX, centerY + 150 + controlRows.length * rowSpacing + 42,
+    'Click Play to begin your run.',
+    { font: '18px Arial', fill: '#9ca3af' }
+  ).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
+  startUi.push(hint);
+
+  // Rebinding logic
+  let awaitingRebindAction = null;
+
+  const beginRebind = (action) => {
+    awaitingRebindAction = action;
+    controlsHint.setText(`Press a key for "${controlRows.find(r => r.action === action).label}"...`);
+
+    scene.input.keyboard.once('keydown', (ev) => {
+      const rawKey = ev.key;
+      const invalid = ['Shift', 'Control', 'Alt', 'Meta'];
+      if (invalid.includes(rawKey)) {
+        controlsHint.setText('That key cannot be used. Try another.');
+        awaitingRebindAction = null;
+        scene.time.delayedCall(1000, () => {
+          controlsHint.setText('Click a key name, then press a new key to rebind.');
+        });
+        return;
+      }
+
+      const norm = normalizeKeyName(rawKey);
+      controlBindings[action] = norm;
+      saveControlBindings();
+      if (controlValueTexts[action]) {
+        controlValueTexts[action].setText(norm);
+      }
+
+      controlsHint.setText('Click a key name, then press a new key to rebind.');
+      awaitingRebindAction = null;
+    });
+  };
+
+  controlRows.forEach((row, i) => {
+    const rect = controlBgRects[i];
+    const valueText = controlValueTexts[row.action];
+
+    const startRebind = () => {
+      beginRebind(row.action);
+    };
+
+    rect.on('pointerdown', startRebind);
+    valueText.on('pointerdown', startRebind);
+  });
+
+  const startRunWrapper = () => {
+    startUi.forEach(obj => obj.destroy());
     startRun(scene);
   };
 
