@@ -123,15 +123,15 @@ let weaponState = weapons.map(w => ({
 
 let lastShotTime = 0;
 
-// Player HP
+// Player HP & Shield
 let playerMaxHealth = 100;
 let playerHealth    = 100;
+
+let playerShield    = 100; // current shield value (no formal max)
 
 // Medical kit cost (used by shop + heal hotkey)
 const MEDKIT_COST = 30;
 
-// Shield
-let shieldGroup, shieldBody, shieldKey;
 
 // =====================
 //  Customizable controls
@@ -206,7 +206,6 @@ function clearStartScreen(scene) {
 //  Preload
 // =====================
 function preload() {
-  this.load.image('shield',     'assets/images/shield.png');
   this.load.image('ground',     'assets/images/ground.png');
   this.load.image('background', 'assets/images/background.png');
   this.load.image('bullet',     'assets/images/bullet.png');
@@ -236,7 +235,7 @@ function updateWeaponAndHealthUI(scene) {
 
   const damageRange = weapons[currentWeaponIndex].damageRange;
   const hpDisplay   = playerHealth.toFixed(1);
-  scene.topStatusText.setText(`❤️ HP: ${hpDisplay}/${playerMaxHealth}   🔫 Damage: ${damageRange[0]} - ${damageRange[1]}`);
+  scene.topStatusText.setText(`❤️ HP: ${hpDisplay}/${playerMaxHealth}   🛡️ Shield: ${playerShield}   🔫 Damage: ${damageRange[0]} - ${damageRange[1]}`);
 }
 
 function updatePlayerHealthBar() {
@@ -246,12 +245,24 @@ function updatePlayerHealthBar() {
   const x = player.x - barWidth / 2;
   const y = player.y - player.displayHeight / 2 - 12;
 
-  // border
+  // --- Shield bar (blue), scaled so 100 shield fills the bar ---
+  if (playerShield > 0) {
+    const shieldPct = Math.min(playerShield / 100, 1);
+    const shieldY   = y - 8;
+
+    // border
+    playerHealthBar.fillStyle(0x000000);
+    playerHealthBar.fillRect(x - 1, shieldY - 1, barWidth + 2, barHeight + 2);
+
+    // fill
+    playerHealthBar.fillStyle(0x1d4ed8); // blue
+    playerHealthBar.fillRect(x, shieldY, barWidth * shieldPct, barHeight);
+  }
+
+  // --- Health bar (green) ---
+  const pct = Phaser.Math.Clamp(playerHealth / playerMaxHealth, 0, 1);
   playerHealthBar.fillStyle(0x000000);
   playerHealthBar.fillRect(x - 1, y - 1, barWidth + 2, barHeight + 2);
-
-  // fill
-  const pct = Phaser.Math.Clamp(playerHealth / playerMaxHealth, 0, 1);
   playerHealthBar.fillStyle(0x00ff00);
   playerHealthBar.fillRect(x, y, barWidth * pct, barHeight);
 }
@@ -535,6 +546,7 @@ function create() {
   playerMoney = 0;
   playerMaxHealth = 100;
   playerHealth = 100;
+  playerShield = 100;
 
   enemiesKilled = 0;
   bulletsFired.Pistol = 0;
@@ -632,18 +644,7 @@ function create() {
 
   this.physics.add.collider(player, ground);
 
-  // Shield is still Shift (not customizable for now)
-  shieldKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
   pointer   = this.input.activePointer;
-
-  // Shield
-  shieldGroup = this.physics.add.staticGroup();
-  shieldBody  = shieldGroup.create(player.x, player.y, 'shield').setOrigin(0.5,1).setScale(0.05).setVisible(false);
-  shieldBody.body.setSize(20, 80);
-  shieldBody.body.setOffset((shieldBody.displayWidth - 20)/2, shieldBody.displayHeight - 80);
-  shieldBody.refreshBody();
-  shieldBody.body.enable = false;
-  this.physics.add.overlap(enemyBullets, shieldGroup, b => b.destroy(), null, this);
 
   // Colliders / overlaps
   this.physics.add.collider(bullets, ground, b => b.destroy());
@@ -657,11 +658,20 @@ function create() {
     (playerSprite, bullet) => {
       const damage = bullet.damage ?? 0;
       bullet.destroy();
-      playerHealth -= damage;
-      if (playerHealth <= 0) {
-        playerHealth = 0;
-        showGameOver(this);
+
+      if (playerShield > 0) {
+        // Shield always loses 2 per bullet, regardless of enemy damage
+        playerShield = Math.max(0, playerShield - 2);
+      } else {
+        playerHealth -= damage;
+        if (playerHealth <= 0) {
+          playerHealth = 0;
+          showGameOver(this);
+        }
       }
+
+      updateWeaponAndHealthUI(this);
+      updatePlayerHealthBar();
     },
     null,
     this
@@ -877,6 +887,23 @@ function create() {
 
     upgradeTabButtons.push(divider, bg, label);
   }
+  upgradeY += upgradeSpacing;
+
+  // ===== Shield Purchase (Upgrades tab) =====
+  createUpgrade.call(
+    this,
+    panelX,
+    upgradeY,
+    'Buy 🛡️ +100 Shield',
+    100,
+    () => {
+      playerShield += 100;
+      updateWeaponAndHealthUI(this);
+      updatePlayerHealthBar();
+    },
+    upgradeTabButtons,
+    1 // cost stays at $100
+  );
   upgradeY += upgradeSpacing;
 
   // ===== Extra Upgrades (Upgrades tab) =====
@@ -1333,44 +1360,33 @@ function update(time) {
   // Player health bar above player
   updatePlayerHealthBar();
 
-  // Movement & jumping (locked when shielding)
-  if (!shieldKey.isDown) {
-    if (moveLeftPressed && !moveRightPressed) {
-      player.setVelocityX(-200);
-      lastDirection = -1;
-    } else if (moveRightPressed && !moveLeftPressed) {
-      player.setVelocityX(200);
-      lastDirection = 1;
-    } else if (player.body.onFloor()) {
-      player.setVelocityX(0);
-    }
-
-    if (moveUpPressed && player.body.onFloor() && !isJumping) {
-      player.setVelocityY(jumpVelocity);
-      isJumping = true; jumpStartTime = time;
-    }
-    if (!moveUpPressed && isJumping) {
-      isJumping = false;
-      if (player.body.velocity.y < 0) player.setVelocityY(player.body.velocity.y * 0.5);
-    }
-    if (isJumping && time - jumpStartTime > maxJumpTime) isJumping = false;
-  } else {
+    // Movement & jumping
+  if (moveLeftPressed && !moveRightPressed) {
+    player.setVelocityX(-200);
+    lastDirection = -1;
+  } else if (moveRightPressed && !moveLeftPressed) {
+    player.setVelocityX(200);
+    lastDirection = 1;
+  } else if (player.body.onFloor()) {
     player.setVelocityX(0);
   }
 
-  // Shield positioning
-  if (shieldKey.isDown) {
-    const cursorSide = pointer.worldX >= player.x ? 1 : -1;
-    shieldBody.setVisible(true).setPosition(player.x + 25 * cursorSide, player.y);
-    shieldBody.body.enable = true;
-    shieldBody.refreshBody();
-  } else {
-    shieldBody.setVisible(false);
-    shieldBody.body.enable = false;
-    shieldBody.refreshBody();
+  if (moveUpPressed && player.body.onFloor() && !isJumping) {
+    player.setVelocityY(jumpVelocity);
+    isJumping = true;
+    jumpStartTime = time;
+  }
+  if (!moveUpPressed && isJumping) {
+    isJumping = false;
+    if (player.body.velocity.y < 0) {
+      player.setVelocityY(player.body.velocity.y * 0.5);
+    }
+  }
+  if (isJumping && time - jumpStartTime > maxJumpTime) {
+    isJumping = false;
   }
 
-  statusText.setText(`Distance: ${Math.floor(distanceTraveled)}m`);
+statusText.setText(`Distance: ${Math.floor(distanceTraveled)}m`);
 
   // Enemy HP bars
   enemies.getChildren().forEach(e => {
@@ -1391,20 +1407,26 @@ function update(time) {
     hb.fillStyle(0xff0000).fillRect(barX, barY, fullW * pct, barH);
   });
 
-  // Player animations
-  if (shieldKey.isDown) {
-    player.setVelocityX(0);
-    player.play('player_idle', true);
-  } else {
-    const currentAnim = player.anims.currentAnim && player.anims.currentAnim.key;
-    if (currentAnim !== 'player_shoot') {
-      if (moveLeftPressed && !moveRightPressed)  { player.setVelocityX(-200); player.play('player_walk', true); player.flipX = true; }
-      else if (moveRightPressed && !moveLeftPressed) { player.setVelocityX(200); player.play('player_walk', true); player.flipX = false; }
-      else { if (player.body.onFloor()) player.setVelocityX(0); player.play('player_idle', true); }
+    // Player animations
+  const currentAnim = player.anims.currentAnim && player.anims.currentAnim.key;
+  if (currentAnim !== 'player_shoot') {
+    if (moveLeftPressed && !moveRightPressed) {
+      player.setVelocityX(-200);
+      player.play('player_walk', true);
+      player.flipX = true;
+    } else if (moveRightPressed && !moveLeftPressed) {
+      player.setVelocityX(200);
+      player.play('player_walk', true);
+      player.flipX = false;
+    } else {
+      if (player.body.onFloor()) {
+        player.setVelocityX(0);
+      }
+      player.play('player_idle', true);
     }
   }
 
-  updateWeaponAndHealthUI(this);
+updateWeaponAndHealthUI(this);
 }
 
 // =====================
@@ -1558,8 +1580,6 @@ function shootEnemyBullet(enemy, scene) {
 //  Shooting (player)
 // =====================
 function shootBullet() {
-  if (shieldKey.isDown) return;
-
   const w = weapons[currentWeaponIndex];
   const s = weaponState[currentWeaponIndex];
   if (s.currentClip <= 0 || isReloading) return;
@@ -1692,7 +1712,7 @@ function showStartMainScreen(scene) {
 
   const instructions = [
     `• ${b.moveLeft} / ${b.moveUp} / ${b.moveRight} to move`,
-    '• Shift to raise your shield',
+    '• Buy shield upgrades in the UPGRADES tab to absorb damage',
     '• Left click to fire, right click to reload',
     `• ${b.weaponPrev} / ${b.weaponNext} to switch weapons`,
     `• ${b.openShop} to open the Supply Depot (shop)`,

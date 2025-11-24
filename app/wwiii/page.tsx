@@ -895,7 +895,6 @@ export default function HomePage() {
                   </p>
                   <ul>
                     <li>A / W / D for movement.</li>
-                    <li>Shift to raise your shield.</li>
                     <li>
                       Left click to fire your weapon (aim with your mouse).
                     </li>
@@ -903,6 +902,7 @@ export default function HomePage() {
                     <li>Q / E to switch weapons.</li>
                     <li>F to open the shop.</li>
                     <li>Pistol has unlimited reloads</li>
+                    <li>Shield can be purchased in the upgrade menu. Shield will always reduce by 2 per bullet hit</li>
                     <li>
                       Shotguns fire multiple bullets at a time with a spread,
                       the bullet range is shorter
