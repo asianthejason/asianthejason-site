@@ -174,7 +174,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
       physics: {
         default: "arcade",
         arcade: {
-          gravity: { y: 0 }, // we use per-body gravity
+          gravity: { x: 0, y: 0 }, // we use per-body gravity
           debug: false,
         },
       },
