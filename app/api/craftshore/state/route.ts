@@ -26,6 +26,17 @@ export async function GET() {
       widthInTiles: 40,
       groundY: 520,
     },
+    skills: [
+      { name: "Mining", level: 1, xp: 0 },
+      { name: "Woodcutting", level: 1, xp: 0 },
+      { name: "Farming", level: 1, xp: 0 },
+      { name: "Hunting", level: 1, xp: 0 },
+      { name: "Smelting", level: 1, xp: 0 },
+      { name: "Smithing", level: 1, xp: 0 },
+      { name: "Carpentry", level: 1, xp: 0 },
+      { name: "Leatherworking", level: 1, xp: 0 },
+      { name: "Cooking", level: 1, xp: 0 },
+    ],
   };
 
   return NextResponse.json(state);

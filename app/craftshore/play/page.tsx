@@ -4,6 +4,12 @@
 import { useEffect, useState, useCallback } from "react";
 import CraftshorePhaserGame from "../components/CraftshorePhaserGame";
 
+type Skill = {
+  name: string;
+  level: number;
+  xp: number;
+};
+
 type TownState = {
   townName: string;
   playerName: string;
@@ -20,6 +26,7 @@ type TownState = {
     widthInTiles: number;
     groundY: number;
   };
+  skills: Skill[];
 };
 
 export default function CraftshorePlayPage() {
@@ -51,20 +58,42 @@ export default function CraftshorePlayPage() {
     };
   }, []);
 
+  // Simple XP curve: next level at level * 25 XP (1→25, 2→50, 3→75, ...)
+  function xpNeededForNextLevel(level: number) {
+    return level * 25;
+  }
+
   // Stable mining handler so the Phaser game doesn't reset on E
   const handleMine = useCallback(() => {
-    setState((prev) =>
-      prev
-        ? {
-            ...prev,
-            resources: {
-              ...prev.resources,
-              ore: prev.resources.ore + 1,
-            },
-          }
-        : prev
-    );
-  }, [setState]);
+    setState((prev) => {
+      if (!prev) return prev;
+
+      const xpGain = 5;
+      const updatedSkills = prev.skills.map((skill) => {
+        if (skill.name !== "Mining") return skill;
+
+        let { level, xp } = skill;
+        xp += xpGain;
+
+        // handle level ups (could loop if xpGain is huge)
+        while (xp >= xpNeededForNextLevel(level)) {
+          xp -= xpNeededForNextLevel(level);
+          level += 1;
+        }
+
+        return { ...skill, level, xp };
+      });
+
+      return {
+        ...prev,
+        resources: {
+          ...prev.resources,
+          ore: prev.resources.ore + 1,
+        },
+        skills: updatedSkills,
+      };
+    });
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -96,33 +125,53 @@ export default function CraftshorePlayPage() {
         </div>
       </header>
 
-      {/* HUD */}
-      <section className="px-4 py-3 border-b border-slate-800 bg-slate-900/80">
+      {/* HUD: resources */}
+      <section className="px-4 py-3 border-b border-slate-800 bg-slate-900/80 space-y-2">
         {loading && <div className="text-sm text-slate-400">Loading town…</div>}
         {state && (
-          <div className="flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              Wood: <span className="font-semibold">{state.resources.wood}</span>
+          <>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                Wood:{" "}
+                <span className="font-semibold">{state.resources.wood}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-slate-400" />
+                Stone:{" "}
+                <span className="font-semibold">{state.resources.stone}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-orange-400" />
+                Ore: <span className="font-semibold">{state.resources.ore}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-lime-400" />
+                Food:{" "}
+                <span className="font-semibold">{state.resources.food}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-yellow-400" />
+                Gold:{" "}
+                <span className="font-semibold">{state.resources.gold}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-slate-400" />
-              Stone:{" "}
-              <span className="font-semibold">{state.resources.stone}</span>
+
+            {/* Skills strip */}
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {state.skills.map((skill) => (
+                <div
+                  key={skill.name}
+                  className="px-2 py-1 rounded border border-slate-700 bg-slate-900/80"
+                >
+                  <span className="font-semibold">{skill.name}</span>{" "}
+                  <span className="text-slate-300">
+                    Lv {skill.level} · {skill.xp} XP
+                  </span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-orange-400" />
-              Ore: <span className="font-semibold">{state.resources.ore}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-lime-400" />
-              Food: <span className="font-semibold">{state.resources.food}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-yellow-400" />
-              Gold: <span className="font-semibold">{state.resources.gold}</span>
-            </div>
-          </div>
+          </>
         )}
       </section>
 
