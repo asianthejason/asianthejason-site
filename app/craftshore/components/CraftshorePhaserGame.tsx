@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 
 type CraftshorePhaserGameProps = {
   gridWidthInTiles: number;
@@ -129,7 +129,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           label.setOrigin(0.5);
         });
 
-        // Grid hint lines (v subtle)
+        // Grid hint lines (subtle)
         for (let i = 0; i <= props.gridWidthInTiles; i++) {
           const x = i * props.tileSize;
           const line = this.add
@@ -169,7 +169,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
       type: Phaser.AUTO,
       width: 960,
       height: WORLD_HEIGHT,
-      parent: containerRef.current,
+      parent: containerRef.current!,
       backgroundColor: "#020617",
       physics: {
         default: "arcade",
