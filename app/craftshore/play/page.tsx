@@ -298,6 +298,8 @@ export default function CraftshorePlayPage() {
 
     if (typeof window === "undefined") return;
 
+    const uid = headerUser.uid; // non-null here by early return
+
     let cancelled = false;
 
     async function loadTown() {
@@ -311,7 +313,7 @@ export default function CraftshorePlayPage() {
           return;
         }
 
-        const ref = db.collection("craftshore_towns").doc(headerUser.uid);
+        const ref = db.collection("craftshore_towns").doc(uid);
         const snap = await ref.get();
 
         if (!snap.exists) {
@@ -367,13 +369,16 @@ export default function CraftshorePlayPage() {
   ) {
     if (!headerUser) return;
     if (typeof window === "undefined") return;
+
+    const uid = headerUser.uid;
+
     try {
       const w = window as any;
       const db = w.db;
       if (!db) return;
       await db
         .collection("craftshore_towns")
-        .doc(headerUser.uid)
+        .doc(uid)
         .set({ resources, skills }, { merge: true });
     } catch (err) {
       console.error("Failed to persist Craftshore state:", err);
@@ -765,7 +770,7 @@ export default function CraftshorePlayPage() {
         </div>
       )}
 
-      {/* Styles copied from home page + a few Craftshore-specific ones */}
+      {/* Styles copied from home page + Craftshore HUD styles */}
       <style jsx global>{`
         body {
           margin: 0;
