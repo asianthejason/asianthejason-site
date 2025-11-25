@@ -13,8 +13,10 @@ type CraftshorePhaserGameProps = {
   tileSize: number;
   groundY: number;
   buildings: Building[];
-  // Callback to let React update resources, etc.
+  // Callbacks to let React update resources/skills
   onMine?: () => void;
+  onFarm?: () => void;
+  onChopWood?: () => void;
 };
 
 const WORLD_HEIGHT = 600;
@@ -225,30 +227,45 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
             body.setVelocityY(-500);
           }
 
-          // Interact (E): mine if near mine building
+          // Interact (E): find nearest building in range & trigger
           if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-            const mine = this.buildingPositions.find(
-              (b) => b.type === "mine"
-            );
-            if (mine) {
-              const distance = Math.abs(this.player.x - mine.x);
-              const threshold = props.tileSize * 0.8;
+            const threshold = props.tileSize * 0.8;
 
-              if (distance <= threshold) {
-                // Call back out to React to update resources
-                if (props.onMine) props.onMine();
+            // Find the closest building within threshold
+            let closest: { type: string; x: number } | null = null;
+            let closestDist = Infinity;
 
-                // Tiny floating +1 ore text feedback
+            for (const b of this.buildingPositions) {
+              const dist = Math.abs(this.player.x - b.x);
+              if (dist < closestDist && dist <= threshold) {
+                closestDist = dist;
+                closest = b;
+              }
+            }
+
+            if (closest) {
+              let text = "";
+
+              if (closest.type === "mine" && props.onMine) {
+                props.onMine();
+                text = "+1 ore";
+              } else if (closest.type === "farm" && props.onFarm) {
+                props.onFarm();
+                text = "+1 food";
+              } else if (
+                closest.type === "logging_camp" &&
+                props.onChopWood
+              ) {
+                props.onChopWood();
+                text = "+1 wood";
+              }
+
+              if (text) {
                 const floatText = this.add
-                  .text(
-                    this.player.x,
-                    this.player.y - 40,
-                    "+1 ore",
-                    {
-                      fontSize: "12px",
-                      color: "#f97316",
-                    }
-                  )
+                  .text(this.player.x, this.player.y - 40, text, {
+                    fontSize: "12px",
+                    color: "#f97316",
+                  })
                   .setOrigin(0.5);
 
                 this.tweens.add({
@@ -294,7 +311,15 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [props.gridWidthInTiles, props.tileSize, props.groundY, props.buildings, props.onMine]);
+  }, [
+    props.gridWidthInTiles,
+    props.tileSize,
+    props.groundY,
+    props.buildings,
+    props.onMine,
+    props.onFarm,
+    props.onChopWood,
+  ]);
 
   return (
     <div

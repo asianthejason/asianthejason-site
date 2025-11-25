@@ -1,198 +1,330 @@
-// app/craftshore/play/page.tsx
+// app/craftshore/components/CraftshorePhaserGame.tsx
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import CraftshorePhaserGame from "../components/CraftshorePhaserGame";
+import { useEffect, useRef } from "react";
 
-type Skill = {
-  name: string;
-  level: number;
-  xp: number;
+// Type-only import so TS has types, but this is erased at runtime
+import type * as PhaserType from "phaser";
+
+type Building = { id: string; type: string; gridX: number };
+
+type CraftshorePhaserGameProps = {
+  gridWidthInTiles: number;
+  tileSize: number;
+  groundY: number;
+  buildings: Building[];
+  // Callbacks to let React update resources/skills
+  onMine?: () => void;
+  onFarm?: () => void;
+  onChopWood?: () => void;
 };
 
-type TownState = {
-  townName: string;
-  playerName: string;
-  resources: {
-    wood: number;
-    stone: number;
-    ore: number;
-    food: number;
-    gold: number;
-  };
-  buildings: { id: string; type: string; gridX: number }[];
-  grid: {
-    tileSize: number;
-    widthInTiles: number;
-    groundY: number;
-  };
-  skills: Skill[];
-};
+const WORLD_HEIGHT = 600;
 
-export default function CraftshorePlayPage() {
-  const [state, setState] = useState<TownState | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const gameRef = useRef<PhaserType.Game | null>(null);
 
-  // Initial load
   useEffect(() => {
-    let cancelled = false;
+    if (!containerRef.current) return;
+    if (gameRef.current) return; // prevent double init
 
-    async function loadState() {
-      try {
-        const res = await fetch("/api/craftshore/state");
-        const json = (await res.json()) as TownState;
-        if (!cancelled) {
-          setState(json);
+    let cancelled = false;
+    const worldWidth = props.gridWidthInTiles * props.tileSize;
+
+    async function initGame() {
+      const Phaser = (await import("phaser")) as typeof PhaserType;
+      if (cancelled || !containerRef.current) return;
+
+      class CraftshoreScene extends Phaser.Scene {
+        private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+        private wasd!: {
+          up: Phaser.Input.Keyboard.Key;
+          down: Phaser.Input.Keyboard.Key;
+          left: Phaser.Input.Keyboard.Key;
+          right: Phaser.Input.Keyboard.Key;
+        };
+        private interactKey!: Phaser.Input.Keyboard.Key;
+
+        private player!: Phaser.GameObjects.Rectangle & {
+          body: Phaser.Physics.Arcade.Body;
+        };
+
+        private buildingPositions: { type: string; x: number }[] = [];
+
+        constructor() {
+          super("CraftshoreScene");
         }
-      } catch (err) {
-        console.error("Failed to load Craftshore state:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
+
+        preload() {
+          // rectangles only for now
+        }
+
+        create() {
+          // World bounds & camera
+          this.cameras.main.setBackgroundColor(0x0f172a); // slate-900
+          this.cameras.main.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
+          this.physics.world.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
+
+          // Simple parallax-style background
+          const bg = this.add.rectangle(
+            worldWidth / 2,
+            WORLD_HEIGHT / 2,
+            worldWidth,
+            WORLD_HEIGHT,
+            0x020617
+          );
+          bg.setDepth(-10);
+
+          const distantHills = this.add.rectangle(
+            worldWidth / 2,
+            props.groundY - 150,
+            worldWidth,
+            200,
+            0x1e293b
+          );
+          distantHills.setDepth(-5);
+
+          // Ground
+          const ground = this.add.rectangle(
+            worldWidth / 2,
+            props.groundY + 40,
+            worldWidth,
+            80,
+            0x334155
+          ) as Phaser.GameObjects.Rectangle & {
+            body: Phaser.Physics.Arcade.StaticBody;
+          };
+          this.physics.add.existing(ground, true);
+
+          // Player (simple rectangle for now)
+          this.player = this.add.rectangle(
+            200,
+            props.groundY - 60,
+            32,
+            48,
+            0xf97316 // orange-500
+          ) as Phaser.GameObjects.Rectangle & {
+            body: Phaser.Physics.Arcade.Body;
+          };
+          this.physics.add.existing(this.player);
+
+          this.player.body.setCollideWorldBounds(true);
+          this.player.body.setGravityY(800);
+          this.player.body.setBounce(0.05);
+
+          // Collisions
+          this.physics.add.collider(this.player, ground);
+
+          // Building slots -> colored rectangles & labels
+          const buildingColorByType: Record<string, number> = {
+            mine: 0x9ca3af, // gray
+            farm: 0x22c55e, // green
+            logging_camp: 0x8b5cf6, // purple
+            barracks: 0xef4444, // red
+            market: 0xfacc15, // yellow
+          };
+
+          props.buildings.forEach((b) => {
+            const x =
+              b.gridX * props.tileSize + props.tileSize / 2; // center of grid
+
+            const color =
+              buildingColorByType[b.type] ?? 0x64748b; // default slate
+
+            const rect = this.add.rectangle(
+              x,
+              props.groundY - 64,
+              props.tileSize,
+              96,
+              color
+            );
+            rect.setStrokeStyle(2, 0x020617);
+
+            const label = this.add.text(
+              x,
+              props.groundY - 120,
+              b.type.replace("_", " "),
+              {
+                fontSize: "12px",
+                color: "#e5e7eb",
+              }
+            );
+            label.setOrigin(0.5);
+
+            this.buildingPositions.push({ type: b.type, x });
+          });
+
+          // Grid hint lines (subtle)
+          for (let i = 0; i <= props.gridWidthInTiles; i++) {
+            const x = i * props.tileSize;
+            const line = this.add
+              .line(0, 0, x, 0, x, WORLD_HEIGHT, 0x1f2937, 0.4)
+              .setOrigin(0, 0);
+            line.setDepth(-1);
+          }
+
+          // Camera follows player
+          this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+          // Controls: arrows + WASD + E for interact
+          this.cursors = this.input.keyboard!.createCursorKeys();
+          this.wasd = {
+            up: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.W
+            ),
+            down: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.S
+            ),
+            left: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.A
+            ),
+            right: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.D
+            ),
+          };
+          this.interactKey = this.input.keyboard!.addKey(
+            Phaser.Input.Keyboard.KeyCodes.E
+          );
+
+          // Helper text
+          this.add
+            .text(
+              this.player.x,
+              props.groundY - 120,
+              "Move: WASD or arrows\nInteract: E",
+              { fontSize: "12px", color: "#9ca3af" }
+            )
+            .setOrigin(0.5)
+            .setScrollFactor(0, 0) // stays with camera
+            .setDepth(20);
+        }
+
+        update() {
+          if (!this.player) return;
+
+          const body = this.player.body;
+          const speed = 260;
+
+          const leftPressed =
+            this.cursors.left?.isDown || this.wasd.left.isDown;
+          const rightPressed =
+            this.cursors.right?.isDown || this.wasd.right.isDown;
+          const upPressed =
+            this.cursors.up?.isDown || this.wasd.up.isDown;
+
+          if (leftPressed) {
+            body.setVelocityX(-speed);
+          } else if (rightPressed) {
+            body.setVelocityX(speed);
+          } else {
+            body.setVelocityX(0);
+          }
+
+          // Jump if on ground
+          const onGround = body.blocked.down || body.touching.down;
+          if (upPressed && onGround) {
+            body.setVelocityY(-500);
+          }
+
+          // Interact (E): find nearest building in range & trigger
+          if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+            const threshold = props.tileSize * 0.8;
+
+            // Find the closest building within threshold
+            let closest: { type: string; x: number } | null = null;
+            let closestDist = Infinity;
+
+            for (const b of this.buildingPositions) {
+              const dist = Math.abs(this.player.x - b.x);
+              if (dist < closestDist && dist <= threshold) {
+                closestDist = dist;
+                closest = b;
+              }
+            }
+
+            if (closest) {
+              let text = "";
+
+              if (closest.type === "mine" && props.onMine) {
+                props.onMine();
+                text = "+1 ore";
+              } else if (closest.type === "farm" && props.onFarm) {
+                props.onFarm();
+                text = "+1 food";
+              } else if (
+                closest.type === "logging_camp" &&
+                props.onChopWood
+              ) {
+                props.onChopWood();
+                text = "+1 wood";
+              }
+
+              if (text) {
+                const floatText = this.add
+                  .text(this.player.x, this.player.y - 40, text, {
+                    fontSize: "12px",
+                    color: "#f97316",
+                  })
+                  .setOrigin(0.5);
+
+                this.tweens.add({
+                  targets: floatText,
+                  y: floatText.y - 30,
+                  alpha: 0,
+                  duration: 600,
+                  onComplete: () => floatText.destroy(),
+                });
+              }
+            }
+          }
+        }
       }
+
+      const config: Phaser.Types.Core.GameConfig = {
+        type: Phaser.AUTO,
+        width: 960,
+        height: WORLD_HEIGHT,
+        parent: containerRef.current!,
+        backgroundColor: "#020617",
+        physics: {
+          default: "arcade",
+          arcade: {
+            gravity: { x: 0, y: 0 }, // per-body gravity
+            debug: false,
+          },
+        },
+        scale: {
+          mode: Phaser.Scale.FIT,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+        scene: CraftshoreScene,
+      };
+
+      gameRef.current = new Phaser.Game(config);
     }
 
-    loadState();
+    void initGame();
 
     return () => {
       cancelled = true;
+      gameRef.current?.destroy(true);
+      gameRef.current = null;
     };
-  }, []);
-
-  // Simple XP curve: next level at level * 25 XP (1→25, 2→50, 3→75, ...)
-  function xpNeededForNextLevel(level: number) {
-    return level * 25;
-  }
-
-  // Stable mining handler so the Phaser game doesn't reset on E
-  const handleMine = useCallback(() => {
-    setState((prev) => {
-      if (!prev) return prev;
-
-      const xpGain = 5;
-      const updatedSkills = prev.skills.map((skill) => {
-        if (skill.name !== "Mining") return skill;
-
-        let { level, xp } = skill;
-        xp += xpGain;
-
-        // handle level ups (could loop if xpGain is huge)
-        while (xp >= xpNeededForNextLevel(level)) {
-          xp -= xpNeededForNextLevel(level);
-          level += 1;
-        }
-
-        return { ...skill, level, xp };
-      });
-
-      return {
-        ...prev,
-        resources: {
-          ...prev.resources,
-          ore: prev.resources.ore + 1,
-        },
-        skills: updatedSkills,
-      };
-    });
-  }, []);
+  }, [
+    props.gridWidthInTiles,
+    props.tileSize,
+    props.groundY,
+    props.buildings,
+    props.onMine,
+    props.onFarm,
+    props.onChopWood,
+  ]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">
-            Craftshore <span className="text-xs text-slate-400">pre-alpha</span>
-          </h1>
-          {state && (
-            <p className="text-xs text-slate-400">
-              Town: <span className="font-semibold">{state.townName}</span> ·
-              Pioneer: <span className="font-semibold">{state.playerName}</span>
-            </p>
-          )}
-        </div>
-        <div className="flex gap-3 text-xs">
-          <a
-            href="/craftshore"
-            className="px-3 py-1 rounded border border-slate-700 hover:bg-slate-800"
-          >
-            Overview
-          </a>
-          <a
-            href="/"
-            className="px-3 py-1 rounded border border-slate-700 hover:bg-slate-800"
-          >
-            Home
-          </a>
-        </div>
-      </header>
-
-      {/* HUD: resources */}
-      <section className="px-4 py-3 border-b border-slate-800 bg-slate-900/80 space-y-2">
-        {loading && <div className="text-sm text-slate-400">Loading town…</div>}
-        {state && (
-          <>
-            <div className="flex flex-wrap gap-4 text-sm">
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                Wood:{" "}
-                <span className="font-semibold">{state.resources.wood}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-slate-400" />
-                Stone:{" "}
-                <span className="font-semibold">{state.resources.stone}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-orange-400" />
-                Ore: <span className="font-semibold">{state.resources.ore}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-lime-400" />
-                Food:{" "}
-                <span className="font-semibold">{state.resources.food}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-yellow-400" />
-                Gold:{" "}
-                <span className="font-semibold">{state.resources.gold}</span>
-              </div>
-            </div>
-
-            {/* Skills strip */}
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              {state.skills.map((skill) => (
-                <div
-                  key={skill.name}
-                  className="px-2 py-1 rounded border border-slate-700 bg-slate-900/80"
-                >
-                  <span className="font-semibold">{skill.name}</span>{" "}
-                  <span className="text-slate-300">
-                    Lv {skill.level} · {skill.xp} XP
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      {/* Game canvas */}
-      <section className="flex-1 flex items-center justify-center p-4">
-        {state ? (
-          <CraftshorePhaserGame
-            gridWidthInTiles={state.grid.widthInTiles}
-            tileSize={state.grid.tileSize}
-            groundY={state.grid.groundY}
-            buildings={state.buildings}
-            onMine={handleMine}
-          />
-        ) : (
-          !loading && (
-            <div className="text-sm text-red-400">
-              Failed to load town state. Check console for errors.
-            </div>
-          )
-        )}
-      </section>
-    </main>
+    <div
+      ref={containerRef}
+      className="w-full max-w-5xl mx-auto aspect-[16/10] bg-slate-900 rounded-lg overflow-hidden border border-slate-700"
+    />
   );
 }
