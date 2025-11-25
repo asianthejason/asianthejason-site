@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-
 // Type-only import so TS has types, but this is erased at runtime
 import type * as PhaserType from "phaser";
 
@@ -29,24 +28,35 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
     if (!containerRef.current) return;
     if (gameRef.current) return; // prevent double init
 
+    // Snapshot props once at mount; they won't change in v1
+    const {
+      gridWidthInTiles,
+      tileSize,
+      groundY,
+      buildings,
+      onMine,
+      onFarm,
+      onChopWood,
+    } = props;
+
     let cancelled = false;
-    const worldWidth = props.gridWidthInTiles * props.tileSize;
+    const worldWidth = gridWidthInTiles * tileSize;
 
     async function initGame() {
       const Phaser = (await import("phaser")) as typeof PhaserType;
       if (cancelled || !containerRef.current) return;
 
       class CraftshoreScene extends Phaser.Scene {
-        private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-        private wasd!: {
+        private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+        private wasd?: {
           up: Phaser.Input.Keyboard.Key;
           down: Phaser.Input.Keyboard.Key;
           left: Phaser.Input.Keyboard.Key;
           right: Phaser.Input.Keyboard.Key;
         };
-        private interactKey!: Phaser.Input.Keyboard.Key;
+        private interactKey?: Phaser.Input.Keyboard.Key;
 
-        private player!: Phaser.GameObjects.Rectangle & {
+        private player?: Phaser.GameObjects.Rectangle & {
           body: Phaser.Physics.Arcade.Body;
         };
 
@@ -78,7 +88,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
 
           const distantHills = this.add.rectangle(
             worldWidth / 2,
-            props.groundY - 150,
+            groundY - 150,
             worldWidth,
             200,
             0x1e293b
@@ -88,7 +98,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           // Ground
           const ground = this.add.rectangle(
             worldWidth / 2,
-            props.groundY + 40,
+            groundY + 40,
             worldWidth,
             80,
             0x334155
@@ -100,7 +110,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           // Player (simple rectangle for now)
           this.player = this.add.rectangle(
             200,
-            props.groundY - 60,
+            groundY - 60,
             32,
             48,
             0xf97316 // orange-500
@@ -125,17 +135,15 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
             market: 0xfacc15, // yellow
           };
 
-          props.buildings.forEach((b) => {
-            const x =
-              b.gridX * props.tileSize + props.tileSize / 2; // center of grid
+          buildings.forEach((b) => {
+            const x = b.gridX * tileSize + tileSize / 2; // center of grid
 
-            const color =
-              buildingColorByType[b.type] ?? 0x64748b; // default slate
+            const color = buildingColorByType[b.type] ?? 0x64748b; // default slate
 
             const rect = this.add.rectangle(
               x,
-              props.groundY - 64,
-              props.tileSize,
+              groundY - 64,
+              tileSize,
               96,
               color
             );
@@ -143,7 +151,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
 
             const label = this.add.text(
               x,
-              props.groundY - 120,
+              groundY - 120,
               b.type.replace("_", " "),
               {
                 fontSize: "12px",
@@ -156,8 +164,8 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           });
 
           // Grid hint lines (subtle)
-          for (let i = 0; i <= props.gridWidthInTiles; i++) {
-            const x = i * props.tileSize;
+          for (let i = 0; i <= gridWidthInTiles; i++) {
+            const x = i * tileSize;
             const line = this.add
               .line(0, 0, x, 0, x, WORLD_HEIGHT, 0x1f2937, 0.4)
               .setOrigin(0, 0);
@@ -165,10 +173,10 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           }
 
           // Camera follows player
-          this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+          this.cameras.main.startFollow(this.player!, true, 0.1, 0.1);
 
           // Controls: arrows + WASD + E for interact
-          this.cursors = this.input.keyboard!.createCursorKeys();
+          this.cursors = this.input.keyboard?.createCursorKeys();
           this.wasd = {
             up: this.input.keyboard!.addKey(
               Phaser.Input.Keyboard.KeyCodes.W
@@ -187,31 +195,33 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
             Phaser.Input.Keyboard.KeyCodes.E
           );
 
-          // Helper text
-          this.add
+          // Helper text (UI overlay)
+          const helpText = this.add
             .text(
-              this.player.x,
-              props.groundY - 120,
-              "Move: WASD or arrows\nInteract: E",
+              16,
+              16,
+              "Move: WASD or arrows  •  Interact: E",
               { fontSize: "12px", color: "#9ca3af" }
             )
-            .setOrigin(0.5)
-            .setScrollFactor(0, 0) // stays with camera
+            .setScrollFactor(0, 0)
             .setDepth(20);
+          helpText.setOrigin(0, 0);
         }
 
         update() {
-          if (!this.player) return;
+          const player = this.player;
+          const cursors = this.cursors;
+          const wasd = this.wasd;
+          const interactKey = this.interactKey;
 
-          const body = this.player.body;
+          if (!player || !cursors || !wasd) return;
+
+          const body = player.body;
           const speed = 260;
 
-          const leftPressed =
-            this.cursors.left?.isDown || this.wasd.left.isDown;
-          const rightPressed =
-            this.cursors.right?.isDown || this.wasd.right.isDown;
-          const upPressed =
-            this.cursors.up?.isDown || this.wasd.up.isDown;
+          const leftPressed = cursors.left?.isDown || wasd.left.isDown;
+          const rightPressed = cursors.right?.isDown || wasd.right.isDown;
+          const upPressed = cursors.up?.isDown || wasd.up.isDown;
 
           if (leftPressed) {
             body.setVelocityX(-speed);
@@ -228,15 +238,15 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           }
 
           // Interact (E): find nearest building in range & trigger
-          if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-            const threshold = props.tileSize * 0.8;
+          if (interactKey && Phaser.Input.Keyboard.JustDown(interactKey)) {
+            const threshold = tileSize * 0.8;
 
             // Find the closest building within threshold
             let closest: { type: string; x: number } | null = null;
             let closestDist = Infinity;
 
             for (const b of this.buildingPositions) {
-              const dist = Math.abs(this.player.x - b.x);
+              const dist = Math.abs(player.x - b.x);
               if (dist < closestDist && dist <= threshold) {
                 closestDist = dist;
                 closest = b;
@@ -246,23 +256,23 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
             if (closest) {
               let text = "";
 
-              if (closest.type === "mine" && props.onMine) {
-                props.onMine();
+              if (closest.type === "mine" && onMine) {
+                onMine();
                 text = "+1 ore";
-              } else if (closest.type === "farm" && props.onFarm) {
-                props.onFarm();
+              } else if (closest.type === "farm" && onFarm) {
+                onFarm();
                 text = "+1 food";
               } else if (
                 closest.type === "logging_camp" &&
-                props.onChopWood
+                onChopWood
               ) {
-                props.onChopWood();
+                onChopWood();
                 text = "+1 wood";
               }
 
               if (text) {
                 const floatText = this.add
-                  .text(this.player.x, this.player.y - 40, text, {
+                  .text(player.x, player.y - 40, text, {
                     fontSize: "12px",
                     color: "#f97316",
                   })
@@ -311,15 +321,8 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [
-    props.gridWidthInTiles,
-    props.tileSize,
-    props.groundY,
-    props.buildings,
-    props.onMine,
-    props.onFarm,
-    props.onChopWood,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   return (
     <div
