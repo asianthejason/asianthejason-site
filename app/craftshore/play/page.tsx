@@ -26,6 +26,7 @@ export default function CraftshorePlayPage() {
   const [state, setState] = useState<TownState | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initial load
   useEffect(() => {
     let cancelled = false;
 
@@ -49,6 +50,21 @@ export default function CraftshorePlayPage() {
       cancelled = true;
     };
   }, []);
+
+  // Local client-side mining handler for now
+  function handleMine() {
+    setState((prev) =>
+      prev
+        ? {
+            ...prev,
+            resources: {
+              ...prev.resources,
+              ore: prev.resources.ore + 1,
+            },
+          }
+        : prev
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -118,6 +134,7 @@ export default function CraftshorePlayPage() {
             tileSize={state.grid.tileSize}
             groundY={state.grid.groundY}
             buildings={state.buildings}
+            onMine={handleMine}
           />
         ) : (
           !loading && (

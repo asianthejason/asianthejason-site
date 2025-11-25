@@ -6,11 +6,15 @@ import { useEffect, useRef } from "react";
 // Type-only import so TS has types, but this is erased at runtime
 import type * as PhaserType from "phaser";
 
+type Building = { id: string; type: string; gridX: number };
+
 type CraftshorePhaserGameProps = {
   gridWidthInTiles: number;
   tileSize: number;
   groundY: number;
-  buildings: { id: string; type: string; gridX: number }[];
+  buildings: Building[];
+  // Callback to let React update resources, etc.
+  onMine?: () => void;
 };
 
 const WORLD_HEIGHT = 600;
@@ -32,16 +36,26 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
 
       class CraftshoreScene extends Phaser.Scene {
         private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+        private wasd!: {
+          up: Phaser.Input.Keyboard.Key;
+          down: Phaser.Input.Keyboard.Key;
+          left: Phaser.Input.Keyboard.Key;
+          right: Phaser.Input.Keyboard.Key;
+        };
+        private interactKey!: Phaser.Input.Keyboard.Key;
+
         private player!: Phaser.GameObjects.Rectangle & {
           body: Phaser.Physics.Arcade.Body;
         };
+
+        private buildingPositions: { type: string; x: number }[] = [];
 
         constructor() {
           super("CraftshoreScene");
         }
 
         preload() {
-          // no assets yet - using rectangles
+          // rectangles only for now
         }
 
         create() {
@@ -50,7 +64,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
           this.cameras.main.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
           this.physics.world.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
 
-          // Simple parallax-style background stripes for some visual depth
+          // Simple parallax-style background
           const bg = this.add.rectangle(
             worldWidth / 2,
             WORLD_HEIGHT / 2,
@@ -135,6 +149,8 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
               }
             );
             label.setOrigin(0.5);
+
+            this.buildingPositions.push({ type: b.type, x });
           });
 
           // Grid hint lines (subtle)
@@ -148,18 +164,56 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
 
           // Camera follows player
           this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+          // Controls: arrows + WASD + E for interact
           this.cursors = this.input.keyboard!.createCursorKeys();
+          this.wasd = {
+            up: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.W
+            ),
+            down: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.S
+            ),
+            left: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.A
+            ),
+            right: this.input.keyboard!.addKey(
+              Phaser.Input.Keyboard.KeyCodes.D
+            ),
+          };
+          this.interactKey = this.input.keyboard!.addKey(
+            Phaser.Input.Keyboard.KeyCodes.E
+          );
+
+          // Helper text
+          this.add
+            .text(
+              this.player.x,
+              props.groundY - 120,
+              "Move: WASD or arrows\nInteract: E",
+              { fontSize: "12px", color: "#9ca3af" }
+            )
+            .setOrigin(0.5)
+            .setScrollFactor(0, 0) // stays with camera
+            .setDepth(20);
         }
 
         update() {
-          if (!this.cursors || !this.player) return;
+          if (!this.player) return;
 
           const body = this.player.body;
           const speed = 260;
 
-          if (this.cursors.left?.isDown) {
+          const leftPressed =
+            this.cursors.left?.isDown || this.wasd.left.isDown;
+          const rightPressed =
+            this.cursors.right?.isDown || this.wasd.right.isDown;
+          const upPressed =
+            this.cursors.up?.isDown || this.wasd.up.isDown;
+
+          if (leftPressed) {
             body.setVelocityX(-speed);
-          } else if (this.cursors.right?.isDown) {
+          } else if (rightPressed) {
             body.setVelocityX(speed);
           } else {
             body.setVelocityX(0);
@@ -167,8 +221,45 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
 
           // Jump if on ground
           const onGround = body.blocked.down || body.touching.down;
-          if (this.cursors.up?.isDown && onGround) {
+          if (upPressed && onGround) {
             body.setVelocityY(-500);
+          }
+
+          // Interact (E): mine if near mine building
+          if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+            const mine = this.buildingPositions.find(
+              (b) => b.type === "mine"
+            );
+            if (mine) {
+              const distance = Math.abs(this.player.x - mine.x);
+              const threshold = props.tileSize * 0.8;
+
+              if (distance <= threshold) {
+                // Call back out to React to update resources
+                if (props.onMine) props.onMine();
+
+                // Tiny floating +1 ore text feedback
+                const floatText = this.add
+                  .text(
+                    this.player.x,
+                    this.player.y - 40,
+                    "+1 ore",
+                    {
+                      fontSize: "12px",
+                      color: "#f97316",
+                    }
+                  )
+                  .setOrigin(0.5);
+
+                this.tweens.add({
+                  targets: floatText,
+                  y: floatText.y - 30,
+                  alpha: 0,
+                  duration: 600,
+                  onComplete: () => floatText.destroy(),
+                });
+              }
+            }
           }
         }
       }
@@ -182,7 +273,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
         physics: {
           default: "arcade",
           arcade: {
-            gravity: { x: 0, y: 0 }, // we use per-body gravity
+            gravity: { x: 0, y: 0 }, // per-body gravity
             debug: false,
           },
         },
@@ -203,7 +294,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [props.gridWidthInTiles, props.tileSize, props.groundY, props.buildings]);
+  }, [props.gridWidthInTiles, props.tileSize, props.groundY, props.buildings, props.onMine]);
 
   return (
     <div
