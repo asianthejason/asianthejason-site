@@ -1,7 +1,7 @@
 // app/craftshore/play/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import CraftshorePhaserGame from "../components/CraftshorePhaserGame";
 
 type TownState = {
@@ -51,8 +51,8 @@ export default function CraftshorePlayPage() {
     };
   }, []);
 
-  // Local client-side mining handler for now
-  function handleMine() {
+  // Stable mining handler so the Phaser game doesn't reset on E
+  const handleMine = useCallback(() => {
     setState((prev) =>
       prev
         ? {
@@ -64,7 +64,7 @@ export default function CraftshorePlayPage() {
           }
         : prev
     );
-  }
+  }, [setState]);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
