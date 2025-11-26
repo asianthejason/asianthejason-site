@@ -238,7 +238,7 @@ function rollResource(scale: number): number {
   let safety = 0;
 
   while (Math.random() < 0.65 && safety < 60) {
-    const add = 1 + Math.floor(Math.random() * Math.max(1, Math.round(chunk)));
+    const add = 1 + Math.floor(Math.max(1, Math.round(chunk)) * Math.random());
     total += add;
     chunk = Math.max(1, chunk * 0.7);
     safety++;
@@ -1853,22 +1853,22 @@ export default function CraftshorePlayPage() {
           width: 100%;
           max-width: 1200px;
           margin: 0 auto;
-          aspect-ratio: 16 / 9; /* keep a 16:9 game area */
           border-radius: 18px;
           background: #020617;
           overflow: hidden;
         }
 
-        /* Make the Phaser root div fill the box */
+        /* Make the Phaser root div fill the width and let height follow the canvas */
         .craftshore-game-inner > div {
-          position: absolute;
-          inset: 0;
+          position: relative;
+          width: 100%;
+          height: auto;
         }
 
-        /* Make the canvas stretch to fill the box */
+        /* Make the canvas width-responsive but keep its own height */
         .craftshore-game-inner canvas {
           width: 100% !important;
-          height: 100% !important;
+          height: auto !important;
           display: block;
         }
 
