@@ -55,10 +55,10 @@ export default function CraftshorePhaserGame(
 
         private buildingPositions: { type: string; x: number }[] = [];
 
-        // Background layers (parallax)
-        private bgSky?: Phaser.GameObjects.TileSprite;
-        private bgMountains?: Phaser.GameObjects.TileSprite;
-        private bgTreeline?: Phaser.GameObjects.TileSprite;
+        // Background layers (non-tiling images)
+        private bgSky?: Phaser.GameObjects.Image;
+        private bgMountains?: Phaser.GameObjects.Image;
+        private bgTreeline?: Phaser.GameObjects.Image;
 
         constructor() {
           super("CraftshoreScene");
@@ -86,39 +86,47 @@ export default function CraftshorePhaserGame(
           );
         }
 
+        private resizeBackgrounds(width: number, height: number) {
+          if (this.bgSky) this.bgSky.setDisplaySize(width, height);
+          if (this.bgMountains) this.bgMountains.setDisplaySize(width, height);
+          if (this.bgTreeline) this.bgTreeline.setDisplaySize(width, height);
+        }
+
         create() {
           const W = this.scale.width;
           const H = this.scale.height;
 
-          // --- PARALLAX BACKGROUND ---
+          // --- NON-TILING PARALLAX BACKGROUND ---
+          // These are just big images scaled to the viewport. Parallax is
+          // handled by scrollFactor; there is NO tileSprite, so no vertical
+          // repeating.
 
-          // Sky stays fixed
           this.bgSky = this.add
-            .tileSprite(0, 0, W, H, "bg_sky")
+            .image(0, 0, "bg_sky")
             .setOrigin(0, 0)
             .setScrollFactor(0)
             .setDepth(-20);
 
-          // Distant mountains (slow parallax)
           this.bgMountains = this.add
-            .tileSprite(0, 0, W, H, "bg_mountains")
+            .image(0, 0, "bg_mountains")
             .setOrigin(0, 0)
-            .setScrollFactor(0.2)
+            .setScrollFactor(0.25) // slow parallax
             .setDepth(-19);
 
-          // Treeline (faster parallax)
           this.bgTreeline = this.add
-            .tileSprite(0, 0, W, H, "bg_treeline")
+            .image(0, 0, "bg_treeline")
             .setOrigin(0, 0)
-            .setScrollFactor(0.4)
+            .setScrollFactor(0.5) // a bit faster
             .setDepth(-18);
+
+          this.resizeBackgrounds(W, H);
 
           // World bounds & camera
           this.cameras.main.setBackgroundColor(0x020617); // slate-950
           this.cameras.main.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
           this.physics.world.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
 
-          // Simple invisible physics ground line. Player collides with THIS,
+          // Invisible physics ground line. Player collides with THIS,
           // not the decorative tiles.
           const groundLine = this.add.rectangle(
             worldWidth / 2,
@@ -133,8 +141,8 @@ export default function CraftshorePhaserGame(
           this.physics.add.existing(groundLine, true);
 
           // --- GROUND TILES (art only) ---
-          // We place the *top* of each tile at props.groundY so the player’s
-          // feet are visually on the grass and dirt is mostly below.
+          // Top of each tile sits exactly on groundY so the player stands
+          // on the grass and most of the dirt is below.
           const groundTileKeys = [
             "tile_ground1",
             "tile_ground2",
@@ -145,7 +153,7 @@ export default function CraftshorePhaserGame(
             const key = Phaser.Utils.Array.GetRandom(groundTileKeys);
             this.add
               .image(x * props.tileSize, props.groundY, key)
-              .setOrigin(0, 0) // top aligned with ground line
+              .setOrigin(0, 0) // top-left aligned with ground line
               .setDepth(5);
           }
 
@@ -262,30 +270,18 @@ export default function CraftshorePhaserGame(
             .setScrollFactor(0, 0)
             .setDepth(20);
 
-          // Make backgrounds resize with the canvas
+          // Resize backgrounds when the canvas size changes
           this.scale.on(
             "resize",
             (size: Phaser.Structs.Size) => {
               const { width, height } = size;
-              if (this.bgSky) this.bgSky.setSize(width, height);
-              if (this.bgMountains) this.bgMountains.setSize(width, height);
-              if (this.bgTreeline) this.bgTreeline.setSize(width, height);
+              this.resizeBackgrounds(width, height);
             },
             this
           );
         }
 
         update() {
-          const cam = this.cameras.main;
-
-          // Parallax scrolling for background layers
-          if (this.bgMountains) {
-            this.bgMountains.tilePositionX = cam.scrollX * 0.2;
-          }
-          if (this.bgTreeline) {
-            this.bgTreeline.tilePositionX = cam.scrollX * 0.4;
-          }
-
           if (!this.player) return;
 
           const body = this.player.body;
