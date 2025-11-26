@@ -1859,10 +1859,33 @@ export default function CraftshorePlayPage() {
           margin-top: 16px;
         }
 
+        /* The card that holds the Phaser game + overlays */
         .craftshore-game-inner {
           position: relative;
+          width: 100%;
+          max-width: 1200px;
+          margin: 0 auto;
+          aspect-ratio: 16 / 9;      /* keep a 16:9 game area */
+          border-radius: 18px;
+          background: #020617;
+          overflow: hidden;
         }
 
+        /* Make the Phaser root div fill the box */
+        .craftshore-game-inner > div {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* Make the canvas stretch to fill the box */
+        .craftshore-game-inner canvas {
+          width: 100% !important;
+          height: 100% !important;
+          display: block;
+        }
+
+        /* Overlay sits on top but is slightly smaller
+           so you still see some game behind it */
         .craftshore-overlay {
           position: absolute;
           inset: 6% 8%;
@@ -1884,6 +1907,13 @@ export default function CraftshorePlayPage() {
         .craftshore-overlay .expeditions-panel {
           pointer-events: auto;
         }
+
+        @media (max-width: 700px) {
+          .craftshore-overlay {
+            inset: 8% 4%;
+          }
+        }
+
 
         /* Barracks & expeditions panels */
         .barracks-panel,
