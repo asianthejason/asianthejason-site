@@ -17,6 +17,7 @@ type CraftshorePhaserGameProps = {
   onMine?: () => void;
   onFarm?: () => void;
   onChopWood?: () => void;
+  onBarracksInteract?: () => void;
 };
 
 const WORLD_HEIGHT = 600;
@@ -253,6 +254,12 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
               ) {
                 props.onChopWood();
                 text = "+1 wood";
+              } else if (
+                closest.type === "barracks" &&
+                props.onBarracksInteract
+              ) {
+                props.onBarracksInteract();
+                text = "Barracks";
               }
 
               if (text) {
@@ -314,6 +321,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
     props.onMine,
     props.onFarm,
     props.onChopWood,
+    props.onBarracksInteract,
   ]);
 
   return (

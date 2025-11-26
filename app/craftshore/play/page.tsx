@@ -21,6 +21,12 @@ type Skill = {
   xp: number;
 };
 
+type TroopState = {
+  militia: number;
+  archer: number;
+  knight: number;
+};
+
 type TownState = {
   townName: string;
   playerName: string;
@@ -38,6 +44,7 @@ type TownState = {
     groundY: number;
   };
   skills: Skill[];
+  troops: TroopState;
 };
 
 const DEFAULT_TOWN_STATE: TownState = {
@@ -72,7 +79,55 @@ const DEFAULT_TOWN_STATE: TownState = {
     { name: "Carpentry", level: 1, xp: 0 },
     { name: "Leatherworking", level: 1, xp: 0 },
     { name: "Cooking", level: 1, xp: 0 },
+    // New building-skill for barracks progression
+    { name: "Barracks", level: 1, xp: 0 },
   ],
+  troops: {
+    militia: 0,
+    archer: 0,
+    knight: 0,
+  },
+};
+
+type TroopId = keyof TroopState;
+
+const TROOP_DEFS: Record<
+  TroopId,
+  {
+    name: string;
+    description: string;
+    requiredBarracksLevel: number;
+    cost: {
+      wood: number;
+      stone: number;
+      ore: number;
+      food: number;
+      gold: number;
+    };
+    barracksXpGain: number;
+  }
+> = {
+  militia: {
+    name: "Militia",
+    description: "Basic town guards. Cheap and quick to train.",
+    requiredBarracksLevel: 1,
+    cost: { wood: 10, stone: 0, ore: 0, food: 5, gold: 1 },
+    barracksXpGain: 5,
+  },
+  archer: {
+    name: "Archer",
+    description: "Ranged units. Require a bit more training.",
+    requiredBarracksLevel: 2,
+    cost: { wood: 15, stone: 0, ore: 5, food: 8, gold: 2 },
+    barracksXpGain: 8,
+  },
+  knight: {
+    name: "Knight",
+    description: "Elite cavalry. Expensive but powerful.",
+    requiredBarracksLevel: 3,
+    cost: { wood: 10, stone: 10, ore: 15, food: 12, gold: 5 },
+    barracksXpGain: 12,
+  },
 };
 
 export default function CraftshorePlayPage() {
@@ -282,6 +337,23 @@ export default function CraftshorePlayPage() {
   const [town, setTown] = useState<TownState | null>(null);
   const [townLoading, setTownLoading] = useState(false);
 
+  // Barracks UI state
+  const [showBarracksPanel, setShowBarracksPanel] = useState(false);
+  const [barracksMessage, setBarracksMessage] = useState<string | null>(
+    null
+  );
+  const [barracksError, setBarracksError] = useState<string | null>(null);
+
+  function xpNeededForNextLevel(level: number) {
+    return level * 25;
+  }
+
+  function ensureBarracksSkill(skills: Skill[]): Skill[] {
+    const exists = skills.some((s) => s.name === "Barracks");
+    if (exists) return skills;
+    return [...skills, { name: "Barracks", level: 1, xp: 0 }];
+  }
+
   useEffect(() => {
     if (!authReady) return;
 
@@ -315,8 +387,30 @@ export default function CraftshorePlayPage() {
           await ref.set(DEFAULT_TOWN_STATE);
           if (!cancelled) setTown(DEFAULT_TOWN_STATE);
         } else {
-          const data = snap.data() as TownState;
-          if (!cancelled) setTown(data);
+          const raw = snap.data() || {};
+          const merged: TownState = {
+            ...DEFAULT_TOWN_STATE,
+            ...(raw as Partial<TownState>),
+            resources: {
+              ...DEFAULT_TOWN_STATE.resources,
+              ...(raw as any).resources,
+            },
+            grid: {
+              ...DEFAULT_TOWN_STATE.grid,
+              ...(raw as any).grid,
+            },
+            buildings:
+              (raw as any).buildings || DEFAULT_TOWN_STATE.buildings,
+            skills: ensureBarracksSkill(
+              (raw as any).skills || DEFAULT_TOWN_STATE.skills
+            ),
+            troops: {
+              ...DEFAULT_TOWN_STATE.troops,
+              ...(raw as any).troops,
+            },
+          };
+
+          if (!cancelled) setTown(merged);
         }
       } catch (err) {
         console.error("Failed to load Craftshore town:", err);
@@ -334,9 +428,6 @@ export default function CraftshorePlayPage() {
   }, [authReady, headerUser]);
 
   // ---------- Skill helpers & persistence ----------
-  function xpNeededForNextLevel(level: number) {
-    return level * 25;
-  }
 
   function addSkillXp(
     skills: Skill[],
@@ -358,9 +449,10 @@ export default function CraftshorePlayPage() {
     });
   }
 
-  async function persistPartialUpdate(
+  async function persistTownSlice(
     resources: TownState["resources"],
-    skills: TownState["skills"]
+    skills: TownState["skills"],
+    troops: TownState["troops"]
   ) {
     if (!headerUser) return;
     if (typeof window === "undefined") return;
@@ -374,13 +466,14 @@ export default function CraftshorePlayPage() {
       await db
         .collection("craftshore_towns")
         .doc(uid)
-        .set({ resources, skills }, { merge: true });
+        .set({ resources, skills, troops }, { merge: true });
     } catch (err) {
       console.error("Failed to persist Craftshore state:", err);
     }
   }
 
   const handleMine = useCallback(() => {
+    let nextState: TownState | null = null;
     setTown((prev) => {
       if (!prev) return prev;
       const next: TownState = {
@@ -391,12 +484,20 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Mining", 5),
       };
-      void persistPartialUpdate(next.resources, next.skills);
+      nextState = next;
       return next;
     });
+    if (nextState) {
+      void persistTownSlice(
+        nextState.resources,
+        nextState.skills,
+        nextState.troops
+      );
+    }
   }, [headerUser]);
 
   const handleFarm = useCallback(() => {
+    let nextState: TownState | null = null;
     setTown((prev) => {
       if (!prev) return prev;
       const next: TownState = {
@@ -407,12 +508,20 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Farming", 5),
       };
-      void persistPartialUpdate(next.resources, next.skills);
+      nextState = next;
       return next;
     });
+    if (nextState) {
+      void persistTownSlice(
+        nextState.resources,
+        nextState.skills,
+        nextState.troops
+      );
+    }
   }, [headerUser]);
 
   const handleChopWood = useCallback(() => {
+    let nextState: TownState | null = null;
     setTown((prev) => {
       if (!prev) return prev;
       const next: TownState = {
@@ -423,12 +532,116 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Woodcutting", 5),
       };
-      void persistPartialUpdate(next.resources, next.skills);
+      nextState = next;
       return next;
     });
+    if (nextState) {
+      void persistTownSlice(
+        nextState.resources,
+        nextState.skills,
+        nextState.troops
+      );
+    }
   }, [headerUser]);
 
+  const handleBarracksInteract = useCallback(() => {
+    setShowBarracksPanel(true);
+    setBarracksError(null);
+    setBarracksMessage(null);
+  }, []);
+
+  const handleTrainTroop = useCallback(
+    (troopId: TroopId) => {
+      let nextState: TownState | null = null;
+      let error: string | null = null;
+
+      setTown((prev) => {
+        if (!prev) {
+          error = "Town not loaded yet.";
+          return prev;
+        }
+
+        const skillsWithBarracks = ensureBarracksSkill(prev.skills);
+        const barracksSkill =
+          skillsWithBarracks.find((s) => s.name === "Barracks") ??
+          { name: "Barracks", level: 1, xp: 0 };
+
+        const def = TROOP_DEFS[troopId];
+
+        if (barracksSkill.level < def.requiredBarracksLevel) {
+          error = `Requires Barracks level ${def.requiredBarracksLevel}.`;
+          return prev;
+        }
+
+        const { cost } = def;
+        const r = prev.resources;
+
+        const canAfford =
+          r.wood >= cost.wood &&
+          r.stone >= cost.stone &&
+          r.ore >= cost.ore &&
+          r.food >= cost.food &&
+          r.gold >= cost.gold;
+
+        if (!canAfford) {
+          error = "Not enough resources to train that troop.";
+          return prev;
+        }
+
+        const newResources = {
+          wood: r.wood - cost.wood,
+          stone: r.stone - cost.stone,
+          ore: r.ore - cost.ore,
+          food: r.food - cost.food,
+          gold: r.gold - cost.gold,
+        };
+
+        const updatedSkills = addSkillXp(
+          skillsWithBarracks,
+          "Barracks",
+          def.barracksXpGain
+        );
+
+        const newTroops: TroopState = {
+          ...prev.troops,
+          [troopId]: prev.troops[troopId] + 1,
+        };
+
+        const next: TownState = {
+          ...prev,
+          resources: newResources,
+          skills: updatedSkills,
+          troops: newTroops,
+        };
+
+        nextState = next;
+        return next;
+      });
+
+      if (error) {
+        setBarracksError(error);
+        setBarracksMessage(null);
+      } else if (nextState) {
+        void persistTownSlice(
+          nextState.resources,
+          nextState.skills,
+          nextState.troops
+        );
+        setBarracksError(null);
+        setBarracksMessage(`Trained 1 ${TROOP_DEFS[troopId].name}.`);
+      }
+    },
+    [headerUser]
+  );
+
   const mustLogin = authReady && !headerUser;
+
+  const currentBarracksLevel =
+    town?.skills.find((s) => s.name === "Barracks")?.level ?? 1;
+  const currentBarracksXp =
+    town?.skills.find((s) => s.name === "Barracks")?.xp ?? 0;
+  const currentBarracksNextXp =
+    xpNeededForNextLevel(currentBarracksLevel) || 1;
 
   return (
     <>
@@ -491,8 +704,9 @@ export default function CraftshorePlayPage() {
               <div>
                 <h2>Build your 2D pioneer town</h2>
                 <p>
-                  Walk around your land, mine ore, farm food, chop wood, and
-                  level skills. More buildings and systems will come over time.
+                  Walk around your land, mine ore, farm food, chop wood,
+                  train troops, and level skills. More buildings and systems
+                  will come over time.
                 </p>
               </div>
             </header>
@@ -591,6 +805,111 @@ export default function CraftshorePlayPage() {
                   )}
                 </section>
 
+                {/* Barracks panel (opens when you press E at barracks) */}
+                {town && showBarracksPanel && (
+                  <section className="barracks-panel">
+                    <div className="barracks-header">
+                      <div>
+                        <h3>Barracks</h3>
+                        <p>
+                          Train troops to defend your town and earn
+                          Barracks XP. Stand near the barracks and press
+                          <strong> E</strong> to open/close this panel.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="barracks-close-btn"
+                        onClick={() => setShowBarracksPanel(false)}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="barracks-meta">
+                      <span>
+                        Barracks level{" "}
+                        <strong>{currentBarracksLevel}</strong>
+                      </span>
+                      <span>
+                        XP {currentBarracksXp} / {currentBarracksNextXp}
+                      </span>
+                      <span>
+                        Troops: Militia {town.troops.militia} · Archers{" "}
+                        {town.troops.archer} · Knights{" "}
+                        {town.troops.knight}
+                      </span>
+                    </div>
+
+                    <div className="troop-grid">
+                      {(Object.keys(TROOP_DEFS) as TroopId[]).map(
+                        (id) => {
+                          const def = TROOP_DEFS[id];
+                          const unlocked =
+                            currentBarracksLevel >=
+                            def.requiredBarracksLevel;
+
+                          return (
+                            <div
+                              key={id}
+                              className={
+                                "troop-card" +
+                                (unlocked ? "" : " troop-locked")
+                              }
+                            >
+                              <div className="troop-card-header">
+                                <h4>{def.name}</h4>
+                                <span className="troop-count">
+                                  Owned: {town.troops[id]}
+                                </span>
+                              </div>
+                              <p className="troop-desc">
+                                {def.description}
+                              </p>
+                              <div className="troop-cost-row">
+                                <span>Cost:</span>
+                                <span>
+                                  {def.cost.wood}W · {def.cost.stone}
+                                  S · {def.cost.ore}O · {def.cost.food}
+                                  F · {def.cost.gold}G
+                                </span>
+                              </div>
+                              <div className="troop-meta-row">
+                                <span>
+                                  Requires Barracks Lv{" "}
+                                  {def.requiredBarracksLevel}
+                                </span>
+                                <span>+{def.barracksXpGain} Barracks XP</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="account-btn primary troop-train-btn"
+                                disabled={!unlocked}
+                                onClick={() => handleTrainTroop(id)}
+                              >
+                                {unlocked
+                                  ? `Train 1 ${def.name}`
+                                  : "Locked"}
+                              </button>
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    {barracksError && (
+                      <div className="barracks-msg barracks-error">
+                        {barracksError}
+                      </div>
+                    )}
+                    {barracksMessage && (
+                      <div className="barracks-msg barracks-status">
+                        {barracksMessage}
+                      </div>
+                    )}
+                  </section>
+                )}
+
                 {/* Game canvas */}
                 <section className="craftshore-game-shell">
                   {town ? (
@@ -602,11 +921,13 @@ export default function CraftshorePlayPage() {
                       onMine={handleMine}
                       onFarm={handleFarm}
                       onChopWood={handleChopWood}
+                      onBarracksInteract={handleBarracksInteract}
                     />
                   ) : (
                     !townLoading && (
                       <div className="text-sm text-red-400">
-                        Failed to load town state. Check console for errors.
+                        Failed to load town state. Check console for
+                        errors.
                       </div>
                     )
                   )}
@@ -647,8 +968,8 @@ export default function CraftshorePlayPage() {
                   Play & save your town
                 </div>
                 <div className="auth-modal-subtitle">
-                  Log in or sign up to keep your Craftshore progress and towns
-                  tied to your account.
+                  Log in or sign up to keep your Craftshore progress and
+                  towns tied to your account.
                 </div>
               </div>
               <button
@@ -981,6 +1302,138 @@ export default function CraftshorePlayPage() {
           margin-top: 16px;
         }
 
+        /* Barracks panel */
+        .barracks-panel {
+          margin-top: 14px;
+          margin-bottom: 4px;
+          padding: 12px 14px 14px;
+          border-radius: 18px;
+          background: rgba(15, 23, 42, 0.96);
+          border: 1px solid rgba(248, 250, 252, 0.16);
+        }
+
+        .barracks-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+
+        .barracks-header h3 {
+          margin: 0;
+          font-size: 16px;
+        }
+
+        .barracks-header p {
+          margin: 4px 0 0;
+          font-size: 13px;
+          opacity: 0.85;
+        }
+
+        .barracks-close-btn {
+          border: none;
+          background: transparent;
+          color: #9ca3af;
+          font-size: 20px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .barracks-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          font-size: 12px;
+          opacity: 0.9;
+          margin-bottom: 10px;
+        }
+
+        .troop-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 10px;
+        }
+
+        .troop-card {
+          border-radius: 14px;
+          padding: 10px 10px 12px;
+          background: radial-gradient(
+            circle at top,
+            rgba(30, 64, 175, 0.5),
+            #020617
+          );
+          border: 1px solid rgba(129, 140, 248, 0.6);
+          font-size: 12px;
+        }
+
+        .troop-locked {
+          opacity: 0.6;
+          background: radial-gradient(
+            circle at top,
+            rgba(55, 65, 81, 0.6),
+            #020617
+          );
+          border-style: dashed;
+        }
+
+        .troop-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+
+        .troop-card-header h4 {
+          margin: 0;
+          font-size: 14px;
+        }
+
+        .troop-count {
+          font-size: 11px;
+          opacity: 0.9;
+        }
+
+        .troop-desc {
+          margin: 2px 0 4px;
+          opacity: 0.9;
+        }
+
+        .troop-cost-row,
+        .troop-meta-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          margin-top: 2px;
+        }
+
+        .troop-train-btn {
+          margin-top: 6px;
+          width: 100%;
+          justify-content: center;
+          font-size: 12px;
+          padding-block: 6px;
+        }
+
+        .barracks-msg {
+          margin-top: 8px;
+          padding: 4px 8px;
+          border-radius: 10px;
+          font-size: 12px;
+        }
+
+        .barracks-error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.6);
+          color: #fecaca;
+        }
+
+        .barracks-status {
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.6);
+          color: #bbf7d0;
+        }
+
         .site-footer {
           margin-top: auto;
           padding: 16px 24px 0;
@@ -1154,6 +1607,10 @@ export default function CraftshorePlayPage() {
           .craftshore-locked {
             flex-direction: column;
             align-items: flex-start;
+          }
+
+          .barracks-meta {
+            flex-direction: column;
           }
         }
       `}</style>
