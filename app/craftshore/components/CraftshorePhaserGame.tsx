@@ -86,10 +86,25 @@ export default function CraftshorePhaserGame(
           );
         }
 
+        // Uniformly scale background images to fit width, no vertical stretching.
         private resizeBackgrounds(width: number, height: number) {
-          if (this.bgSky) this.bgSky.setDisplaySize(width, height);
-          if (this.bgMountains) this.bgMountains.setDisplaySize(width, height);
-          if (this.bgTreeline) this.bgTreeline.setDisplaySize(width, height);
+          const fitLayer = (img: Phaser.GameObjects.Image | undefined, key: string) => {
+            if (!img || !this.textures.exists(key)) return;
+            const tex = this.textures.get(key).getSourceImage() as any;
+            const texW = tex?.width || width;
+            const texH = tex?.height || height;
+            const scale = width / texW;
+
+            img.setScale(scale);
+
+            const displayHeight = texH * scale;
+            // Align bottom of background with bottom of world
+            img.setPosition(0, height - displayHeight);
+          };
+
+          fitLayer(this.bgSky, "bg_sky");
+          fitLayer(this.bgMountains, "bg_mountains");
+          fitLayer(this.bgTreeline, "bg_treeline");
         }
 
         create() {
@@ -97,9 +112,8 @@ export default function CraftshorePhaserGame(
           const H = this.scale.height;
 
           // --- NON-TILING PARALLAX BACKGROUND ---
-          // These are just big images scaled to the viewport. Parallax is
-          // handled by scrollFactor; there is NO tileSprite, so no vertical
-          // repeating.
+          // These are large images scaled uniformly to width. ScrollFactor
+          // gives parallax; there is no tiling, so no vertical repeat.
 
           this.bgSky = this.add
             .image(0, 0, "bg_sky")
@@ -141,33 +155,38 @@ export default function CraftshorePhaserGame(
           this.physics.add.existing(groundLine, true);
 
           // --- GROUND TILES (art only) ---
-          // Top of each tile sits exactly on groundY so the player stands
-          // on the grass and most of the dirt is below.
+          // Lifted slightly so the grass edge lines up with the platform.
           const groundTileKeys = [
             "tile_ground1",
             "tile_ground2",
             "tile_ground3",
           ];
 
+          const tileYOffset = -24; // move tiles UP a bit
+
           for (let x = 0; x < props.gridWidthInTiles; x++) {
             const key = Phaser.Utils.Array.GetRandom(groundTileKeys);
             this.add
-              .image(x * props.tileSize, props.groundY, key)
-              .setOrigin(0, 0) // top-left aligned with ground line
+              .image(x * props.tileSize, props.groundY + tileYOffset, key)
+              .setOrigin(0, 0) // top-left aligned relative to offset
               .setDepth(5);
           }
 
           // Optional decorative sides at world edges
           if (this.textures.exists("tile_ground_side_left")) {
             this.add
-              .image(0, props.groundY, "tile_ground_side_left")
+              .image(0, props.groundY + tileYOffset, "tile_ground_side_left")
               .setOrigin(1, 0)
               .setDepth(5);
           }
 
           if (this.textures.exists("tile_ground_side_right")) {
             this.add
-              .image(worldWidth, props.groundY, "tile_ground_side_right")
+              .image(
+                worldWidth,
+                props.groundY + tileYOffset,
+                "tile_ground_side_right"
+              )
               .setOrigin(0, 0)
               .setDepth(5);
           }
@@ -270,7 +289,7 @@ export default function CraftshorePhaserGame(
             .setScrollFactor(0, 0)
             .setDepth(20);
 
-          // Resize backgrounds when the canvas size changes
+          // Resize backgrounds when the canvas size changes (keep proportions)
           this.scale.on(
             "resize",
             (size: Phaser.Structs.Size) => {
