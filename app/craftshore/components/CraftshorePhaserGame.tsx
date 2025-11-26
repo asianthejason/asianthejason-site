@@ -55,50 +55,116 @@ export default function CraftshorePhaserGame(
 
         private buildingPositions: { type: string; x: number }[] = [];
 
+        // parallax background layers
+        private bgSky?: Phaser.GameObjects.TileSprite;
+        private bgMountains?: Phaser.GameObjects.TileSprite;
+        private bgTreeline?: Phaser.GameObjects.TileSprite;
+
         constructor() {
           super("CraftshoreScene");
         }
 
         preload() {
-          // rectangles only for now
+          // --- Background layers ---
+          this.load.image("bg_sky", "/craftshore/bg/sky.png");
+          this.load.image("bg_mountains", "/craftshore/bg/mountains.png");
+          this.load.image("bg_treeline", "/craftshore/bg/treeline.png");
+
+          // --- Ground tiles ---
+          this.load.image("tile_ground1", "/craftshore/tiles/ground_1.png");
+          this.load.image("tile_ground2", "/craftshore/tiles/ground_2.png");
+          this.load.image("tile_ground3", "/craftshore/tiles/ground_3.png");
+
+          // Optional side tiles
+          this.load.image(
+            "tile_ground_side_left",
+            "/craftshore/tiles/ground_side_left.png"
+          );
+          this.load.image(
+            "tile_ground_side_right",
+            "/craftshore/tiles/ground_side_right.png"
+          );
         }
 
         create() {
+          const W = this.scale.width;
+          const H = this.scale.height;
+
           // World bounds & camera
-          this.cameras.main.setBackgroundColor(0x0f172a); // slate-900
+          this.cameras.main.setBackgroundColor(0x020617);
           this.cameras.main.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
           this.physics.world.setBounds(0, 0, worldWidth, WORLD_HEIGHT);
 
-          // Simple parallax-style background
-          const bg = this.add.rectangle(
-            worldWidth / 2,
-            WORLD_HEIGHT / 2,
-            worldWidth,
-            WORLD_HEIGHT,
-            0x020617
-          );
-          bg.setDepth(-10);
+          // --- PARALLAX BACKGROUND LAYERS ---
+          this.bgSky = this.add
+            .tileSprite(0, 0, W, H, "bg_sky")
+            .setOrigin(0, 0)
+            .setScrollFactor(0);
 
-          const distantHills = this.add.rectangle(
-            worldWidth / 2,
-            props.groundY - 150,
-            worldWidth,
-            200,
-            0x1e293b
-          );
-          distantHills.setDepth(-5);
+          this.bgMountains = this.add
+            .tileSprite(0, 0, W, H, "bg_mountains")
+            .setOrigin(0, 0)
+            .setScrollFactor(0.2);
 
-          // Ground
-          const ground = this.add.rectangle(
+          this.bgTreeline = this.add
+            .tileSprite(0, 0, W, H, "bg_treeline")
+            .setOrigin(0, 0)
+            .setScrollFactor(0.4);
+
+          // Make backgrounds resize with the canvas
+          this.scale.on("resize", (size) => {
+            const { width, height } = size;
+            if (this.bgSky) this.bgSky.setSize(width, height);
+            if (this.bgMountains) this.bgMountains.setSize(width, height);
+            if (this.bgTreeline) this.bgTreeline.setSize(width, height);
+          });
+
+          // --- GROUND TILES ---
+          const groundTileKeys = [
+            "tile_ground1",
+            "tile_ground2",
+            "tile_ground3",
+          ];
+
+          for (let x = 0; x < props.gridWidthInTiles; x++) {
+            const key = Phaser.Utils.Array.GetRandom(groundTileKeys);
+            this.add
+              .image(x * props.tileSize, props.groundY, key)
+              .setOrigin(0, 1)
+              .setScrollFactor(1)
+              .setDepth(5);
+          }
+
+          // Optional left/right side caps if you’re using them
+          if (this.textures.exists("tile_ground_side_left")) {
+            this.add
+              .image(0, props.groundY, "tile_ground_side_left")
+              .setOrigin(1, 1)
+              .setDepth(5);
+          }
+          if (this.textures.exists("tile_ground_side_right")) {
+            this.add
+              .image(
+                worldWidth,
+                props.groundY,
+                "tile_ground_side_right"
+              )
+              .setOrigin(0, 1)
+              .setDepth(5);
+          }
+
+          // Invisible physics ground so the player can stand
+          const groundCollider = this.add.rectangle(
             worldWidth / 2,
-            props.groundY + 40,
+            props.groundY + 10,
             worldWidth,
-            80,
-            0x334155
+            20,
+            0xffffff,
+            0
           ) as Phaser.GameObjects.Rectangle & {
             body: Phaser.Physics.Arcade.StaticBody;
           };
-          this.physics.add.existing(ground, true);
+          this.physics.add.existing(groundCollider, true);
 
           // Player
           this.player = this.add.rectangle(
@@ -117,7 +183,7 @@ export default function CraftshorePhaserGame(
           this.player.body.setBounce(0.05);
 
           // Collisions
-          this.physics.add.collider(this.player, ground);
+          this.physics.add.collider(this.player, groundCollider);
 
           // Building slots
           const buildingColorByType: Record<string, number> = {
@@ -156,11 +222,11 @@ export default function CraftshorePhaserGame(
             this.buildingPositions.push({ type: b.type, x });
           });
 
-          // Grid hint lines
+          // Grid hint lines (subtle, behind everything)
           for (let i = 0; i <= props.gridWidthInTiles; i++) {
             const x = i * props.tileSize;
             const line = this.add
-              .line(0, 0, x, 0, x, WORLD_HEIGHT, 0x1f2937, 0.4)
+              .line(0, 0, x, 0, x, WORLD_HEIGHT, 0x020617, 0.35)
               .setOrigin(0, 0);
             line.setDepth(-1);
           }
@@ -201,6 +267,16 @@ export default function CraftshorePhaserGame(
         }
 
         update() {
+          const cam = this.cameras.main;
+
+          // Parallax scroll
+          if (this.bgMountains) {
+            this.bgMountains.tilePositionX = cam.scrollX * 0.2;
+          }
+          if (this.bgTreeline) {
+            this.bgTreeline.tilePositionX = cam.scrollX * 0.4;
+          }
+
           if (!this.player) return;
 
           const body = this.player.body;
@@ -305,7 +381,7 @@ export default function CraftshorePhaserGame(
           },
         },
         scale: {
-          mode: Phaser.Scale.FIT,
+          mode: Phaser.Scale.RESIZE, // fill the parent box
           autoCenter: Phaser.Scale.CENTER_BOTH,
         },
         scene: CraftshoreScene,
@@ -336,8 +412,8 @@ export default function CraftshorePhaserGame(
   return (
     <div
       ref={containerRef}
-      // Full width of the panel, fixed height
-      className="w-full h-[560px] bg-slate-900 rounded-lg overflow-hidden border border-slate-700"
+      // Fill the craftshore-game-inner box
+      className="w-full h-full bg-slate-900 rounded-lg overflow-hidden border border-slate-700"
     />
   );
 }
