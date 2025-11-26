@@ -20,7 +20,8 @@ type CraftshorePhaserGameProps = {
   onMarketInteract?: () => void;
 };
 
-const WORLD_HEIGHT = 600;
+// match a 16:9 game (used with 1280x720 config)
+const WORLD_HEIGHT = 720;
 
 export default function CraftshorePhaserGame(
   props: CraftshorePhaserGameProps
@@ -87,8 +88,8 @@ export default function CraftshorePhaserGame(
         }
 
         create() {
-          const W = this.scale.width;
-          const H = this.scale.height;
+          const W = this.scale.width; // 1280
+          const H = this.scale.height; // 720
 
           // World bounds & camera
           this.cameras.main.setBackgroundColor(0x020617);
@@ -111,19 +112,6 @@ export default function CraftshorePhaserGame(
             .setOrigin(0, 0)
             .setScrollFactor(0.4);
 
-          // Make backgrounds resize with the canvas
-          this.scale.on(
-            "resize",
-            (gameSize: Phaser.Structs.Size) => {
-              const { width, height } = gameSize;
-              if (this.bgSky) this.bgSky.setSize(width, height);
-              if (this.bgMountains)
-                this.bgMountains.setSize(width, height);
-              if (this.bgTreeline)
-                this.bgTreeline.setSize(width, height);
-            }
-          );
-
           // --- GROUND TILES ---
           const groundTileKeys = [
             "tile_ground1",
@@ -136,11 +124,10 @@ export default function CraftshorePhaserGame(
             this.add
               .image(x * props.tileSize, props.groundY, key)
               .setOrigin(0, 1)
-              .setScrollFactor(1)
               .setDepth(5);
           }
 
-          // Optional left/right side caps if you’re using them
+          // Optional left/right caps if you’re using them
           if (this.textures.exists("tile_ground_side_left")) {
             this.add
               .image(0, props.groundY, "tile_ground_side_left")
@@ -386,7 +373,7 @@ export default function CraftshorePhaserGame(
           },
         },
         scale: {
-          mode: Phaser.Scale.RESIZE, // fill the parent box
+          mode: Phaser.Scale.FIT, // keep a stable 16:9 inside the parent
           autoCenter: Phaser.Scale.CENTER_BOTH,
         },
         scene: CraftshoreScene,
@@ -417,7 +404,7 @@ export default function CraftshorePhaserGame(
   return (
     <div
       ref={containerRef}
-      // Fill the craftshore-game-inner box
+      // This div is inside .craftshore-game-inner which already has aspect-ratio: 16/9
       className="w-full h-full bg-slate-900 rounded-lg overflow-hidden border border-slate-700"
     />
   );
