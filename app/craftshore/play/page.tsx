@@ -1,12 +1,7 @@
 // app/craftshore/play/page.tsx
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  FormEvent,
-} from "react";
+import { useState, useEffect, useCallback, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../../components/SiteHeader";
@@ -83,7 +78,7 @@ const DEFAULT_TOWN_STATE: TownState = {
 export default function CraftshorePlayPage() {
   const currentYear = new Date().getFullYear();
 
-  // ---------- Auth state (same pattern as home page) ----------
+  // ---------- Auth state ----------
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
@@ -298,7 +293,7 @@ export default function CraftshorePlayPage() {
 
     if (typeof window === "undefined") return;
 
-    const uid = headerUser.uid; // non-null here by early return
+    const uid = headerUser.uid;
 
     let cancelled = false;
 
@@ -437,7 +432,7 @@ export default function CraftshorePlayPage() {
 
   return (
     <>
-      {/* --- Firebase scripts (same as home page) --- */}
+      {/* --- Firebase scripts --- */}
       <Script
         src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
         strategy="beforeInteractive"
@@ -489,8 +484,8 @@ export default function CraftshorePlayPage() {
         />
 
         {/* Craftshore content */}
-        <section className="panel-section">
-          <div className="tabs-shell">
+        <section className="panel-section craftshore-panel">
+          <div className="tabs-shell craftshore-shell">
             <header className="home-section-header">
               <span className="home-section-pill">Craftshore</span>
               <div>
@@ -611,8 +606,7 @@ export default function CraftshorePlayPage() {
                   ) : (
                     !townLoading && (
                       <div className="text-sm text-red-400">
-                        Failed to load town state. Check console for
-                        errors.
+                        Failed to load town state. Check console for errors.
                       </div>
                     )
                   )}
@@ -622,7 +616,7 @@ export default function CraftshorePlayPage() {
           </div>
         </section>
 
-        {/* Footer (same style) */}
+        {/* Footer */}
         <footer className="site-footer">
           <span>© {currentYear} AsiantheJason</span>
 
@@ -653,8 +647,8 @@ export default function CraftshorePlayPage() {
                   Play & save your town
                 </div>
                 <div className="auth-modal-subtitle">
-                  Log in or sign up to keep your Craftshore progress and
-                  towns tied to your account.
+                  Log in or sign up to keep your Craftshore progress and towns
+                  tied to your account.
                 </div>
               </div>
               <button
@@ -770,7 +764,7 @@ export default function CraftshorePlayPage() {
         </div>
       )}
 
-      {/* Styles copied from home page + Craftshore HUD styles */}
+      {/* Styles */}
       <style jsx global>{`
         body {
           margin: 0;
@@ -844,6 +838,19 @@ export default function CraftshorePlayPage() {
           padding: 18px 18px 20px;
           border: 1px solid rgba(255, 255, 255, 0.12);
           box-shadow: 0 26px 70px rgba(0, 0, 0, 0.85);
+        }
+
+        /* Craftshore full-width overrides */
+        .craftshore-panel {
+          justify-content: flex-start;
+          padding: 0; /* no side padding – panel goes edge-to-edge */
+          margin-top: 24px;
+        }
+
+        .craftshore-shell {
+          max-width: none;
+          width: 100%;
+          border-radius: 0; /* straight edges left/right */
         }
 
         .home-section-header {
@@ -1003,7 +1010,7 @@ export default function CraftshorePlayPage() {
           text-decoration: underline;
         }
 
-        /* Auth modal (same as home page) */
+        /* Auth modal */
         .auth-overlay {
           position: fixed;
           inset: 0;
