@@ -112,12 +112,17 @@ export default function CraftshorePhaserGame(
             .setScrollFactor(0.4);
 
           // Make backgrounds resize with the canvas
-          this.scale.on("resize", (size) => {
-            const { width, height } = size;
-            if (this.bgSky) this.bgSky.setSize(width, height);
-            if (this.bgMountains) this.bgMountains.setSize(width, height);
-            if (this.bgTreeline) this.bgTreeline.setSize(width, height);
-          });
+          this.scale.on(
+            "resize",
+            (gameSize: Phaser.Structs.Size) => {
+              const { width, height } = gameSize;
+              if (this.bgSky) this.bgSky.setSize(width, height);
+              if (this.bgMountains)
+                this.bgMountains.setSize(width, height);
+              if (this.bgTreeline)
+                this.bgTreeline.setSize(width, height);
+            }
+          );
 
           // --- GROUND TILES ---
           const groundTileKeys = [
