@@ -1,3 +1,4 @@
+// app/craftshore/play/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, FormEvent } from "react";
@@ -30,6 +31,14 @@ type MissionTemplateId = "scout_forest" | "patrol_road" | "clear_bandits";
 
 type MissionStatus = "in_progress" | "ready_to_claim";
 
+type MissionReward = {
+  wood: number;
+  stone: number;
+  ore: number;
+  food: number;
+  gold: number;
+};
+
 type Mission = {
   id: string;
   templateId: MissionTemplateId;
@@ -38,13 +47,7 @@ type Mission = {
   startedAt: number; // ms epoch
   completesAt: number; // ms epoch
   party: TroopState;
-  reward: {
-    wood: number;
-    stone: number;
-    ore: number;
-    food: number;
-    gold: number;
-  };
+  reward: MissionReward;
 };
 
 type TownState = {
@@ -113,7 +116,7 @@ const DEFAULT_TOWN_STATE: TownState = {
 
 type TroopId = keyof TroopState;
 
-// static troop definitions (unchanged)
+// Troop definitions
 const TROOP_DEFS: Record<
   TroopId,
   {
@@ -153,52 +156,112 @@ const TROOP_DEFS: Record<
   },
 };
 
-// expedition / mission templates
-const MISSION_DEFS: Record<
-  MissionTemplateId,
-  {
-    name: string;
-    description: string;
-    minBarracksLevel: number;
-    durationMinutes: number;
-    troopCost: Partial<TroopState>;
-    reward: {
-      wood: number;
-      stone: number;
-      ore: number;
-      food: number;
-      gold: number;
-    };
-  }
-> = {
+type MissionTemplate = {
+  name: string;
+  description: string;
+  minBarracksLevel: number;
+  durationMinutes: number;
+  troopCost: Partial<TroopState>;
+  // Typical scale of rewards — actual rewards are random and can be 0
+  rewardScale: MissionReward;
+};
+
+// Expedition / mission templates (no fixed reward numbers shown in UI)
+const MISSION_DEFS: Record<MissionTemplateId, MissionTemplate> = {
   scout_forest: {
     name: "Scout the Nearby Forest",
     description:
-      "Send a small party to map the woods and bring back basic supplies.",
+      "Send a small party to map the woods and bring back whatever they can find.",
     minBarracksLevel: 1,
     durationMinutes: 5,
     troopCost: { militia: 3 },
-    reward: { wood: 25, stone: 0, ore: 5, food: 10, gold: 1 },
+    rewardScale: { wood: 25, stone: 0, ore: 5, food: 10, gold: 1 },
   },
   patrol_road: {
     name: "Patrol the Trade Road",
     description:
-      "Guard caravans and keep the roads safe. Modest resource reward and some gold.",
+      "Guard caravans and keep the roads safe. Results vary from quiet nights to busy trade.",
     minBarracksLevel: 2,
     durationMinutes: 10,
     troopCost: { militia: 4, archer: 2 },
-    reward: { wood: 15, stone: 10, ore: 10, food: 15, gold: 4 },
+    rewardScale: { wood: 15, stone: 10, ore: 10, food: 15, gold: 4 },
   },
   clear_bandits: {
     name: "Clear Bandit Camp",
     description:
-      "A serious operation against local bandits. Requires trained troops but pays well.",
+      "A serious operation against local bandits. Risky, but the spoils can be huge… or disappointing.",
     minBarracksLevel: 3,
     durationMinutes: 20,
     troopCost: { militia: 4, archer: 3, knight: 2 },
-    reward: { wood: 20, stone: 15, ore: 20, food: 20, gold: 10 },
+    rewardScale: { wood: 20, stone: 15, ore: 20, food: 20, gold: 10 },
   },
 };
+
+// ---------- Helper: XP + rewards ----------
+
+function xpNeededForNextLevel(level: number) {
+  return level * 25;
+}
+
+function ensureBarracksSkill(skills: Skill[]): Skill[] {
+  const exists = skills.some((s) => s.name === "Barracks");
+  if (exists) return skills;
+  return [...skills, { name: "Barracks", level: 1, xp: 0 }];
+}
+
+function addSkillXp(
+  skills: Skill[],
+  skillName: string,
+  xpGain: number
+): Skill[] {
+  return skills.map((skill) => {
+    if (skill.name !== skillName) return skill;
+
+    let { level, xp } = skill;
+    xp += xpGain;
+
+    while (xp >= xpNeededForNextLevel(level)) {
+      xp -= xpNeededForNextLevel(level);
+      level += 1;
+    }
+
+    return { ...skill, level, xp };
+  });
+}
+
+// Random reward generator:
+// - Each resource starts at 0
+// - On each loop we *might* add a chunk
+// - Probability to continue drops over time
+// - Most results are small / moderate, big spikes are rare
+function rollResource(scale: number): number {
+  if (scale <= 0) return 0;
+
+  let total = 0;
+  let chunk = scale;
+  let safety = 0;
+
+  while (Math.random() < 0.65 && safety < 60) {
+    // random 1..chunk (rounded)
+    const add = 1 + Math.floor(Math.random() * Math.max(1, Math.round(chunk)));
+    total += add;
+    // shrink chunk so later gains are smaller
+    chunk = Math.max(1, chunk * 0.7);
+    safety++;
+  }
+
+  return total;
+}
+
+function rollMissionReward(scale: MissionReward): MissionReward {
+  return {
+    wood: rollResource(scale.wood),
+    stone: rollResource(scale.stone),
+    ore: rollResource(scale.ore),
+    food: rollResource(scale.food),
+    gold: rollResource(scale.gold),
+  };
+}
 
 export default function CraftshorePlayPage() {
   const currentYear = new Date().getFullYear();
@@ -428,16 +491,6 @@ export default function CraftshorePlayPage() {
     return () => clearInterval(id);
   }, []);
 
-  function xpNeededForNextLevel(level: number) {
-    return level * 25;
-  }
-
-  function ensureBarracksSkill(skills: Skill[]): Skill[] {
-    const exists = skills.some((s) => s.name === "Barracks");
-    if (exists) return skills;
-    return [...skills, { name: "Barracks", level: 1, xp: 0 }];
-  }
-
   useEffect(() => {
     if (!authReady) return;
 
@@ -510,28 +563,6 @@ export default function CraftshorePlayPage() {
       cancelled = true;
     };
   }, [authReady, headerUser]);
-
-  // ---------- Skill helpers & persistence ----------
-
-  function addSkillXp(
-    skills: Skill[],
-    skillName: string,
-    xpGain: number
-  ): Skill[] {
-    return skills.map((skill) => {
-      if (skill.name !== skillName) return skill;
-
-      let { level, xp } = skill;
-      xp += xpGain;
-
-      while (xp >= xpNeededForNextLevel(level)) {
-        xp -= xpNeededForNextLevel(level);
-        level += 1;
-      }
-
-      return { ...skill, level, xp };
-    });
-  }
 
   async function persistTownSlice(next: TownState) {
     if (!headerUser) return;
@@ -747,6 +778,9 @@ export default function CraftshorePlayPage() {
         const completesAt =
           startedAt + def.durationMinutes * 60 * 1000;
 
+        // Hidden random rewards
+        const reward = rollMissionReward(def.rewardScale);
+
         const mission: Mission = {
           id: `m_${templateId}_${startedAt}`,
           templateId,
@@ -759,7 +793,7 @@ export default function CraftshorePlayPage() {
             archer: costArcher,
             knight: costKnight,
           },
-          reward: { ...def.reward },
+          reward,
         };
 
         const next: TownState = {
@@ -825,7 +859,7 @@ export default function CraftshorePlayPage() {
         };
 
         void persistTownSlice(next);
-        setExpeditionsMessage("Expedition rewards collected.");
+        setExpeditionsMessage("Expedition returned with whatever they found.");
         return next;
       });
     },
@@ -1152,10 +1186,10 @@ export default function CraftshorePlayPage() {
                       <div>
                         <h3>Expeditions Board</h3>
                         <p>
-                          Send troops on missions and claim rewards when
-                          they return. Stand near the{" "}
-                          <strong>market</strong> and press
-                          <strong> E</strong> to open/close this panel.
+                          Send troops on missions and see what they bring
+                          back. Stand near the <strong>market</strong> and
+                          press <strong>E</strong> to open/close this
+                          panel. Rewards are random and not guaranteed.
                         </p>
                       </div>
                       <button
@@ -1216,7 +1250,7 @@ export default function CraftshorePlayPage() {
                               {def.description}
                             </p>
                             <div className="troop-cost-row">
-                              <span>Troops:</span>
+                              <span>Troops sent:</span>
                               <span>
                                 {(cost.militia ?? 0) > 0 &&
                                   `${cost.militia} Militia `}
@@ -1230,18 +1264,11 @@ export default function CraftshorePlayPage() {
                                   "None"}
                               </span>
                             </div>
-                            <div className="troop-cost-row">
-                              <span>Reward:</span>
-                              <span>
-                                {def.reward.wood}W · {def.reward.stone}
-                                S · {def.reward.ore}O · {def.reward.food}
-                                F · {def.reward.gold}G
-                              </span>
-                            </div>
                             <div className="troop-meta-row">
                               <span>
                                 Requires Barracks Lv {def.minBarracksLevel}
                               </span>
+                              <span>Rewards vary — sometimes nothing.</span>
                             </div>
                             <button
                               type="button"
@@ -1305,10 +1332,7 @@ export default function CraftshorePlayPage() {
                                         : "In progress"}
                                     </span>
                                     <span>
-                                      Reward: {m.reward.wood}W ·{" "}
-                                      {m.reward.stone}S · {m.reward.ore}
-                                      O · {m.reward.food}F ·{" "}
-                                      {m.reward.gold}G
+                                      Rewards are unknown until they return.
                                     </span>
                                   </div>
                                 </div>
@@ -1320,7 +1344,7 @@ export default function CraftshorePlayPage() {
                                     handleClaimMission(m.id)
                                   }
                                 >
-                                  {done ? "Claim rewards" : "Travelling…"}
+                                  {done ? "Claim results" : "Travelling…"}
                                 </button>
                               </div>
                             );
@@ -1518,7 +1542,7 @@ export default function CraftshorePlayPage() {
         </div>
       )}
 
-      {/* Styles */}
+      {/* Styles (same as before, unchanged) */}
       <style jsx global>{`
         body {
           margin: 0;
@@ -1786,7 +1810,7 @@ export default function CraftshorePlayPage() {
           margin-top: 16px;
         }
 
-        /* Barracks panel */
+        /* Barracks & expeditions panels */
         .barracks-panel,
         .expeditions-panel {
           margin-top: 14px;
