@@ -263,6 +263,21 @@ function rollMissionReward(scale: MissionReward): MissionReward {
   };
 }
 
+// Format rewards for display when missions are complete
+function formatMissionReward(reward: MissionReward): string {
+  const parts: string[] = [];
+  if (reward.wood > 0) parts.push(`${reward.wood}W`);
+  if (reward.stone > 0) parts.push(`${reward.stone}S`);
+  if (reward.ore > 0) parts.push(`${reward.ore}O`);
+  if (reward.food > 0) parts.push(`${reward.food}F`);
+  if (reward.gold > 0) parts.push(`${reward.gold}G`);
+
+  if (parts.length === 0) {
+    return "They found nothing.";
+  }
+  return `Reward: ${parts.join(" · ")}`;
+}
+
 export default function CraftshorePlayPage() {
   const currentYear = new Date().getFullYear();
 
@@ -1332,7 +1347,9 @@ export default function CraftshorePlayPage() {
                                         : "In progress"}
                                     </span>
                                     <span>
-                                      Rewards are unknown until they return.
+                                      {done
+                                        ? formatMissionReward(m.reward)
+                                        : "Rewards are unknown until they return."}
                                     </span>
                                   </div>
                                 </div>
