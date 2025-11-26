@@ -1,4 +1,3 @@
-// app/craftshore/play/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, FormEvent } from "react";
@@ -79,7 +78,7 @@ const DEFAULT_TOWN_STATE: TownState = {
     { name: "Carpentry", level: 1, xp: 0 },
     { name: "Leatherworking", level: 1, xp: 0 },
     { name: "Cooking", level: 1, xp: 0 },
-    // New building-skill for barracks progression
+    // Building-skill for barracks progression
     { name: "Barracks", level: 1, xp: 0 },
   ],
   troops: {
@@ -366,7 +365,6 @@ export default function CraftshorePlayPage() {
     if (typeof window === "undefined") return;
 
     const uid = headerUser.uid;
-
     let cancelled = false;
 
     async function loadTown() {
@@ -473,7 +471,6 @@ export default function CraftshorePlayPage() {
   }
 
   const handleMine = useCallback(() => {
-    let nextState: TownState | null = null;
     setTown((prev) => {
       if (!prev) return prev;
       const next: TownState = {
@@ -484,20 +481,12 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Mining", 5),
       };
-      nextState = next;
+      void persistTownSlice(next.resources, next.skills, next.troops);
       return next;
     });
-    if (nextState) {
-      void persistTownSlice(
-        nextState.resources,
-        nextState.skills,
-        nextState.troops
-      );
-    }
   }, [headerUser]);
 
   const handleFarm = useCallback(() => {
-    let nextState: TownState | null = null;
     setTown((prev) => {
       if (!prev) return prev;
       const next: TownState = {
@@ -508,20 +497,12 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Farming", 5),
       };
-      nextState = next;
+      void persistTownSlice(next.resources, next.skills, next.troops);
       return next;
     });
-    if (nextState) {
-      void persistTownSlice(
-        nextState.resources,
-        nextState.skills,
-        nextState.troops
-      );
-    }
   }, [headerUser]);
 
   const handleChopWood = useCallback(() => {
-    let nextState: TownState | null = null;
     setTown((prev) => {
       if (!prev) return prev;
       const next: TownState = {
@@ -532,16 +513,9 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Woodcutting", 5),
       };
-      nextState = next;
+      void persistTownSlice(next.resources, next.skills, next.troops);
       return next;
     });
-    if (nextState) {
-      void persistTownSlice(
-        nextState.resources,
-        nextState.skills,
-        nextState.troops
-      );
-    }
   }, [headerUser]);
 
   const handleBarracksInteract = useCallback(() => {
@@ -552,12 +526,12 @@ export default function CraftshorePlayPage() {
 
   const handleTrainTroop = useCallback(
     (troopId: TroopId) => {
-      let nextState: TownState | null = null;
-      let error: string | null = null;
+      setBarracksError(null);
+      setBarracksMessage(null);
 
       setTown((prev) => {
         if (!prev) {
-          error = "Town not loaded yet.";
+          setBarracksError("Town not loaded yet.");
           return prev;
         }
 
@@ -569,7 +543,9 @@ export default function CraftshorePlayPage() {
         const def = TROOP_DEFS[troopId];
 
         if (barracksSkill.level < def.requiredBarracksLevel) {
-          error = `Requires Barracks level ${def.requiredBarracksLevel}.`;
+          setBarracksError(
+            `Requires Barracks level ${def.requiredBarracksLevel}.`
+          );
           return prev;
         }
 
@@ -584,7 +560,7 @@ export default function CraftshorePlayPage() {
           r.gold >= cost.gold;
 
         if (!canAfford) {
-          error = "Not enough resources to train that troop.";
+          setBarracksError("Not enough resources to train that troop.");
           return prev;
         }
 
@@ -614,22 +590,15 @@ export default function CraftshorePlayPage() {
           troops: newTroops,
         };
 
-        nextState = next;
+        void persistTownSlice(
+          next.resources,
+          next.skills,
+          next.troops
+        );
+        setBarracksMessage(`Trained 1 ${def.name}.`);
+        setBarracksError(null);
         return next;
       });
-
-      if (error) {
-        setBarracksError(error);
-        setBarracksMessage(null);
-      } else if (nextState) {
-        void persistTownSlice(
-          nextState.resources,
-          nextState.skills,
-          nextState.troops
-        );
-        setBarracksError(null);
-        setBarracksMessage(`Trained 1 ${TROOP_DEFS[troopId].name}.`);
-      }
     },
     [headerUser]
   );
@@ -1164,14 +1133,14 @@ export default function CraftshorePlayPage() {
         /* Craftshore full-width overrides */
         .craftshore-panel {
           justify-content: flex-start;
-          padding: 0; /* no side padding – panel goes edge-to-edge */
+          padding: 0;
           margin-top: 24px;
         }
 
         .craftshore-shell {
           max-width: none;
           width: 100%;
-          border-radius: 0; /* straight edges left/right */
+          border-radius: 0;
         }
 
         .home-section-header {
