@@ -233,7 +233,7 @@ function addSkillXp(
 // - Each resource starts at 0
 // - On each loop we *might* add a chunk
 // - Probability to continue drops over time
-// - Most results are small / moderate, big spikes are rare
+// - If we got a non-zero result, it's bumped up so it's usually 30+.
 function rollResource(scale: number): number {
   if (scale <= 0) return 0;
 
@@ -248,6 +248,16 @@ function rollResource(scale: number): number {
     // shrink chunk so later gains are smaller
     chunk = Math.max(1, chunk * 0.7);
     safety++;
+  }
+
+  // If we got *some* reward but it's tiny, bump it so typical results feel good.
+  // This still allows "nothing" as a possible outcome (total === 0).
+  if (total > 0) {
+    const min = Math.max(30, scale); // at least 30, or higher for big scales
+    const max = Math.max(min + 1, Math.round(scale * 2.5));
+    if (total < min) {
+      total = min + Math.floor(Math.random() * (max - min + 1));
+    }
   }
 
   return total;
@@ -266,16 +276,16 @@ function rollMissionReward(scale: MissionReward): MissionReward {
 // Format rewards for display when missions are complete
 function formatMissionReward(reward: MissionReward): string {
   const parts: string[] = [];
-  if (reward.wood > 0) parts.push(`${reward.wood}W`);
-  if (reward.stone > 0) parts.push(`${reward.stone}S`);
-  if (reward.ore > 0) parts.push(`${reward.ore}O`);
-  if (reward.food > 0) parts.push(`${reward.food}F`);
-  if (reward.gold > 0) parts.push(`${reward.gold}G`);
+  if (reward.wood > 0) parts.push(`Wood: ${reward.wood}`);
+  if (reward.stone > 0) parts.push(`Stone: ${reward.stone}`);
+  if (reward.ore > 0) parts.push(`Ore: ${reward.ore}`);
+  if (reward.food > 0) parts.push(`Food: ${reward.food}`);
+  if (reward.gold > 0) parts.push(`Gold: ${reward.gold}`);
 
   if (parts.length === 0) {
     return "They found nothing.";
   }
-  return `Reward: ${parts.join(" · ")}`;
+  return `Reward: ${parts.join(", ")}`;
 }
 
 export default function CraftshorePlayPage() {
