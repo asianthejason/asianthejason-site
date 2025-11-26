@@ -20,7 +20,8 @@ type CraftshorePhaserGameProps = {
   onMarketInteract?: () => void;
 };
 
-const WORLD_HEIGHT = 720;
+// Slightly shorter world so we don't see extra space above/below
+const WORLD_HEIGHT = 640;
 
 export default function CraftshorePhaserGame(
   props: CraftshorePhaserGameProps
@@ -88,7 +89,13 @@ export default function CraftshorePhaserGame(
 
         // Uniformly scale background images to fit width, no vertical stretching.
         private resizeBackgrounds(width: number, height: number) {
-          const fitLayer = (img: Phaser.GameObjects.Image | undefined, key: string) => {
+          // Negative offset pulls the whole background stack UP
+          const BG_Y_OFFSET = -80;
+
+          const fitLayer = (
+            img: Phaser.GameObjects.Image | undefined,
+            key: string
+          ) => {
             if (!img || !this.textures.exists(key)) return;
             const tex = this.textures.get(key).getSourceImage() as any;
             const texW = tex?.width || width;
@@ -98,8 +105,8 @@ export default function CraftshorePhaserGame(
             img.setScale(scale);
 
             const displayHeight = texH * scale;
-            // Align bottom of background with bottom of world
-            img.setPosition(0, height - displayHeight);
+            // Pull image up so ground area in the art lines up with our ground tiles.
+            img.setPosition(0, height - displayHeight + BG_Y_OFFSET);
           };
 
           fitLayer(this.bgSky, "bg_sky");
@@ -112,8 +119,8 @@ export default function CraftshorePhaserGame(
           const H = this.scale.height;
 
           // --- NON-TILING PARALLAX BACKGROUND ---
-          // These are large images scaled uniformly to width. ScrollFactor
-          // gives parallax; there is no tiling, so no vertical repeat.
+          // Large images scaled uniformly to width. Parallax via scrollFactor.
+          // No tiling, so no vertical repeat.
 
           this.bgSky = this.add
             .image(0, 0, "bg_sky")
@@ -155,20 +162,20 @@ export default function CraftshorePhaserGame(
           this.physics.add.existing(groundLine, true);
 
           // --- GROUND TILES (art only) ---
-          // Lifted slightly so the grass edge lines up with the platform.
+          // tileYOffset chosen so grass top sits on the physics ground.
           const groundTileKeys = [
             "tile_ground1",
             "tile_ground2",
             "tile_ground3",
           ];
 
-          const tileYOffset = -24; // move tiles UP a bit
+          const tileYOffset = -24; // ground art is already tuned
 
           for (let x = 0; x < props.gridWidthInTiles; x++) {
             const key = Phaser.Utils.Array.GetRandom(groundTileKeys);
             this.add
               .image(x * props.tileSize, props.groundY + tileYOffset, key)
-              .setOrigin(0, 0) // top-left aligned relative to offset
+              .setOrigin(0, 0)
               .setDepth(5);
           }
 
@@ -223,11 +230,13 @@ export default function CraftshorePhaserGame(
             const x = b.gridX * props.tileSize + props.tileSize / 2;
             const color = buildingColorByType[b.type] ?? 0x64748b;
 
+            // Move buildings DOWN a bit so they visually sit on the ground tiles
+            const buildingHeight = 96;
             const rect = this.add.rectangle(
               x,
-              props.groundY - 72,
+              props.groundY - 60, // was -72
               props.tileSize,
-              96,
+              buildingHeight,
               color
             );
             rect.setStrokeStyle(2, 0x020617);
@@ -235,7 +244,7 @@ export default function CraftshorePhaserGame(
 
             const label = this.add.text(
               x,
-              props.groundY - 120,
+              props.groundY - 110, // lowered slightly with the rect
               b.type.replace("_", " "),
               {
                 fontSize: "12px",
