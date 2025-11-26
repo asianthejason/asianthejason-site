@@ -612,6 +612,12 @@ export default function CraftshorePlayPage() {
   const currentBarracksNextXp =
     xpNeededForNextLevel(currentBarracksLevel) || 1;
 
+  // helper for skill chip bar fill
+  const getSkillProgress = (skill: Skill) => {
+    const needed = xpNeededForNextLevel(skill.level) || 1;
+    return Math.max(0, Math.min(1, skill.xp / needed));
+  };
+
   return (
     <>
       {/* --- Firebase scripts --- */}
@@ -713,6 +719,7 @@ export default function CraftshorePlayPage() {
                   )}
                   {town && (
                     <>
+                      {/* Resources row */}
                       <div className="craftshore-resources">
                         <div className="resource-chip">
                           <span className="dot dot-wood" />
@@ -751,24 +758,54 @@ export default function CraftshorePlayPage() {
                         </div>
                       </div>
 
+                      {/* Troops row */}
+                      <div className="craftshore-troops">
+                        <div className="troop-chip">
+                          <span className="troop-name">Militia</span>
+                          <span className="troop-count">
+                            {town.troops.militia}
+                          </span>
+                        </div>
+                        <div className="troop-chip">
+                          <span className="troop-name">Archers</span>
+                          <span className="troop-count">
+                            {town.troops.archer}
+                          </span>
+                        </div>
+                        <div className="troop-chip">
+                          <span className="troop-name">Knights</span>
+                          <span className="troop-count">
+                            {town.troops.knight}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Skills row (progress pills) */}
                       <div className="craftshore-skills">
-                        {town.skills.map((skill) => (
-                          <div
-                            key={skill.name}
-                            className="skill-chip"
-                          >
-                            <span className="skill-name">
-                              {skill.name}
-                            </span>{" "}
-                            <span className="skill-level">
-                              Lv {skill.level}
-                            </span>{" "}
-                            ·{" "}
-                            <span className="skill-xp">
-                              {skill.xp} XP
-                            </span>
-                          </div>
-                        ))}
+                        {town.skills.map((skill) => {
+                          const progress = getSkillProgress(skill);
+                          return (
+                            <div
+                              key={skill.name}
+                              className="skill-chip"
+                            >
+                              <div
+                                className="skill-chip-fill"
+                                style={{
+                                  width: `${progress * 100}%`,
+                                }}
+                              />
+                              <div className="skill-chip-label">
+                                <span className="skill-name">
+                                  {skill.name}
+                                </span>
+                                <span className="skill-level">
+                                  Lv {skill.level}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </>
                   )}
@@ -1190,7 +1227,7 @@ export default function CraftshorePlayPage() {
 
         .craftshore-hud {
           border-radius: 18px;
-          padding: 12px 14px;
+          padding: 12px 14px 14px;
           background: rgba(15, 23, 42, 0.85);
           border: 1px solid rgba(148, 163, 252, 0.35);
           margin-bottom: 14px;
@@ -1243,6 +1280,32 @@ export default function CraftshorePlayPage() {
           font-weight: 600;
         }
 
+        .craftshore-troops {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 8px;
+          font-size: 12px;
+        }
+
+        .troop-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 9px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.95);
+          border: 1px solid rgba(244, 114, 182, 0.5);
+        }
+
+        .troop-name {
+          font-weight: 600;
+        }
+
+        .troop-count {
+          opacity: 0.9;
+        }
+
         .craftshore-skills {
           display: flex;
           flex-wrap: wrap;
@@ -1252,19 +1315,44 @@ export default function CraftshorePlayPage() {
         }
 
         .skill-chip {
+          position: relative;
           padding: 4px 8px;
           border-radius: 999px;
           border: 1px solid rgba(148, 163, 252, 0.4);
           background: rgba(15, 23, 42, 0.9);
+          overflow: hidden;
+          min-width: 90px;
+        }
+
+        .skill-chip-fill {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            90deg,
+            rgba(59, 130, 246, 0.7),
+            rgba(34, 197, 94, 0.9)
+          );
+          opacity: 0.6;
+          transform-origin: left center;
+          transition: width 0.18s ease-out;
+          pointer-events: none;
+        }
+
+        .skill-chip-label {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          gap: 6px;
+          align-items: center;
+          justify-content: space-between;
         }
 
         .skill-name {
           font-weight: 600;
         }
 
-        .skill-level,
-        .skill-xp {
-          opacity: 0.9;
+        .skill-level {
+          opacity: 0.95;
         }
 
         .craftshore-game-shell {
@@ -1356,11 +1444,6 @@ export default function CraftshorePlayPage() {
         .troop-card-header h4 {
           margin: 0;
           font-size: 14px;
-        }
-
-        .troop-count {
-          font-size: 11px;
-          opacity: 0.9;
         }
 
         .troop-desc {
