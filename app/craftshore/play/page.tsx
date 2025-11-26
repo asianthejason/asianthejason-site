@@ -229,11 +229,7 @@ function addSkillXp(
   });
 }
 
-// Random reward generator:
-// - Each resource starts at 0
-// - On each loop we *might* add a chunk
-// - Probability to continue drops over time
-// - If we got a non-zero result, it's bumped up so it's usually 30+.
+// Random reward generator
 function rollResource(scale: number): number {
   if (scale <= 0) return 0;
 
@@ -242,18 +238,14 @@ function rollResource(scale: number): number {
   let safety = 0;
 
   while (Math.random() < 0.65 && safety < 60) {
-    // random 1..chunk (rounded)
     const add = 1 + Math.floor(Math.random() * Math.max(1, Math.round(chunk)));
     total += add;
-    // shrink chunk so later gains are smaller
     chunk = Math.max(1, chunk * 0.7);
     safety++;
   }
 
-  // If we got *some* reward but it's tiny, bump it so typical results feel good.
-  // This still allows "nothing" as a possible outcome (total === 0).
   if (total > 0) {
-    const min = Math.max(30, scale); // at least 30, or higher for big scales
+    const min = Math.max(30, scale);
     const max = Math.max(min + 1, Math.round(scale * 2.5));
     if (total < min) {
       total = min + Math.floor(Math.random() * (max - min + 1));
@@ -962,16 +954,9 @@ export default function CraftshorePlayPage() {
         {/* Craftshore content */}
         <section className="panel-section craftshore-panel">
           <div className="tabs-shell craftshore-shell">
+            {/* Small pill only – game name/description removed */}
             <header className="home-section-header">
               <span className="home-section-pill">Craftshore</span>
-              <div>
-                <h2>Build your 2D pioneer town</h2>
-                <p>
-                  Walk around your land, mine ore, farm food, chop wood,
-                  train troops, send expeditions, and level skills. More
-                  buildings and systems will come over time.
-                </p>
-              </div>
             </header>
 
             {/* Require login */}
@@ -998,446 +983,449 @@ export default function CraftshorePlayPage() {
 
             {!mustLogin && (
               <>
-                {/* HUD */}
-                <section className="craftshore-hud">
-                  {townLoading && (
-                    <div className="text-sm text-slate-300">
-                      Loading your town…
-                    </div>
-                  )}
-                  {town && (
-                    <>
-                      {/* Resources row */}
-                      <div className="craftshore-resources">
-                        <div className="resource-chip">
-                          <span className="dot dot-wood" />
-                          Wood:{" "}
-                          <span className="value">
-                            {town.resources.wood}
-                          </span>
-                        </div>
-                        <div className="resource-chip">
-                          <span className="dot dot-stone" />
-                          Stone:{" "}
-                          <span className="value">
-                            {town.resources.stone}
-                          </span>
-                        </div>
-                        <div className="resource-chip">
-                          <span className="dot dot-ore" />
-                          Ore:{" "}
-                          <span className="value">
-                            {town.resources.ore}
-                          </span>
-                        </div>
-                        <div className="resource-chip">
-                          <span className="dot dot-food" />
-                          Food:{" "}
-                          <span className="value">
-                            {town.resources.food}
-                          </span>
-                        </div>
-                        <div className="resource-chip">
-                          <span className="dot dot-gold" />
-                          Gold:{" "}
-                          <span className="value">
-                            {town.resources.gold}
-                          </span>
-                        </div>
+                {/* Main frame that keeps HUD + game the same width */}
+                <div className="craftshore-main-frame">
+                  {/* HUD */}
+                  <section className="craftshore-hud">
+                    {townLoading && (
+                      <div className="text-sm text-slate-300">
+                        Loading your town…
                       </div>
-
-                      {/* Troops row */}
-                      <div className="craftshore-troops">
-                        <div className="troop-chip">
-                          <span className="troop-name">Militia</span>
-                          <span className="troop-count">
-                            {town.troops.militia}
-                          </span>
-                        </div>
-                        <div className="troop-chip">
-                          <span className="troop-name">Archers</span>
-                          <span className="troop-count">
-                            {town.troops.archer}
-                          </span>
-                        </div>
-                        <div className="troop-chip">
-                          <span className="troop-name">Knights</span>
-                          <span className="troop-count">
-                            {town.troops.knight}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Skills row (progress pills) */}
-                      <div className="craftshore-skills">
-                        {town.skills.map((skill) => {
-                          const progress = getSkillProgress(skill);
-                          return (
-                            <div
-                              key={skill.name}
-                              className="skill-chip"
-                            >
-                              <div
-                                className="skill-chip-fill"
-                                style={{
-                                  width: `${progress * 100}%`,
-                                }}
-                              />
-                              <div className="skill-chip-label">
-                                <span className="skill-name">
-                                  {skill.name}
-                                </span>
-                                <span className="skill-level">
-                                  Lv {skill.level}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </section>
-
-                {/* Game canvas + overlays */}
-                <section className="craftshore-game-shell">
-                  <div className="craftshore-game-inner">
-                    {town ? (
-                      <CraftshorePhaserGame
-                        gridWidthInTiles={town.grid.widthInTiles}
-                        tileSize={town.grid.tileSize}
-                        groundY={town.grid.groundY}
-                        buildings={town.buildings}
-                        onMine={handleMine}
-                        onFarm={handleFarm}
-                        onChopWood={handleChopWood}
-                        onBarracksInteract={handleBarracksInteract}
-                        onMarketInteract={handleMarketInteract}
-                      />
-                    ) : (
-                      !townLoading && (
-                        <div className="text-sm text-red-400">
-                          Failed to load town state. Check console for
-                          errors.
-                        </div>
-                      )
                     )}
-
-                    {/* Barracks overlay */}
-                    {town && showBarracksPanel && (
-                      <div className="craftshore-overlay">
-                        <section className="barracks-panel">
-                          <div className="barracks-header">
-                            <div>
-                              <h3>Barracks</h3>
-                              <p>
-                                Train troops to defend your town and earn
-                                Barracks XP. Stand near the barracks and
-                                press<strong> E</strong> to open/close this
-                                panel.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="barracks-close-btn"
-                              onClick={() => setShowBarracksPanel(false)}
-                            >
-                              ×
-                            </button>
+                    {town && (
+                      <>
+                        {/* Resources row */}
+                        <div className="craftshore-resources">
+                          <div className="resource-chip">
+                            <span className="dot dot-wood" />
+                            Wood:{" "}
+                            <span className="value">
+                              {town.resources.wood}
+                            </span>
                           </div>
+                          <div className="resource-chip">
+                            <span className="dot dot-stone" />
+                            Stone:{" "}
+                            <span className="value">
+                              {town.resources.stone}
+                            </span>
+                          </div>
+                          <div className="resource-chip">
+                            <span className="dot dot-ore" />
+                            Ore:{" "}
+                            <span className="value">
+                              {town.resources.ore}
+                            </span>
+                          </div>
+                          <div className="resource-chip">
+                            <span className="dot dot-food" />
+                            Food:{" "}
+                            <span className="value">
+                              {town.resources.food}
+                            </span>
+                          </div>
+                          <div className="resource-chip">
+                            <span className="dot dot-gold" />
+                            Gold:{" "}
+                            <span className="value">
+                              {town.resources.gold}
+                            </span>
+                          </div>
+                        </div>
 
-                          <div className="barracks-meta">
-                            <span>
-                              Barracks level{" "}
-                              <strong>{currentBarracksLevel}</strong>
+                        {/* Troops row */}
+                        <div className="craftshore-troops">
+                          <div className="troop-chip">
+                            <span className="troop-name">Militia</span>
+                            <span className="troop-count">
+                              {town.troops.militia}
                             </span>
-                            <span>
-                              XP {currentBarracksXp} / {currentBarracksNextXp}
+                          </div>
+                          <div className="troop-chip">
+                            <span className="troop-name">Archers</span>
+                            <span className="troop-count">
+                              {town.troops.archer}
                             </span>
-                            <span>
-                              Troops: Militia {town.troops.militia} ·
-                              Archers {town.troops.archer} · Knights{" "}
+                          </div>
+                          <div className="troop-chip">
+                            <span className="troop-name">Knights</span>
+                            <span className="troop-count">
                               {town.troops.knight}
                             </span>
                           </div>
+                        </div>
 
-                          <div className="troop-grid">
-                            {(Object.keys(TROOP_DEFS) as TroopId[]).map(
-                              (id) => {
-                                const def = TROOP_DEFS[id];
+                        {/* Skills row (progress pills) */}
+                        <div className="craftshore-skills">
+                          {town.skills.map((skill) => {
+                            const progress = getSkillProgress(skill);
+                            return (
+                              <div
+                                key={skill.name}
+                                className="skill-chip"
+                              >
+                                <div
+                                  className="skill-chip-fill"
+                                  style={{
+                                    width: `${progress * 100}%`,
+                                  }}
+                                />
+                                <div className="skill-chip-label">
+                                  <span className="skill-name">
+                                    {skill.name}
+                                  </span>
+                                  <span className="skill-level">
+                                    Lv {skill.level}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </section>
+
+                  {/* Game canvas + overlays */}
+                  <section className="craftshore-game-shell">
+                    <div className="craftshore-game-inner">
+                      {town ? (
+                        <CraftshorePhaserGame
+                          gridWidthInTiles={town.grid.widthInTiles}
+                          tileSize={town.grid.tileSize}
+                          groundY={town.grid.groundY}
+                          buildings={town.buildings}
+                          onMine={handleMine}
+                          onFarm={handleFarm}
+                          onChopWood={handleChopWood}
+                          onBarracksInteract={handleBarracksInteract}
+                          onMarketInteract={handleMarketInteract}
+                        />
+                      ) : (
+                        !townLoading && (
+                          <div className="text-sm text-red-400">
+                            Failed to load town state. Check console for
+                            errors.
+                          </div>
+                        )
+                      )}
+
+                      {/* Barracks overlay */}
+                      {town && showBarracksPanel && (
+                        <div className="craftshore-overlay">
+                          <section className="barracks-panel">
+                            <div className="barracks-header">
+                              <div>
+                                <h3>Barracks</h3>
+                                <p>
+                                  Train troops to defend your town and earn
+                                  Barracks XP. Stand near the barracks and
+                                  press <strong>E</strong> to open/close this
+                                  panel.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="barracks-close-btn"
+                                onClick={() => setShowBarracksPanel(false)}
+                              >
+                                ×
+                              </button>
+                            </div>
+
+                            <div className="barracks-meta">
+                              <span>
+                                Barracks level{" "}
+                                <strong>{currentBarracksLevel}</strong>
+                              </span>
+                              <span>
+                                XP {currentBarracksXp} / {currentBarracksNextXp}
+                              </span>
+                              <span>
+                                Troops: Militia {town.troops.militia} ·
+                                Archers {town.troops.archer} · Knights{" "}
+                                {town.troops.knight}
+                              </span>
+                            </div>
+
+                            <div className="troop-grid">
+                              {(Object.keys(TROOP_DEFS) as TroopId[]).map(
+                                (id) => {
+                                  const def = TROOP_DEFS[id];
+                                  const unlocked =
+                                    currentBarracksLevel >=
+                                    def.requiredBarracksLevel;
+
+                                  return (
+                                    <div
+                                      key={id}
+                                      className={
+                                        "troop-card" +
+                                        (unlocked ? "" : " troop-locked")
+                                      }
+                                    >
+                                      <div className="troop-card-header">
+                                        <h4>{def.name}</h4>
+                                        <span className="troop-count">
+                                          Owned: {town.troops[id]}
+                                        </span>
+                                      </div>
+                                      <p className="troop-desc">
+                                        {def.description}
+                                      </p>
+                                      <div className="troop-cost-row">
+                                        <span>Cost:</span>
+                                        <span>
+                                          {def.cost.wood}W · {def.cost.stone}
+                                          S · {def.cost.ore}O ·{" "}
+                                          {def.cost.food}
+                                          F · {def.cost.gold}G
+                                        </span>
+                                      </div>
+                                      <div className="troop-meta-row">
+                                        <span>
+                                          Requires Barracks Lv{" "}
+                                          {def.requiredBarracksLevel}
+                                        </span>
+                                        <span>
+                                          +{def.barracksXpGain} Barracks XP
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="account-btn primary troop-train-btn"
+                                        disabled={!unlocked}
+                                        onClick={() => handleTrainTroop(id)}
+                                      >
+                                        {unlocked
+                                          ? `Train 1 ${def.name}`
+                                          : "Locked"}
+                                      </button>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </div>
+
+                            {barracksError && (
+                              <div className="barracks-msg barracks-error">
+                                {barracksError}
+                              </div>
+                            )}
+                            {barracksMessage && (
+                              <div className="barracks-msg barracks-status">
+                                {barracksMessage}
+                              </div>
+                            )}
+                          </section>
+                        </div>
+                      )}
+
+                      {/* Expeditions overlay */}
+                      {town && showExpeditionsPanel && (
+                        <div className="craftshore-overlay">
+                          <section className="expeditions-panel">
+                            <div className="barracks-header">
+                              <div>
+                                <h3>Expeditions Board</h3>
+                                <p>
+                                  Send troops on missions and see what they
+                                  bring back. Stand near the{" "}
+                                  <strong>market</strong> and press{" "}
+                                  <strong>E</strong> to open/close this panel.
+                                  Rewards are random and not guaranteed.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="barracks-close-btn"
+                                onClick={() => setShowExpeditionsPanel(false)}
+                              >
+                                ×
+                              </button>
+                            </div>
+
+                            <div className="barracks-meta">
+                              <span>
+                                Active expeditions:{" "}
+                                {
+                                  town.missions.filter(
+                                    (m) => nowMs < m.completesAt
+                                  ).length
+                                }
+                              </span>
+                              <span>
+                                Completed and waiting:{" "}
+                                {
+                                  town.missions.filter(
+                                    (m) => nowMs >= m.completesAt
+                                  ).length
+                                }
+                              </span>
+                            </div>
+
+                            {/* Mission templates */}
+                            <div className="troop-grid">
+                              {(
+                                Object.keys(
+                                  MISSION_DEFS
+                                ) as MissionTemplateId[]
+                              ).map((id) => {
+                                const def = MISSION_DEFS[id];
                                 const unlocked =
                                   currentBarracksLevel >=
-                                  def.requiredBarracksLevel;
+                                  def.minBarracksLevel;
+                                const cost = def.troopCost;
 
                                 return (
                                   <div
                                     key={id}
                                     className={
-                                      "troop-card" +
-                                      (unlocked ? "" : " troop-locked")
+                                      "expedition-card" +
+                                      (unlocked ? "" : " expedition-locked")
                                     }
                                   >
                                     <div className="troop-card-header">
                                       <h4>{def.name}</h4>
                                       <span className="troop-count">
-                                        Owned: {town.troops[id]}
+                                        {def.durationMinutes} min
                                       </span>
                                     </div>
                                     <p className="troop-desc">
                                       {def.description}
                                     </p>
                                     <div className="troop-cost-row">
-                                      <span>Cost:</span>
+                                      <span>Troops sent:</span>
                                       <span>
-                                        {def.cost.wood}W · {def.cost.stone}
-                                        S · {def.cost.ore}O ·{" "}
-                                        {def.cost.food}
-                                        F · {def.cost.gold}G
+                                        {(cost.militia ?? 0) > 0 &&
+                                          `${cost.militia} Militia `}
+                                        {(cost.archer ?? 0) > 0 &&
+                                          `· ${cost.archer} Archers `}
+                                        {(cost.knight ?? 0) > 0 &&
+                                          `· ${cost.knight} Knights`}
+                                        {(cost.militia ?? 0) === 0 &&
+                                          (cost.archer ?? 0) === 0 &&
+                                          (cost.knight ?? 0) === 0 &&
+                                          "None"}
                                       </span>
                                     </div>
                                     <div className="troop-meta-row">
                                       <span>
                                         Requires Barracks Lv{" "}
-                                        {def.requiredBarracksLevel}
+                                        {def.minBarracksLevel}
                                       </span>
                                       <span>
-                                        +{def.barracksXpGain} Barracks XP
+                                        Rewards vary — sometimes nothing.
                                       </span>
                                     </div>
                                     <button
                                       type="button"
                                       className="account-btn primary troop-train-btn"
                                       disabled={!unlocked}
-                                      onClick={() => handleTrainTroop(id)}
+                                      onClick={() =>
+                                        handleStartMission(id)
+                                      }
                                     >
                                       {unlocked
-                                        ? `Train 1 ${def.name}`
+                                        ? "Start expedition"
                                         : "Locked"}
                                     </button>
                                   </div>
                                 );
-                              }
-                            )}
-                          </div>
-
-                          {barracksError && (
-                            <div className="barracks-msg barracks-error">
-                              {barracksError}
+                              })}
                             </div>
-                          )}
-                          {barracksMessage && (
-                            <div className="barracks-msg barracks-status">
-                              {barracksMessage}
-                            </div>
-                          )}
-                        </section>
-                      </div>
-                    )}
 
-                    {/* Expeditions overlay */}
-                    {town && showExpeditionsPanel && (
-                      <div className="craftshore-overlay">
-                        <section className="expeditions-panel">
-                          <div className="barracks-header">
-                            <div>
-                              <h3>Expeditions Board</h3>
-                              <p>
-                                Send troops on missions and see what they
-                                bring back. Stand near the{" "}
-                                <strong>market</strong> and press{" "}
-                                <strong>E</strong> to open/close this panel.
-                                Rewards are random and not guaranteed.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="barracks-close-btn"
-                              onClick={() => setShowExpeditionsPanel(false)}
-                            >
-                              ×
-                            </button>
-                          </div>
+                            {/* Active missions */}
+                            {town.missions.length > 0 && (
+                              <div className="expeditions-active">
+                                <h4>Current expeditions</h4>
+                                <div className="expeditions-list">
+                                  {town.missions.map((m) => {
+                                    const def = MISSION_DEFS[m.templateId];
+                                    const total =
+                                      m.completesAt - m.startedAt || 1;
+                                    const elapsed = Math.min(
+                                      total,
+                                      Math.max(0, nowMs - m.startedAt)
+                                    );
+                                    const progress = elapsed / total;
+                                    const done = nowMs >= m.completesAt;
 
-                          <div className="barracks-meta">
-                            <span>
-                              Active expeditions:{" "}
-                              {
-                                town.missions.filter(
-                                  (m) => nowMs < m.completesAt
-                                ).length
-                              }
-                            </span>
-                            <span>
-                              Completed and waiting:{" "}
-                              {
-                                town.missions.filter(
-                                  (m) => nowMs >= m.completesAt
-                                ).length
-                              }
-                            </span>
-                          </div>
-
-                          {/* Mission templates */}
-                          <div className="troop-grid">
-                            {(
-                              Object.keys(
-                                MISSION_DEFS
-                              ) as MissionTemplateId[]
-                            ).map((id) => {
-                              const def = MISSION_DEFS[id];
-                              const unlocked =
-                                currentBarracksLevel >=
-                                def.minBarracksLevel;
-                              const cost = def.troopCost;
-
-                              return (
-                                <div
-                                  key={id}
-                                  className={
-                                    "expedition-card" +
-                                    (unlocked ? "" : " expedition-locked")
-                                  }
-                                >
-                                  <div className="troop-card-header">
-                                    <h4>{def.name}</h4>
-                                    <span className="troop-count">
-                                      {def.durationMinutes} min
-                                    </span>
-                                  </div>
-                                  <p className="troop-desc">
-                                    {def.description}
-                                  </p>
-                                  <div className="troop-cost-row">
-                                    <span>Troops sent:</span>
-                                    <span>
-                                      {(cost.militia ?? 0) > 0 &&
-                                        `${cost.militia} Militia `}
-                                      {(cost.archer ?? 0) > 0 &&
-                                        `· ${cost.archer} Archers `}
-                                      {(cost.knight ?? 0) > 0 &&
-                                        `· ${cost.knight} Knights`}
-                                      {(cost.militia ?? 0) === 0 &&
-                                        (cost.archer ?? 0) === 0 &&
-                                        (cost.knight ?? 0) === 0 &&
-                                        "None"}
-                                    </span>
-                                  </div>
-                                  <div className="troop-meta-row">
-                                    <span>
-                                      Requires Barracks Lv{" "}
-                                      {def.minBarracksLevel}
-                                    </span>
-                                    <span>
-                                      Rewards vary — sometimes nothing.
-                                    </span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className="account-btn primary troop-train-btn"
-                                    disabled={!unlocked}
-                                    onClick={() =>
-                                      handleStartMission(id)
-                                    }
-                                  >
-                                    {unlocked
-                                      ? "Start expedition"
-                                      : "Locked"}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* Active missions */}
-                          {town.missions.length > 0 && (
-                            <div className="expeditions-active">
-                              <h4>Current expeditions</h4>
-                              <div className="expeditions-list">
-                                {town.missions.map((m) => {
-                                  const def = MISSION_DEFS[m.templateId];
-                                  const total =
-                                    m.completesAt - m.startedAt || 1;
-                                  const elapsed = Math.min(
-                                    total,
-                                    Math.max(0, nowMs - m.startedAt)
-                                  );
-                                  const progress = elapsed / total;
-                                  const done = nowMs >= m.completesAt;
-
-                                  return (
-                                    <div
-                                      key={m.id}
-                                      className="expedition-row"
-                                    >
-                                      <div className="expedition-main">
-                                        <div className="expedition-top">
-                                          <span className="expedition-name">
-                                            {def.name}
-                                          </span>
-                                          <span className="expedition-troops">
-                                            Party: {m.party.militia} Militia
-                                            {" · "}
-                                            {m.party.archer} Archers{" · "}
-                                            {m.party.knight} Knights
-                                          </span>
-                                        </div>
-                                        <div className="expedition-bar">
-                                          <div
-                                            className="expedition-bar-fill"
-                                            style={{
-                                              width: `${progress * 100}%`,
-                                            }}
-                                          />
-                                        </div>
-                                        <div className="expedition-meta">
-                                          <span>
-                                            {done
-                                              ? "Ready to claim"
-                                              : "In progress"}
-                                          </span>
-                                          <span>
-                                            {done
-                                              ? formatMissionReward(
-                                                  m.reward
-                                                )
-                                              : "Rewards are unknown until they return."}
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        className="account-btn primary expedition-claim-btn"
-                                        disabled={!done}
-                                        onClick={() =>
-                                          handleClaimMission(m.id)
-                                        }
+                                    return (
+                                      <div
+                                        key={m.id}
+                                        className="expedition-row"
                                       >
-                                        {done
-                                          ? "Claim results"
-                                          : "Travelling…"}
-                                      </button>
-                                    </div>
-                                  );
-                                })}
+                                        <div className="expedition-main">
+                                          <div className="expedition-top">
+                                            <span className="expedition-name">
+                                              {def.name}
+                                            </span>
+                                            <span className="expedition-troops">
+                                              Party: {m.party.militia} Militia
+                                              {" · "}
+                                              {m.party.archer} Archers{" · "}
+                                              {m.party.knight} Knights
+                                            </span>
+                                          </div>
+                                          <div className="expedition-bar">
+                                            <div
+                                              className="expedition-bar-fill"
+                                              style={{
+                                                width: `${progress * 100}%`,
+                                              }}
+                                            />
+                                          </div>
+                                          <div className="expedition-meta">
+                                            <span>
+                                              {done
+                                                ? "Ready to claim"
+                                                : "In progress"}
+                                            </span>
+                                            <span>
+                                              {done
+                                                ? formatMissionReward(
+                                                    m.reward
+                                                  )
+                                                : "Rewards are unknown until they return."}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="account-btn primary expedition-claim-btn"
+                                          disabled={!done}
+                                          onClick={() =>
+                                            handleClaimMission(m.id)
+                                          }
+                                        >
+                                          {done
+                                            ? "Claim results"
+                                            : "Travelling…"}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                          {expeditionsError && (
-                            <div className="barracks-msg barracks-error">
-                              {expeditionsError}
-                            </div>
-                          )}
-                          {expeditionsMessage && (
-                            <div className="barracks-msg barracks-status">
-                              {expeditionsMessage}
-                            </div>
-                          )}
-                        </section>
-                      </div>
-                    )}
-                  </div>
-                </section>
+                            {expeditionsError && (
+                              <div className="barracks-msg barracks-error">
+                                {expeditionsError}
+                              </div>
+                            )}
+                            {expeditionsMessage && (
+                              <div className="barracks-msg barracks-status">
+                                {expeditionsMessage}
+                              </div>
+                            )}
+                          </section>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
               </>
             )}
           </div>
@@ -1682,20 +1670,12 @@ export default function CraftshorePlayPage() {
 
         .home-section-header {
           display: flex;
-          align-items: flex-start;
-          gap: 16px;
-          margin-bottom: 16px;
-        }
-
-        .home-section-header h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-
-        .home-section-header p {
-          margin-top: 4px;
-          font-size: 14px;
-          opacity: 0.9;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 12px;
+          max-width: 1200px;
+          margin-left: auto;
+          margin-right: auto;
         }
 
         .home-section-pill {
@@ -1723,6 +1703,14 @@ export default function CraftshorePlayPage() {
           align-items: center;
           gap: 12px;
           font-size: 14px;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        /* New main frame so HUD + game share width */
+        .craftshore-main-frame {
+          max-width: 1200px;
+          margin: 0 auto;
         }
 
         .craftshore-hud {
@@ -1865,7 +1853,7 @@ export default function CraftshorePlayPage() {
           width: 100%;
           max-width: 1200px;
           margin: 0 auto;
-          aspect-ratio: 16 / 9;      /* keep a 16:9 game area */
+          aspect-ratio: 16 / 9; /* keep a 16:9 game area */
           border-radius: 18px;
           background: #020617;
           overflow: hidden;
@@ -1907,13 +1895,6 @@ export default function CraftshorePlayPage() {
         .craftshore-overlay .expeditions-panel {
           pointer-events: auto;
         }
-
-        @media (max-width: 700px) {
-          .craftshore-overlay {
-            inset: 8% 4%;
-          }
-        }
-
 
         /* Barracks & expeditions panels */
         .barracks-panel,
