@@ -1,4 +1,3 @@
-// app/craftshore/components/CraftshorePhaserGame.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -18,11 +17,14 @@ type CraftshorePhaserGameProps = {
   onFarm?: () => void;
   onChopWood?: () => void;
   onBarracksInteract?: () => void;
+  onMarketInteract?: () => void;
 };
 
 const WORLD_HEIGHT = 600;
 
-export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
+export default function CraftshorePhaserGame(
+  props: CraftshorePhaserGameProps
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<PhaserType.Game | null>(null);
 
@@ -260,6 +262,12 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
               ) {
                 props.onBarracksInteract();
                 text = "Barracks";
+              } else if (
+                closest.type === "market" &&
+                props.onMarketInteract
+              ) {
+                props.onMarketInteract();
+                text = "Expeditions";
               }
 
               if (text) {
@@ -322,6 +330,7 @@ export default function CraftshorePhaserGame(props: CraftshorePhaserGameProps) {
     props.onFarm,
     props.onChopWood,
     props.onBarracksInteract,
+    props.onMarketInteract,
   ]);
 
   return (

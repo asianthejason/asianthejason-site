@@ -26,6 +26,27 @@ type TroopState = {
   knight: number;
 };
 
+type MissionTemplateId = "scout_forest" | "patrol_road" | "clear_bandits";
+
+type MissionStatus = "in_progress" | "ready_to_claim";
+
+type Mission = {
+  id: string;
+  templateId: MissionTemplateId;
+  name: string;
+  status: MissionStatus;
+  startedAt: number; // ms epoch
+  completesAt: number; // ms epoch
+  party: TroopState;
+  reward: {
+    wood: number;
+    stone: number;
+    ore: number;
+    food: number;
+    gold: number;
+  };
+};
+
 type TownState = {
   townName: string;
   playerName: string;
@@ -44,6 +65,7 @@ type TownState = {
   };
   skills: Skill[];
   troops: TroopState;
+  missions: Mission[];
 };
 
 const DEFAULT_TOWN_STATE: TownState = {
@@ -86,10 +108,12 @@ const DEFAULT_TOWN_STATE: TownState = {
     archer: 0,
     knight: 0,
   },
+  missions: [],
 };
 
 type TroopId = keyof TroopState;
 
+// static troop definitions (unchanged)
 const TROOP_DEFS: Record<
   TroopId,
   {
@@ -126,6 +150,53 @@ const TROOP_DEFS: Record<
     requiredBarracksLevel: 3,
     cost: { wood: 10, stone: 10, ore: 15, food: 12, gold: 5 },
     barracksXpGain: 12,
+  },
+};
+
+// expedition / mission templates
+const MISSION_DEFS: Record<
+  MissionTemplateId,
+  {
+    name: string;
+    description: string;
+    minBarracksLevel: number;
+    durationMinutes: number;
+    troopCost: Partial<TroopState>;
+    reward: {
+      wood: number;
+      stone: number;
+      ore: number;
+      food: number;
+      gold: number;
+    };
+  }
+> = {
+  scout_forest: {
+    name: "Scout the Nearby Forest",
+    description:
+      "Send a small party to map the woods and bring back basic supplies.",
+    minBarracksLevel: 1,
+    durationMinutes: 5,
+    troopCost: { militia: 3 },
+    reward: { wood: 25, stone: 0, ore: 5, food: 10, gold: 1 },
+  },
+  patrol_road: {
+    name: "Patrol the Trade Road",
+    description:
+      "Guard caravans and keep the roads safe. Modest resource reward and some gold.",
+    minBarracksLevel: 2,
+    durationMinutes: 10,
+    troopCost: { militia: 4, archer: 2 },
+    reward: { wood: 15, stone: 10, ore: 10, food: 15, gold: 4 },
+  },
+  clear_bandits: {
+    name: "Clear Bandit Camp",
+    description:
+      "A serious operation against local bandits. Requires trained troops but pays well.",
+    minBarracksLevel: 3,
+    durationMinutes: 20,
+    troopCost: { militia: 4, archer: 3, knight: 2 },
+    reward: { wood: 20, stone: 15, ore: 20, food: 20, gold: 10 },
   },
 };
 
@@ -343,6 +414,20 @@ export default function CraftshorePlayPage() {
   );
   const [barracksError, setBarracksError] = useState<string | null>(null);
 
+  // Expeditions UI state
+  const [showExpeditionsPanel, setShowExpeditionsPanel] = useState(false);
+  const [expeditionsMessage, setExpeditionsMessage] =
+    useState<string | null>(null);
+  const [expeditionsError, setExpeditionsError] =
+    useState<string | null>(null);
+
+  // ticking "now" for mission progress bars
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   function xpNeededForNextLevel(level: number) {
     return level * 25;
   }
@@ -406,6 +491,7 @@ export default function CraftshorePlayPage() {
               ...DEFAULT_TOWN_STATE.troops,
               ...(raw as any).troops,
             },
+            missions: (raw as any).missions || DEFAULT_TOWN_STATE.missions,
           };
 
           if (!cancelled) setTown(merged);
@@ -447,11 +533,7 @@ export default function CraftshorePlayPage() {
     });
   }
 
-  async function persistTownSlice(
-    resources: TownState["resources"],
-    skills: TownState["skills"],
-    troops: TownState["troops"]
-  ) {
+  async function persistTownSlice(next: TownState) {
     if (!headerUser) return;
     if (typeof window === "undefined") return;
 
@@ -464,7 +546,15 @@ export default function CraftshorePlayPage() {
       await db
         .collection("craftshore_towns")
         .doc(uid)
-        .set({ resources, skills, troops }, { merge: true });
+        .set(
+          {
+            resources: next.resources,
+            skills: next.skills,
+            troops: next.troops,
+            missions: next.missions,
+          },
+          { merge: true }
+        );
     } catch (err) {
       console.error("Failed to persist Craftshore state:", err);
     }
@@ -481,7 +571,7 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Mining", 5),
       };
-      void persistTownSlice(next.resources, next.skills, next.troops);
+      void persistTownSlice(next);
       return next;
     });
   }, [headerUser]);
@@ -497,7 +587,7 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Farming", 5),
       };
-      void persistTownSlice(next.resources, next.skills, next.troops);
+      void persistTownSlice(next);
       return next;
     });
   }, [headerUser]);
@@ -513,15 +603,23 @@ export default function CraftshorePlayPage() {
         },
         skills: addSkillXp(prev.skills, "Woodcutting", 5),
       };
-      void persistTownSlice(next.resources, next.skills, next.troops);
+      void persistTownSlice(next);
       return next;
     });
   }, [headerUser]);
 
   const handleBarracksInteract = useCallback(() => {
-    setShowBarracksPanel(true);
+    setShowBarracksPanel((prev) => !prev);
+    setShowExpeditionsPanel(false);
     setBarracksError(null);
     setBarracksMessage(null);
+  }, []);
+
+  const handleMarketInteract = useCallback(() => {
+    setShowExpeditionsPanel((prev) => !prev);
+    setShowBarracksPanel(false);
+    setExpeditionsError(null);
+    setExpeditionsMessage(null);
   }, []);
 
   const handleTrainTroop = useCallback(
@@ -590,13 +688,144 @@ export default function CraftshorePlayPage() {
           troops: newTroops,
         };
 
-        void persistTownSlice(
-          next.resources,
-          next.skills,
-          next.troops
-        );
+        void persistTownSlice(next);
         setBarracksMessage(`Trained 1 ${def.name}.`);
         setBarracksError(null);
+        return next;
+      });
+    },
+    [headerUser]
+  );
+
+  const handleStartMission = useCallback(
+    (templateId: MissionTemplateId) => {
+      setExpeditionsError(null);
+      setExpeditionsMessage(null);
+
+      setTown((prev) => {
+        if (!prev) {
+          setExpeditionsError("Town not loaded yet.");
+          return prev;
+        }
+
+        const def = MISSION_DEFS[templateId];
+        const skillsWithBarracks = ensureBarracksSkill(prev.skills);
+        const barracksSkill =
+          skillsWithBarracks.find((s) => s.name === "Barracks") ??
+          { name: "Barracks", level: 1, xp: 0 };
+
+        if (barracksSkill.level < def.minBarracksLevel) {
+          setExpeditionsError(
+            `Requires Barracks level ${def.minBarracksLevel}.`
+          );
+          return prev;
+        }
+
+        // check troop availability
+        const cost = def.troopCost;
+        const costMilitia = cost.militia ?? 0;
+        const costArcher = cost.archer ?? 0;
+        const costKnight = cost.knight ?? 0;
+
+        const hasEnoughTroops =
+          prev.troops.militia >= costMilitia &&
+          prev.troops.archer >= costArcher &&
+          prev.troops.knight >= costKnight;
+
+        if (!hasEnoughTroops) {
+          setExpeditionsError("Not enough troops for that mission.");
+          return prev;
+        }
+
+        const newTroops: TroopState = {
+          militia: prev.troops.militia - costMilitia,
+          archer: prev.troops.archer - costArcher,
+          knight: prev.troops.knight - costKnight,
+        };
+
+        const startedAt = Date.now();
+        const completesAt =
+          startedAt + def.durationMinutes * 60 * 1000;
+
+        const mission: Mission = {
+          id: `m_${templateId}_${startedAt}`,
+          templateId,
+          name: def.name,
+          status: "in_progress",
+          startedAt,
+          completesAt,
+          party: {
+            militia: costMilitia,
+            archer: costArcher,
+            knight: costKnight,
+          },
+          reward: { ...def.reward },
+        };
+
+        const next: TownState = {
+          ...prev,
+          troops: newTroops,
+          missions: [...prev.missions, mission],
+        };
+
+        void persistTownSlice(next);
+        setExpeditionsMessage("Expedition started.");
+        return next;
+      });
+    },
+    [headerUser]
+  );
+
+  const handleClaimMission = useCallback(
+    (missionId: string) => {
+      setExpeditionsError(null);
+      setExpeditionsMessage(null);
+
+      setTown((prev) => {
+        if (!prev) return prev;
+
+        const mission = prev.missions.find((m) => m.id === missionId);
+        if (!mission) {
+          setExpeditionsError("Mission not found.");
+          return prev;
+        }
+
+        const now = Date.now();
+        if (now < mission.completesAt) {
+          setExpeditionsError("That mission is not finished yet.");
+          return prev;
+        }
+
+        // Return troops + rewards
+        const newTroops: TroopState = {
+          militia: prev.troops.militia + mission.party.militia,
+          archer: prev.troops.archer + mission.party.archer,
+          knight: prev.troops.knight + mission.party.knight,
+        };
+
+        const r = prev.resources;
+        const rw = mission.reward;
+        const newResources = {
+          wood: r.wood + rw.wood,
+          stone: r.stone + rw.stone,
+          ore: r.ore + rw.ore,
+          food: r.food + rw.food,
+          gold: r.gold + rw.gold,
+        };
+
+        const remainingMissions = prev.missions.filter(
+          (m) => m.id !== missionId
+        );
+
+        const next: TownState = {
+          ...prev,
+          troops: newTroops,
+          resources: newResources,
+          missions: remainingMissions,
+        };
+
+        void persistTownSlice(next);
+        setExpeditionsMessage("Expedition rewards collected.");
         return next;
       });
     },
@@ -680,8 +909,8 @@ export default function CraftshorePlayPage() {
                 <h2>Build your 2D pioneer town</h2>
                 <p>
                   Walk around your land, mine ore, farm food, chop wood,
-                  train troops, and level skills. More buildings and systems
-                  will come over time.
+                  train troops, send expeditions, and level skills. More
+                  buildings and systems will come over time.
                 </p>
               </div>
             </header>
@@ -811,7 +1040,7 @@ export default function CraftshorePlayPage() {
                   )}
                 </section>
 
-                {/* Barracks panel (opens when you press E at barracks) */}
+                {/* Barracks panel */}
                 {town && showBarracksPanel && (
                   <section className="barracks-panel">
                     <div className="barracks-header">
@@ -916,6 +1145,203 @@ export default function CraftshorePlayPage() {
                   </section>
                 )}
 
+                {/* Expeditions / Missions panel (Market) */}
+                {town && showExpeditionsPanel && (
+                  <section className="expeditions-panel">
+                    <div className="barracks-header">
+                      <div>
+                        <h3>Expeditions Board</h3>
+                        <p>
+                          Send troops on missions and claim rewards when
+                          they return. Stand near the{" "}
+                          <strong>market</strong> and press
+                          <strong> E</strong> to open/close this panel.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="barracks-close-btn"
+                        onClick={() => setShowExpeditionsPanel(false)}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="barracks-meta">
+                      <span>
+                        Active expeditions:{" "}
+                        {
+                          town.missions.filter(
+                            (m) => nowMs < m.completesAt
+                          ).length
+                        }
+                      </span>
+                      <span>
+                        Completed and waiting:{" "}
+                        {
+                          town.missions.filter(
+                            (m) => nowMs >= m.completesAt
+                          ).length
+                        }
+                      </span>
+                    </div>
+
+                    {/* Mission templates */}
+                    <div className="troop-grid">
+                      {(
+                        Object.keys(
+                          MISSION_DEFS
+                        ) as MissionTemplateId[]
+                      ).map((id) => {
+                        const def = MISSION_DEFS[id];
+                        const unlocked =
+                          currentBarracksLevel >= def.minBarracksLevel;
+                        const cost = def.troopCost;
+
+                        return (
+                          <div
+                            key={id}
+                            className={
+                              "expedition-card" +
+                              (unlocked ? "" : " expedition-locked")
+                            }
+                          >
+                            <div className="troop-card-header">
+                              <h4>{def.name}</h4>
+                              <span className="troop-count">
+                                {def.durationMinutes} min
+                              </span>
+                            </div>
+                            <p className="troop-desc">
+                              {def.description}
+                            </p>
+                            <div className="troop-cost-row">
+                              <span>Troops:</span>
+                              <span>
+                                {(cost.militia ?? 0) > 0 &&
+                                  `${cost.militia} Militia `}
+                                {(cost.archer ?? 0) > 0 &&
+                                  `· ${cost.archer} Archers `}
+                                {(cost.knight ?? 0) > 0 &&
+                                  `· ${cost.knight} Knights`}
+                                {(cost.militia ?? 0) === 0 &&
+                                  (cost.archer ?? 0) === 0 &&
+                                  (cost.knight ?? 0) === 0 &&
+                                  "None"}
+                              </span>
+                            </div>
+                            <div className="troop-cost-row">
+                              <span>Reward:</span>
+                              <span>
+                                {def.reward.wood}W · {def.reward.stone}
+                                S · {def.reward.ore}O · {def.reward.food}
+                                F · {def.reward.gold}G
+                              </span>
+                            </div>
+                            <div className="troop-meta-row">
+                              <span>
+                                Requires Barracks Lv {def.minBarracksLevel}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="account-btn primary troop-train-btn"
+                              disabled={!unlocked}
+                              onClick={() => handleStartMission(id)}
+                            >
+                              {unlocked
+                                ? "Start expedition"
+                                : "Locked"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Active missions */}
+                    {town.missions.length > 0 && (
+                      <div className="expeditions-active">
+                        <h4>Current expeditions</h4>
+                        <div className="expeditions-list">
+                          {town.missions.map((m) => {
+                            const def = MISSION_DEFS[m.templateId];
+                            const total =
+                              m.completesAt - m.startedAt || 1;
+                            const elapsed = Math.min(
+                              total,
+                              Math.max(0, nowMs - m.startedAt)
+                            );
+                            const progress = elapsed / total;
+                            const done = nowMs >= m.completesAt;
+
+                            return (
+                              <div
+                                key={m.id}
+                                className="expedition-row"
+                              >
+                                <div className="expedition-main">
+                                  <div className="expedition-top">
+                                    <span className="expedition-name">
+                                      {def.name}
+                                    </span>
+                                    <span className="expedition-troops">
+                                      Party: {m.party.militia} Militia ·{" "}
+                                      {m.party.archer} Archers ·{" "}
+                                      {m.party.knight} Knights
+                                    </span>
+                                  </div>
+                                  <div className="expedition-bar">
+                                    <div
+                                      className="expedition-bar-fill"
+                                      style={{
+                                        width: `${progress * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="expedition-meta">
+                                    <span>
+                                      {done
+                                        ? "Ready to claim"
+                                        : "In progress"}
+                                    </span>
+                                    <span>
+                                      Reward: {m.reward.wood}W ·{" "}
+                                      {m.reward.stone}S · {m.reward.ore}
+                                      O · {m.reward.food}F ·{" "}
+                                      {m.reward.gold}G
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="account-btn primary expedition-claim-btn"
+                                  disabled={!done}
+                                  onClick={() =>
+                                    handleClaimMission(m.id)
+                                  }
+                                >
+                                  {done ? "Claim rewards" : "Travelling…"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {expeditionsError && (
+                      <div className="barracks-msg barracks-error">
+                        {expeditionsError}
+                      </div>
+                    )}
+                    {expeditionsMessage && (
+                      <div className="barracks-msg barracks-status">
+                        {expeditionsMessage}
+                      </div>
+                    )}
+                  </section>
+                )}
+
                 {/* Game canvas */}
                 <section className="craftshore-game-shell">
                   {town ? (
@@ -928,6 +1354,7 @@ export default function CraftshorePlayPage() {
                       onFarm={handleFarm}
                       onChopWood={handleChopWood}
                       onBarracksInteract={handleBarracksInteract}
+                      onMarketInteract={handleMarketInteract}
                     />
                   ) : (
                     !townLoading && (
@@ -1360,7 +1787,8 @@ export default function CraftshorePlayPage() {
         }
 
         /* Barracks panel */
-        .barracks-panel {
+        .barracks-panel,
+        .expeditions-panel {
           margin-top: 14px;
           margin-bottom: 4px;
           padding: 12px 14px 14px;
@@ -1412,7 +1840,8 @@ export default function CraftshorePlayPage() {
           gap: 10px;
         }
 
-        .troop-card {
+        .troop-card,
+        .expedition-card {
           border-radius: 14px;
           padding: 10px 10px 12px;
           background: radial-gradient(
@@ -1424,7 +1853,8 @@ export default function CraftshorePlayPage() {
           font-size: 12px;
         }
 
-        .troop-locked {
+        .troop-locked,
+        .expedition-locked {
           opacity: 0.6;
           background: radial-gradient(
             circle at top,
@@ -1484,6 +1914,81 @@ export default function CraftshorePlayPage() {
           background: rgba(34, 197, 94, 0.1);
           border: 1px solid rgba(34, 197, 94, 0.6);
           color: #bbf7d0;
+        }
+
+        /* Expeditions */
+        .expeditions-active {
+          margin-top: 12px;
+        }
+
+        .expeditions-active h4 {
+          margin: 0 0 6px;
+          font-size: 14px;
+        }
+
+        .expeditions-list {
+          display: grid;
+          gap: 8px;
+        }
+
+        .expedition-row {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .expedition-main {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .expedition-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 12px;
+        }
+
+        .expedition-name {
+          font-weight: 600;
+        }
+
+        .expedition-troops {
+          opacity: 0.9;
+        }
+
+        .expedition-bar {
+          margin-top: 4px;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.9);
+          overflow: hidden;
+        }
+
+        .expedition-bar-fill {
+          height: 100%;
+          width: 0;
+          background: linear-gradient(
+            90deg,
+            rgba(96, 165, 250, 0.8),
+            rgba(52, 211, 153, 0.9)
+          );
+          transition: width 0.2s ease-out;
+        }
+
+        .expedition-meta {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          margin-top: 2px;
+          font-size: 11px;
+          opacity: 0.9;
+        }
+
+        .expedition-claim-btn {
+          white-space: nowrap;
+          font-size: 12px;
+          padding-block: 6px;
         }
 
         .site-footer {
@@ -1663,6 +2168,15 @@ export default function CraftshorePlayPage() {
 
           .barracks-meta {
             flex-direction: column;
+          }
+
+          .expedition-row {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .expedition-claim-btn {
+            width: 100%;
           }
         }
       `}</style>
