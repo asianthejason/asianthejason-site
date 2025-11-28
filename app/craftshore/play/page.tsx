@@ -1856,16 +1856,25 @@ export default function CraftshorePlayPage() {
           border-radius: 18px;
           background: #020617;
           overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          /* Slightly smaller viewport height so background fills it nicely */
+          max-height: 520px;
+          height: 520px;
         }
 
-        /* Make the Phaser root div fill the width and let height follow the canvas */
+        /* Phaser root container */
         .craftshore-game-inner > div {
           position: relative;
           width: 100%;
           height: auto;
+          flex: 0 0 auto;
         }
 
-        /* Make the canvas width-responsive but keep its own height */
+        /* Make the canvas width-responsive but let it keep its own aspect.
+           Because the container is a bit shorter, overflow:hidden on the
+           parent crops the excess top/bottom. */
         .craftshore-game-inner canvas {
           width: 100% !important;
           height: auto !important;
@@ -2293,6 +2302,11 @@ export default function CraftshorePlayPage() {
 
           .craftshore-overlay {
             inset: 8% 4%;
+          }
+
+          .craftshore-game-inner {
+            height: 420px;
+            max-height: 420px;
           }
         }
       `}</style>
