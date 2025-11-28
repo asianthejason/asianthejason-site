@@ -136,19 +136,19 @@ export default function CraftshorePhaserGame(
             .image(0, 0, "bg_sky")
             .setOrigin(0, 0)
             .setScrollFactor(0)
-            .setDepth(-20);
+            .setDepth(-30);
 
           this.bgMountains = this.add
             .image(0, 0, "bg_mountains")
             .setOrigin(0, 0)
             .setScrollFactor(0.25) // slow parallax
-            .setDepth(-19);
+            .setDepth(-20);
 
           this.bgTreeline = this.add
             .image(0, 0, "bg_treeline")
             .setOrigin(0, 0)
             .setScrollFactor(0.5) // a bit faster
-            .setDepth(-18);
+            .setDepth(-10);
 
           this.resizeBackgrounds(W, H);
 
