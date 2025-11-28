@@ -1847,42 +1847,22 @@ export default function CraftshorePlayPage() {
           margin-top: 16px;
         }
 
-        /* The card that holds the Phaser game + overlays */
+        /* The card that holds the Phaser game + overlays
+           Now we let the game decide its own height to avoid blank space.
+           We also avoid scaling the canvas, to prevent per-tile seams. */
         .craftshore-game-inner {
           position: relative;
           width: 100%;
-          max-width: 1200px;
+          max-width: 100%;
           margin: 0 auto;
           border-radius: 18px;
           background: #020617;
-          overflow: hidden;
-          display: flex;
-          /* anchor the canvas to the bottom so we see more ground
-             and crop more sky off the top */
-          align-items: flex-end;
-          justify-content: center;
-          /* Slightly smaller viewport height so the background fills it tightly */
-          max-height: 480px;
-          height: 480px;
+          overflow-x: auto; /* horizontal scroll on small screens */
+          overflow-y: hidden;
         }
 
-        /* Phaser root container */
-        .craftshore-game-inner > div {
-          position: relative;
-          width: 100%;
-          height: auto;
-          flex: 0 0 auto;
-        }
-
-        /* Make the canvas width-responsive, keep aspect, and try to
-           reduce subtle vertical seams from scaling artifacts. */
-        .craftshore-game-inner canvas {
-          width: 100% !important;
-          height: auto !important;
-          display: block;
-          image-rendering: pixelated;
-          transform: translateZ(0);
-        }
+        /* We do NOT override the Phaser container or canvas size here.
+           They render at their native resolution, so no fractional tile scaling. */
 
         /* Overlay sits on top but is slightly smaller
            so you still see some game behind it */
@@ -2305,11 +2285,6 @@ export default function CraftshorePlayPage() {
 
           .craftshore-overlay {
             inset: 8% 4%;
-          }
-
-          .craftshore-game-inner {
-            height: 380px;
-            max-height: 380px;
           }
         }
       `}</style>
