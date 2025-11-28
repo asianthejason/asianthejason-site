@@ -1856,12 +1856,6 @@ export default function CraftshorePlayPage() {
           border-radius: 18px;
           background: #020617;
           overflow: hidden;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          /* Slightly smaller viewport height so background fills it nicely */
-          max-height: 520px;
-          height: 520px;
         }
 
         /* Phaser root container */
@@ -1869,7 +1863,6 @@ export default function CraftshorePlayPage() {
           position: relative;
           width: 100%;
           height: auto;
-          flex: 0 0 auto;
         }
 
         .craftshore-game-inner canvas {
@@ -1878,20 +1871,13 @@ export default function CraftshorePlayPage() {
           display: block;
         }
 
-        /* Overlay that floats on top of the game */
+        /* Overlay that floats on top of the game – just the window itself */
         .craftshore-overlay {
           position: absolute;
-          inset: 6% 8%;
+          inset: 0;
           display: flex;
+          align-items: center;
           justify-content: center;
-          align-items: flex-start;
-          background: radial-gradient(
-            circle at top,
-            rgba(15, 23, 42, 0.85),
-            rgba(15, 23, 42, 0.6)
-          );
-          backdrop-filter: blur(4px);
-          border-radius: 20px;
           z-index: 10;
           pointer-events: none;
         }
@@ -1904,14 +1890,14 @@ export default function CraftshorePlayPage() {
         /* Barracks & expeditions panels */
         .barracks-panel,
         .expeditions-panel {
-          padding: 12px 14px 14px;
+          padding: 16px 18px 18px;
           border-radius: 18px;
-          background: rgba(15, 23, 42, 0.96);
+          background: rgba(15, 23, 42, 0.98);
           border: 1px solid rgba(248, 250, 252, 0.16);
-          max-width: 960px;
-          width: 100%;
-          max-height: 70vh;
+          width: min(700px, 100% - 40px);
+          max-height: 80vh;
           overflow-y: auto;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
         }
 
         .barracks-header {
@@ -2297,12 +2283,8 @@ export default function CraftshorePlayPage() {
           }
 
           .craftshore-overlay {
-            inset: 8% 4%;
-          }
-
-          .craftshore-game-inner {
-            height: 420px;
-            max-height: 420px;
+            align-items: flex-start;
+            padding-top: 24px;
           }
         }
       `}</style>
