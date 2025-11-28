@@ -1847,22 +1847,39 @@ export default function CraftshorePlayPage() {
           margin-top: 16px;
         }
 
-        /* The card that holds the Phaser game + overlays
-           Now we let the game decide its own height to avoid blank space.
-           We also avoid scaling the canvas, to prevent per-tile seams. */
+        /* The card that holds the Phaser game + overlays */
         .craftshore-game-inner {
           position: relative;
           width: 100%;
-          max-width: 100%;
+          max-width: 1200px;
           margin: 0 auto;
           border-radius: 18px;
           background: #020617;
-          overflow-x: auto; /* horizontal scroll on small screens */
-          overflow-y: hidden;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          /* Slightly smaller viewport height so background fills it nicely */
+          max-height: 520px;
+          height: 520px;
         }
 
-        /* We do NOT override the Phaser container or canvas size here.
-           They render at their native resolution, so no fractional tile scaling. */
+        /* Phaser root container */
+        .craftshore-game-inner > div {
+          position: relative;
+          width: 100%;
+          height: auto;
+          flex: 0 0 auto;
+        }
+
+        /* Make the canvas width-responsive but let it keep its own aspect.
+           Because the container is a bit shorter, overflow:hidden on the
+           parent crops the excess top/bottom. */
+        .craftshore-game-inner canvas {
+          width: 100% !important;
+          height: auto !important;
+          display: block;
+        }
 
         /* Overlay sits on top but is slightly smaller
            so you still see some game behind it */
@@ -2285,6 +2302,11 @@ export default function CraftshorePlayPage() {
 
           .craftshore-overlay {
             inset: 8% 4%;
+          }
+
+          .craftshore-game-inner {
+            height: 420px;
+            max-height: 420px;
           }
         }
       `}</style>
