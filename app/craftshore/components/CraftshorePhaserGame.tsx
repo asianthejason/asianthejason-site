@@ -87,32 +87,42 @@ export default function CraftshorePhaserGame(
           );
         }
 
-        // Uniformly scale background images to fit width, no vertical stretching.
         private resizeBackgrounds(width: number, height: number) {
-          // Negative offset pulls the whole background stack UP
-          const BG_Y_OFFSET = -80;
+  // Negative offset pulls the whole background stack UP
+  const BG_Y_OFFSET = -80;
 
-          const fitLayer = (
-            img: Phaser.GameObjects.Image | undefined,
-            key: string
-          ) => {
-            if (!img || !this.textures.exists(key)) return;
-            const tex = this.textures.get(key).getSourceImage() as any;
-            const texW = tex?.width || width;
-            const texH = tex?.height || height;
-            const scale = width / texW;
+  const fitLayer = (
+    img: Phaser.GameObjects.Image | undefined,
+    key: string
+  ) => {
+    if (!img || !this.textures.exists(key)) return;
 
-            img.setScale(scale);
+    const tex = this.textures.get(key).getSourceImage() as any;
+    const texW = tex?.width || width;
+    const texH = tex?.height || height;
 
-            const displayHeight = texH * scale;
-            // Pull image up so ground area in the art lines up with our ground tiles.
-            img.setPosition(0, height - displayHeight + BG_Y_OFFSET);
-          };
+    // How far the main camera can scroll horizontally
+    const maxScrollX = Math.max(0, worldWidth - width);
 
-          fitLayer(this.bgSky, "bg_sky");
-          fitLayer(this.bgMountains, "bg_mountains");
-          fitLayer(this.bgTreeline, "bg_treeline");
-        }
+    // How “parallax-y” this layer is (0 = fixed to camera, 1 = full scroll)
+    const f = img.scrollFactorX ?? 1;
+
+    // Make the image wide enough so that, even when it slides with parallax,
+    // it still covers the whole viewport at the furthest scroll position.
+    const neededWidth = width + f * maxScrollX;
+    const scale = neededWidth / texW;
+
+    img.setScale(scale);
+
+    const displayHeight = texH * scale;
+    img.setPosition(0, height - displayHeight + BG_Y_OFFSET);
+  };
+
+  fitLayer(this.bgSky, "bg_sky");
+  fitLayer(this.bgMountains, "bg_mountains");
+  fitLayer(this.bgTreeline, "bg_treeline");
+}
+
 
         create() {
           const W = this.scale.width;
