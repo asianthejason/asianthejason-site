@@ -257,14 +257,14 @@ export default function CraftshorePhaserGame(
             this.buildingPositions.push({ type: b.type, x });
           });
 
-          // Grid hint lines (very faint, behind everything)
-          for (let i = 0; i <= props.gridWidthInTiles; i++) {
-            const x = i * props.tileSize;
-            const line = this.add
-              .line(0, 0, x, 0, x, WORLD_HEIGHT, 0x1f2937, 0.4)
-              .setOrigin(0, 0);
-            line.setDepth(-5);
-          }
+        //   // Grid hint lines (very faint, behind everything)
+        //   for (let i = 0; i <= props.gridWidthInTiles; i++) {
+        //     const x = i * props.tileSize;
+        //     const line = this.add
+        //       .line(0, 0, x, 0, x, WORLD_HEIGHT, 0x1f2937, 0.4)
+        //       .setOrigin(0, 0);
+        //     line.setDepth(-5);
+        //   }
 
           // Camera follows player
           this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
