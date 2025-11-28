@@ -87,8 +87,8 @@ export default function CraftshorePhaserGame(
           );
         }
 
-        private resizeBackgrounds(width: number, height: number) {
-  // Negative offset pulls the whole background stack UP
+resizeBackgrounds(width: number, height: number) {
+  // Offset for mountains/treeline so they sit nicely on the ground
   const BG_Y_OFFSET = 0;
 
   const fitLayer = (
@@ -100,28 +100,27 @@ export default function CraftshorePhaserGame(
     const tex = this.textures.get(key).getSourceImage() as any;
     const texW = tex?.width || width;
     const texH = tex?.height || height;
-
-    // How far the main camera can scroll horizontally
-    const maxScrollX = Math.max(0, worldWidth - width);
-
-    // How “parallax-y” this layer is (0 = fixed to camera, 1 = full scroll)
-    const f = img.scrollFactorX ?? 1;
-
-    // Make the image wide enough so that, even when it slides with parallax,
-    // it still covers the whole viewport at the furthest scroll position.
-    const neededWidth = width + f * maxScrollX;
-    const scale = neededWidth / texW;
+    const scale = width / texW;
 
     img.setScale(scale);
 
     const displayHeight = texH * scale;
-    img.setPosition(0, height - displayHeight + BG_Y_OFFSET);
+
+    if (key === "bg_sky") {
+      // Sky should start at the very top of the world,
+      // even if it’s shorter than WORLD_HEIGHT.
+      img.setPosition(0, 0);
+    } else {
+      // Mountains / treeline stay bottom-anchored to line up with the ground.
+      img.setPosition(0, height - displayHeight + BG_Y_OFFSET);
+    }
   };
 
   fitLayer(this.bgSky, "bg_sky");
   fitLayer(this.bgMountains, "bg_mountains");
   fitLayer(this.bgTreeline, "bg_treeline");
 }
+
 
 
         create() {
