@@ -89,7 +89,7 @@ export default function CraftshorePhaserGame(
 
         private resizeBackgrounds(width: number, height: number) {
   // Negative offset pulls the whole background stack UP
-  const BG_Y_OFFSET = -80;
+  const BG_Y_OFFSET = 0;
 
   const fitLayer = (
     img: Phaser.GameObjects.Image | undefined,
