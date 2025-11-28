@@ -21,7 +21,7 @@ type CraftshorePhaserGameProps = {
 };
 
 // Slightly shorter world so we don't see extra space above/below
-const WORLD_HEIGHT = 640;
+const WORLD_HEIGHT = 560;
 
 export default function CraftshorePhaserGame(
   props: CraftshorePhaserGameProps
