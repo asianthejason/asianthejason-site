@@ -1857,11 +1857,13 @@ export default function CraftshorePlayPage() {
           background: #020617;
           overflow: hidden;
           display: flex;
-          align-items: center;
+          /* anchor the canvas to the bottom so we see more ground
+             and crop more sky off the top */
+          align-items: flex-end;
           justify-content: center;
-          /* Slightly smaller viewport height so background fills it nicely */
-          max-height: 520px;
-          height: 520px;
+          /* Slightly smaller viewport height so the background fills it tightly */
+          max-height: 480px;
+          height: 480px;
         }
 
         /* Phaser root container */
@@ -1872,13 +1874,14 @@ export default function CraftshorePlayPage() {
           flex: 0 0 auto;
         }
 
-        /* Make the canvas width-responsive but let it keep its own aspect.
-           Because the container is a bit shorter, overflow:hidden on the
-           parent crops the excess top/bottom. */
+        /* Make the canvas width-responsive, keep aspect, and try to
+           reduce subtle vertical seams from scaling artifacts. */
         .craftshore-game-inner canvas {
           width: 100% !important;
           height: auto !important;
           display: block;
+          image-rendering: pixelated;
+          transform: translateZ(0);
         }
 
         /* Overlay sits on top but is slightly smaller
@@ -2305,8 +2308,8 @@ export default function CraftshorePlayPage() {
           }
 
           .craftshore-game-inner {
-            height: 420px;
-            max-height: 420px;
+            height: 380px;
+            max-height: 380px;
           }
         }
       `}</style>
