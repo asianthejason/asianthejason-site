@@ -1872,17 +1872,13 @@ export default function CraftshorePlayPage() {
           flex: 0 0 auto;
         }
 
-        /* Make the canvas width-responsive but let it keep its own aspect.
-           Because the container is a bit shorter, overflow:hidden on the
-           parent crops the excess top/bottom. */
         .craftshore-game-inner canvas {
           width: 100% !important;
           height: auto !important;
           display: block;
         }
 
-        /* Overlay sits on top but is slightly smaller
-           so you still see some game behind it */
+        /* Overlay that floats on top of the game */
         .craftshore-overlay {
           position: absolute;
           inset: 6% 8%;
