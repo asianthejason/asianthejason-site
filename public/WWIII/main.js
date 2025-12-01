@@ -2227,7 +2227,20 @@ function showGameOver(scene) {
         };
 
         try {
-          await db.collection('scores').add(scoreDoc);
+          // Check if this score is top 10 before saving
+    const existingTop = await db.collection('scores')
+        .orderBy('distance', 'desc')
+        .limit(10)
+        .get();
+    let isTop10 = false;
+    if (existingTop.empty || existingTop.docs.length < 10) {
+        isTop10 = true;
+    } else {
+        const lowest = existingTop.docs[existingTop.docs.length - 1].data().distance || 0;
+        if (runSummary.distance > lowest) isTop10 = true;
+    }
+    if (isTop10) {
+    await db.collection('scores').add(scoreDoc);
           setInfo(
             `Saved as ${displayName}. You are currently #${rank} on the leaderboard.`
           );
