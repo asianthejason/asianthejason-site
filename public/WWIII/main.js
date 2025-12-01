@@ -1654,8 +1654,8 @@ function shootEnemyBullet(enemy, scene) {
   const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
   const baseAngle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
 
-  const elapsedMin = (scene.time.now - gameStartMs) / 60000;
-  const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
+  const elapsedMinDamage = (scene.time.now - gameStartMs) / 60000;
+  const dmgMult = 1 + elapsedMinDamage * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
   const maxD = Math.round(ENEMY_BASE_DAMAGE_MAX * dmgMult);
 
