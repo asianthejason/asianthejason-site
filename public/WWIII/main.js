@@ -1390,6 +1390,13 @@ function update(time) {
         // shoot while holding position
         shootEnemyBullet(e, this);
       }
+
+      // Hard clamp giants so their feet stay on the terrain and they don't hover.
+      if (e.isGiant) {
+        const gy = findGroundYAtX(e.x);
+        e.y = gy;
+        e.body.velocity.y = 0;
+      }
     });
   }
 
@@ -1528,11 +1535,12 @@ function spawnEnemy(scene, x, isGiant = false) {
   e.isGiant = !!isGiant;
 
   if (isGiant) {
-    // Make the sprite ~2× larger visually, but keep the same hitbox size as a regular enemy
-    // This avoids huge physics bodies that can cause odd hovering behavior.
+    // Boss: 2× larger sprite and 2× larger hitbox.
+    // We still keep the feet aligned with the ground.
     e.setScale(2);
-    e.body.setSize(32, 80);
-    e.body.setOffset((128 - 32) / 2, 128 - 80);
+    e.body.setSize(32 * 2, 80 * 2);
+    // Keep the body centered; let it extend further upward.
+    e.body.setOffset((128 - 32 * 2) / 2, 128 - 80 * 2);
   } else {
     e.body.setSize(32, 80);
     e.body.setOffset((128 - 32) / 2, 128 - 80);
@@ -1658,49 +1666,23 @@ function shootEnemyBullet(enemy, scene) {
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
   const maxD = Math.round(ENEMY_BASE_DAMAGE_MAX * dmgMult);
 
-  if (enemy.isGiant) {
-    // Giants fire a shotgun blast (multiple pellets) with no timed travel limit.
-    const pelletCount = 12;
-    const spreadRad   = Phaser.Math.DegToRad(40);
+  // All enemies (including bosses) fire a single bullet with a 3 second travel limit.
+  const b = enemyBullets.get(muzzleX, muzzleY);
+  if (!b) return;
 
-    for (let i = 0; i < pelletCount; i++) {
-      const b = enemyBullets.get(muzzleX, muzzleY);
-      if (!b) continue;
+  b.setScale(0.01).setActive(true).setVisible(true);
+  b.body.setCircle(6);
+  b.body.allowGravity = false;
+  b.body.setCollideWorldBounds(true).onWorldBounds = true;
 
-      const randomOffset = (Math.random() - 0.5) * spreadRad;
-      const angle = baseAngle + randomOffset;
+  const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
+  b.damage = Math.max(rawD, 0.5);
 
-      b.setScale(0.01).setActive(true).setVisible(true);
-      b.body.setCircle(6);
-      b.body.allowGravity = false;
-      b.body.setCollideWorldBounds(true).onWorldBounds = true;
+  const angle = baseAngle;
+  b.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
 
-      const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
-      b.damage = Math.max(rawD, 0.5);
-
-      const speed = 500;
-      b.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-      // No delayed destruction here: pellets live until they hit the ground or leave the world bounds.
-    }
-  } else {
-    // Normal enemies fire a single bullet with a 3 second travel limit.
-    const b = enemyBullets.get(muzzleX, muzzleY);
-    if (!b) return;
-
-    b.setScale(0.01).setActive(true).setVisible(true);
-    b.body.setCircle(6);
-    b.body.allowGravity = false;
-    b.body.setCollideWorldBounds(true).onWorldBounds = true;
-
-    const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
-    b.damage = Math.max(rawD, 0.5);
-
-    const angle = baseAngle;
-    b.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
-
-    // Old timed travel limit (3s) preserved for regular enemies
-    scene.time.delayedCall(3000, () => { if (b.active) b.destroy(); });
-  }
+  // Timed travel limit (3s) for all enemy bullets
+  scene.time.delayedCall(3000, () => { if (b.active) b.destroy(); });
 
   enemy.lastShotTime = scene.time.now;
 }
