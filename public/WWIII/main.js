@@ -1528,10 +1528,10 @@ function spawnEnemy(scene, x, isGiant = false) {
   e.isGiant = !!isGiant;
 
   if (isGiant) {
-    // Make the sprite ~3× larger and give it a much bigger hitbox
-    e.setScale(3);
-    e.body.setSize(32 * 3, 80 * 3);
-    e.body.setOffset((128 * 3 - 32 * 3) / 2, 128 * 3 - 80 * 3);
+    // Make the sprite ~2× larger and give it a bigger hitbox
+    e.setScale(2);
+    e.body.setSize(32 * 2, 80 * 2);
+    e.body.setOffset((128 * 2 - 32 * 2) / 2, 128 * 2 - 80 * 2);
   } else {
     e.body.setSize(32, 80);
     e.body.setOffset((128 - 32) / 2, 128 - 80);
@@ -1654,7 +1654,7 @@ function shootEnemyBullet(enemy, scene) {
   const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
   const baseAngle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
 
-  const elapsedMin = (scene.time.now - gameStartMs) / 60000;
+  const elapsedMinDamage = (scene.time.now - gameStartMs) / 60000;
   const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
   const maxD = Math.round(ENEMY_BASE_DAMAGE_MAX * dmgMult);
