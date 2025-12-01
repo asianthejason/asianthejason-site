@@ -279,6 +279,14 @@ export default function AboutPage() {
                   >
                     TikTok
                   </a>
+                  <a
+                    href="https://www.animatedescape.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="account-btn subtle"
+                  >
+                    Website
+                  </a>
                 </div>
               </article>
 
