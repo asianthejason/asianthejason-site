@@ -14,10 +14,6 @@ const config = {
   input: { mouse: { preventDefaultWheel: false } }
 };
 
-// World size for scrolling & camera (in pixels)
-const WORLD_WIDTH = 1000000;
-
-
 window.game = new Phaser.Game(config);
 
 // =====================
@@ -65,8 +61,8 @@ let allTabTexts = [];
 let distanceTraveled = 0;
 let lastTerrainX = 0, tileWidth = 64, tileHeight = 32;
 
-// Next distance (in meters) at which to spawn a giant enemy
-let nextGiantSpawnDistance = 1000;
+// Number of distance-based giant bosses we've spawned so far
+let bossesSpawnedFromDistance = 0;
 
 
 let lastDirection = 1; // player look dir
@@ -95,8 +91,8 @@ const DIFFICULTY = {
 let enemyDamageMultiplier = 1;
 let gameStartMs = 0;
 
-let ENEMY_KILL_REWARD = 5;
 const GIANT_KILL_REWARD = 1000;
+let ENEMY_KILL_REWARD = 5;
 let moneyMultiplier   = 1;
 
 // Track enemy health + bars
@@ -574,7 +570,7 @@ function create() {
   enemySpawnInterval = 3000;
   enemySpawnTimer = -enemySpawnInterval;
   // first giant spawns at 1000m, then every +1000m
-  nextGiantSpawnDistance = 1000;
+  bossesSpawnedFromDistance = 0;
 
   shopVisible = false;
   gamePaused = false;
@@ -740,8 +736,6 @@ function create() {
     }
 
     // Make bosses (giant enemies) feel tanky: greatly reduce incoming damage.
-    // They already have 10× the base max HP; this reduction prevents shotguns / headshots
-    // from instantly deleting them due to their large hitbox.
     if (e.isGiant) {
       damage *= 0.25; // bosses take only 25% of normal damage
     }
@@ -754,8 +748,6 @@ function create() {
       enemyHealthMap.delete(e);
       enemyHealthBars.get(e)?.destroy();
       enemyHealthBars.delete(e);
-
-      // Reward: regular enemies give ENEMY_KILL_REWARD, giants give GIANT_KILL_REWARD.
       const baseReward = e.isGiant ? GIANT_KILL_REWARD : ENEMY_KILL_REWARD;
       playerMoney += baseReward * moneyMultiplier;
       moneyText.setText(`$${playerMoney}`);
@@ -775,8 +767,8 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  this.physics.world.setBounds(0, 0, WORLD_WIDTH, config.height);
-  this.cameras.main.setBounds(0, 0, WORLD_WIDTH, config.height);
+  this.physics.world.setBounds(0, 0, 100000, config.height);
+  this.cameras.main.setBounds(0, 0, 100000, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
@@ -1310,15 +1302,18 @@ function update(time) {
   const distanceScale = 22;
   distanceTraveled = Math.floor(player.x / distanceScale);
 
-  // Spawn giant enemies every 1000m (1000, 2000, 3000, ...),
-  // with the number of bosses proportional to distance:
-  // 1000m → 1 boss, 2000m → 2 bosses, 5000m → 5 bosses, etc.
-  if (distanceTraveled >= nextGiantSpawnDistance) {
-    const bossesToSpawn = Math.max(1, Math.floor(nextGiantSpawnDistance / 1000));
-    for (let i = 0; i < bossesToSpawn; i++) {
-      spawnGiantEnemy(this, i, bossesToSpawn);
+  // Distance-based giant bosses:
+  // At 1000m → 1 boss total, 2000m → 2 bosses, 5000m → 5 bosses, etc.
+  const desiredBossCount = Math.floor(distanceTraveled / 1000);
+
+  if (desiredBossCount > bossesSpawnedFromDistance) {
+    const bossesToSpawnNow = desiredBossCount - bossesSpawnedFromDistance;
+
+    for (let i = 0; i < bossesToSpawnNow; i++) {
+      spawnGiantEnemy(this);
     }
-    nextGiantSpawnDistance += 1000;
+
+    bossesSpawnedFromDistance = desiredBossCount;
   }
 
   if (player.x > lastTerrainX - config.width * 2)
@@ -1565,25 +1560,35 @@ function spawnEnemy(scene, x, isGiant = false) {
 }
 
 // Spawn a giant enemy a bit ahead of the player on the terrain
-// index + total let us spread multiple bosses out when several spawn at once.
-function spawnGiantEnemy(scene, index = 0, total = 1) {
+function spawnGiantEnemy(scene) {
   if (!player) return;
 
-  const spacing = 220;   // horizontal spacing between bosses
-  const baseOffset = 800; // distance in front of the player for the center boss
-  const offsetFromCenter = (index - (total - 1) / 2) * spacing;
+  const cam = scene.cameras.main;
+  const view = cam.worldView;
 
-  // Try to spawn in front, clamped to world width
-  const desiredX = Math.min(player.x + baseOffset + offsetFromCenter, WORLD_WIDTH - 200);
-  const body = findSurfaceTile(desiredX);
+  // Prefer to spawn the boss just inside the right edge of the camera view
+  // so you *always* see the giant that's shooting at you.
+  let desiredX = view.x + view.width - 150;
 
-  if (body) {
-    spawnEnemy(scene, desiredX, true);
-  } else {
-    // Fallback: try a bit closer if the terrain isn't ready that far
-    const fallbackX = Math.min(player.x + baseOffset * 0.5 + offsetFromCenter, WORLD_WIDTH - 200);
-    spawnEnemy(scene, fallbackX, true);
+  // Clamp to world bounds
+  desiredX = Phaser.Math.Clamp(desiredX, player.x + 200, WORLD_WIDTH - 200);
+
+  let body = findSurfaceTile(desiredX);
+
+  if (!body) {
+    // Fallback: try a bit closer in case terrain isn't generated that far yet
+    const fallbackX = Phaser.Math.Clamp(player.x + 250, 0, WORLD_WIDTH - 200);
+    body = findSurfaceTile(fallbackX);
+
+    if (body) {
+      desiredX = fallbackX;
+    } else {
+      // If we still can't find terrain, just bail out for this frame
+      return;
+    }
   }
+
+  spawnEnemy(scene, desiredX, true);
 }
 
 // Helper: is an enemy in range to fire / valid target? (roughly on-screen + small margin)
