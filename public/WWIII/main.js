@@ -754,7 +754,7 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  const initialWorldWidth = config.width * 5;
+  const initialWorldWidth = config.width * 500;
   this.physics.world.setBounds(0, 0, initialWorldWidth, config.height);
   this.cameras.main.setBounds(0, 0, initialWorldWidth, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
