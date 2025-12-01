@@ -453,6 +453,25 @@ export default function HomePage() {
         currentUser?.email ||
         "Unknown soldier";
 
+      // Check if this run would be in the top 10 before saving.
+      // We count how many existing runs have a strictly higher distance.
+      const scoresSnap = await db
+        .collection("scores")
+        .where("distance", ">", pendingScore.distance)
+        .get();
+
+      const higherCount = scoresSnap.size;
+      const rank = higherCount + 1;
+
+      if (higherCount >= 10) {
+        // Not in the top 10 – do not save this run.
+        setPendingScore(null);
+        setAuthStatus(
+          `Your run would be #${rank} on the leaderboard, but only the top 10 runs are saved. This run was not saved.`
+        );
+        return;
+      }
+
       await db.collection("scores").add({
         name: displayName,
         enemiesKilled: pendingScore.enemiesKilled,

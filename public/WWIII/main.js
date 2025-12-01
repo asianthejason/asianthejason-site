@@ -2215,6 +2215,14 @@ function showGameOver(scene) {
       const higherCount = snap.size;
       const rank = higherCount + 1;
 
+      // Only allow saving if this run would place in the top 10
+      if (higherCount >= 10) {
+        setInfo(
+          `You would be #${rank} on the leaderboard, but only the top 10 scores are saved.`
+        );
+        return;
+      }
+
       if (isSignedIn) {
         const displayName =
           (currentUser.displayName || currentUser.email || 'Player')
