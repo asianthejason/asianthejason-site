@@ -315,7 +315,7 @@ export default function HomePage() {
         {/* Support / donation section */}
         <section id="support" className="home-support">
           <div className="home-support-shell">
-            <h2>Support the games</h2>
+            <h2>Support the projects</h2>
             <p>
               These are solo-dev projects that take a lot of late nights,
               coffee, and testing. If you enjoy what I&apos;m building and want

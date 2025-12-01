@@ -225,7 +225,10 @@ export default function AboutPage() {
               <span className="about-pill">About</span>
               <h1>Hi, I&apos;m Jason — a.k.a. AsiantheJason 👋</h1>
               <p>
-                I&apos;m a teacher, self-taught software dev, and animator. If you like what I do here, please share with your friends and donate if you can so I don't have to choose between eating or paying for the server.
+                I&apos;m a teacher, self-taught software dev, and animator. If
+                you like what I do here, please share with your friends and
+                donate if you can so I don&apos;t have to choose between eating
+                or paying for the server.
               </p>
             </div>
 
@@ -233,27 +236,61 @@ export default function AboutPage() {
               <article className="about-card">
                 <h2>What I do as a teacher</h2>
                 <p>
-                  I teach Computer Science and Robotics in Canada at a junior high and high school level. You can find some tools I've found helpful in my work on this website. Any other information is non-ya-bees-knees.
+                  I teach Computer Science and Robotics in Canada at a junior
+                  high and high school level. You can find some tools I&apos;ve
+                  found helpful in my work on this website. Any other
+                  information is non-ya-bees-knees.
                 </p>
               </article>
 
               <article className="about-card">
                 <h2>What I do as a dev</h2>
                 <p>
-                  I work in the AI tech industry full time so in the little bit of free time I have, I like to build games. On this site, you will find some games I've developed on my own and feel free to leave a review, tell me what features you would like to see.
+                  I work in the AI tech industry full time so in the little bit
+                  of free time I have, I like to build games. On this site, you
+                  will find some games I&apos;ve developed on my own and feel
+                  free to leave a review, tell me what features you would like
+                  to see.
                 </p>
               </article>
 
               <article className="about-card">
                 <h2>What I do as an animator</h2>
                 <p>
-                  My animation accounts go by Animated Escape. I make silly skits for fun. Everything I know is self-taught so don't expect Pixar here.
+                  My animation accounts go by Animated Escape. I make silly
+                  skits for fun. Everything I know is self-taught so don&apos;t
+                  expect Pixar here.
                 </p>
+                <div className="about-social-buttons">
+                  {/* Update these URLs to your exact handles if needed */}
+                  <a
+                    href="https://www.instagram.com/animatedescape"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="account-btn subtle"
+                  >
+                    Instagram
+                  </a>
+                  <a
+                    href="https://www.tiktok.com/@animatedescape"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="account-btn subtle"
+                  >
+                    TikTok
+                  </a>
+                </div>
               </article>
 
               <article className="about-card about-card-fun">
                 <h2>Got Feedbacks?</h2>
                 <p>shoot me an email in the contact page.</p>
+                <Link
+                  href="/contact"
+                  className="account-btn primary about-contact-btn"
+                >
+                  Go to contact page
+                </Link>
               </article>
             </div>
           </div>
@@ -286,9 +323,7 @@ export default function AboutPage() {
           <div className="auth-modal">
             <div className="auth-modal-header">
               <div>
-                <div className="auth-modal-title">
-                  Sign in to save your runs
-                </div>
+                <div className="auth-modal-title">Sign in to save your runs</div>
                 <div className="auth-modal-subtitle">
                   Use the same account for the game, reviews, and more
                   experiments I probably shouldn&apos;t ship yet.
@@ -571,6 +606,17 @@ export default function AboutPage() {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
+        }
+
+        .about-social-buttons {
+          margin-top: 8px;
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .about-contact-btn {
+          margin-top: 8px;
         }
 
         .account-btn {
