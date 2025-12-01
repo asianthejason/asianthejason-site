@@ -43,6 +43,9 @@ let gamePaused = false;
 
 // track phase: 'start' | 'playing' | 'gameover'
 let gamePhase = 'start';
+// Prevent the same run from being submitted / rendered more than once
+let hasSubmittedRun = false;
+
 
 let shopTabButtons = [];
 let upgradeTabButtons = [];
@@ -537,6 +540,9 @@ function updateTabVisuals() {
 function create() {
   // Phase starts at 'start' for this scene
   gamePhase = 'start';
+  // Reset run-submission guard each time a fresh scene is created
+  hasSubmittedRun = false;
+
 
   // --- HARD RESET of all run-scoped globals (prevents Play Again freeze) ---
   isReloading = false;
@@ -2025,6 +2031,13 @@ function startRun(scene) {
 //  Game Over (with auth bridge & no overlapping buttons)
 // =====================
 function showGameOver(scene) {
+  // If we've already handled Game Over for this run, do nothing.
+  if (hasSubmittedRun) {
+    return;
+  }
+  hasSubmittedRun = true;
+
+
   // Pause gameplay
   gamePhase = 'gameover';
   gamePaused = true;
