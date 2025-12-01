@@ -754,8 +754,9 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  this.physics.world.setBounds(0, 0, 100000, config.height);
-  this.cameras.main.setBounds(0, 0, 100000, config.height);
+  const initialWorldWidth = config.width * 5;
+  this.physics.world.setBounds(0, 0, initialWorldWidth, config.height);
+  this.cameras.main.setBounds(0, 0, initialWorldWidth, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
@@ -1459,7 +1460,14 @@ function generateTerrain(scene, fromX, toX) {
 
     lastTerrainX = x;
   }
+
+  // As we generate more terrain, expand the physics & camera bounds so
+  // the player never hits an invisible wall at the far right.
+  const newWorldWidth = lastTerrainX + config.width * 2;
+  scene.physics.world.setBounds(0, 0, newWorldWidth, config.height);
+  scene.cameras.main.setBounds(0, 0, newWorldWidth, config.height);
 }
+
 
 function findSurfaceTile(x) {
   let surfaceBody = null;
