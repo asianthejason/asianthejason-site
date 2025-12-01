@@ -14,6 +14,10 @@ const config = {
   input: { mouse: { preventDefaultWheel: false } }
 };
 
+// World size for scrolling & camera (in pixels)
+const WORLD_WIDTH = 1000000;
+
+
 window.game = new Phaser.Game(config);
 
 // =====================
@@ -754,8 +758,8 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  this.physics.world.setBounds(0, 0, 100000, config.height);
-  this.cameras.main.setBounds(0, 0, 100000, config.height);
+  this.physics.world.setBounds(0, 0, WORLD_WIDTH, config.height);
+  this.cameras.main.setBounds(0, 0, WORLD_WIDTH, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
