@@ -16,6 +16,9 @@ const config = {
 
 window.game = new Phaser.Game(config);
 
+// World width used for clamping camera/enemy spawns
+const WORLD_WIDTH = 100000;
+
 // =====================
 //  Globals / State
 // =====================
@@ -767,8 +770,8 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  this.physics.world.setBounds(0, 0, 100000, config.height);
-  this.cameras.main.setBounds(0, 0, 100000, config.height);
+  this.physics.world.setBounds(0, 0, WORLD_WIDTH, config.height);
+  this.cameras.main.setBounds(0, 0, WORLD_WIDTH, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
@@ -1614,8 +1617,23 @@ function shootEnemyBullet(enemy, scene) {
     return;
   }
 
-  // Original firing rate check (1 shot per second)
-  if (scene.time.now - (enemy.lastShotTime || 0) < 1000) return;
+  // Time‑scaled firing rate:
+  // - Base: 1 shot per second for regular enemies
+  // - Enemies fire faster the longer you survive
+  // - Giants (bosses) fire 2× as fast as the current enemy fire rate
+  const elapsedMin = (scene.time.now - gameStartMs) / 60000;
+  const BASE_INTERVAL_MS = 1000;          // 1 shot / second at t = 0
+  const GROWTH_PER_MIN   = 0.25;          // 25% faster fire rate per minute
+
+  const fireRateFactor   = 1 + elapsedMin * GROWTH_PER_MIN;
+  const normalInterval   = BASE_INTERVAL_MS / fireRateFactor;
+  const giantInterval    = normalInterval / 2; // bosses shoot 2× as fast
+
+  const requiredInterval = enemy.isGiant ? giantInterval : normalInterval;
+  if (scene.time.now - (enemy.lastShotTime || 0) < requiredInterval) {
+    return;
+  }
+  enemy.lastShotTime = scene.time.now;
 
   enemy.isShooting = true;
   enemy.flipX = player.x < enemy.x;
