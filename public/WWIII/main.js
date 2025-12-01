@@ -65,7 +65,7 @@ let distanceTraveled = 0;
 let lastTerrainX = 0, tileWidth = 64, tileHeight = 32;
 
 // Number of distance-based giant bosses we've spawned so far
-let bossesSpawnedFromDistance = 0;
+let nextBossDistanceMeters = 1000;
 
 
 let lastDirection = 1; // player look dir
@@ -573,7 +573,7 @@ function create() {
   enemySpawnInterval = 3000;
   enemySpawnTimer = -enemySpawnInterval;
   // first giant spawns at 1000m, then every +1000m
-  bossesSpawnedFromDistance = 0;
+  nextBossDistanceMeters = 1000;
 
   shopVisible = false;
   gamePaused = false;
@@ -1306,17 +1306,10 @@ function update(time) {
   distanceTraveled = Math.floor(player.x / distanceScale);
 
   // Distance-based giant bosses:
-  // At 1000m → 1 boss total, 2000m → 2 bosses, 5000m → 5 bosses, etc.
-  const desiredBossCount = Math.floor(distanceTraveled / 1000);
-
-  if (desiredBossCount > bossesSpawnedFromDistance) {
-    const bossesToSpawnNow = desiredBossCount - bossesSpawnedFromDistance;
-
-    for (let i = 0; i < bossesToSpawnNow; i++) {
-      spawnGiantEnemy(this);
-    }
-
-    bossesSpawnedFromDistance = desiredBossCount;
+  // Spawn ONE boss each time you cross another 1000m mark (1000m, 2000m, 3000m, ...).
+  if (distanceTraveled >= nextBossDistanceMeters) {
+    spawnGiantEnemy(this);
+    nextBossDistanceMeters += 1000;
   }
 
   if (player.x > lastTerrainX - config.width * 2)
@@ -1649,8 +1642,9 @@ function shootEnemyBullet(enemy, scene) {
   const baseOffsetX = 20;
   const baseOffsetY = 40;
   const giantOffsetY = 80; // boss muzzle is higher than regular enemies
+    const giantOffsetX = 40;
 
-  const MUZZLE_OFFSET_X = baseOffsetX;
+  const MUZZLE_OFFSET_X = enemy.isGiant ? giantOffsetX : baseOffsetX;
   const MUZZLE_OFFSET_Y = enemy.isGiant ? giantOffsetY : baseOffsetY;
 
   const muzzleX = enemy.x + (enemy.flipX ? -MUZZLE_OFFSET_X : MUZZLE_OFFSET_X);
