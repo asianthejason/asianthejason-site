@@ -1528,10 +1528,11 @@ function spawnEnemy(scene, x, isGiant = false) {
   e.isGiant = !!isGiant;
 
   if (isGiant) {
-    // Make the sprite ~2× larger and give it a bigger hitbox
+    // Make the sprite ~2× larger visually, but keep the same hitbox size as a regular enemy
+    // This avoids huge physics bodies that can cause odd hovering behavior.
     e.setScale(2);
-    e.body.setSize(32 * 2, 80 * 2);
-    e.body.setOffset((128 * 2 - 32 * 2) / 2, 128 * 2 - 80 * 2);
+    e.body.setSize(32, 80);
+    e.body.setOffset((128 - 32) / 2, 128 - 80);
   } else {
     e.body.setSize(32, 80);
     e.body.setOffset((128 - 32) / 2, 128 - 80);
@@ -1618,18 +1619,16 @@ function shootEnemyBullet(enemy, scene) {
   }
 
   // Time‑scaled firing rate:
-  // - Base: 1 shot per second for regular enemies
-  // - Enemies fire faster the longer you survive
-  // - Giants (bosses) fire 2× as fast as the current enemy fire rate
+  // - Base: 1 shot per second for all enemies
+  // - Enemies (including bosses) fire faster the longer you survive
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const BASE_INTERVAL_MS = 1000;          // 1 shot / second at t = 0
   const GROWTH_PER_MIN   = 0.25;          // 25% faster fire rate per minute
 
   const fireRateFactor   = 1 + elapsedMin * GROWTH_PER_MIN;
   const normalInterval   = BASE_INTERVAL_MS / fireRateFactor;
-  const giantInterval    = normalInterval / 2; // bosses shoot 2× as fast
 
-  const requiredInterval = enemy.isGiant ? giantInterval : normalInterval;
+  const requiredInterval = normalInterval;
   if (scene.time.now - (enemy.lastShotTime || 0) < requiredInterval) {
     return;
   }
