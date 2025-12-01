@@ -14,10 +14,6 @@ const config = {
   input: { mouse: { preventDefaultWheel: false } }
 };
 
-// World size for scrolling & camera (in pixels)
-const WORLD_WIDTH = 1000000;
-
-
 window.game = new Phaser.Game(config);
 
 // =====================
@@ -64,6 +60,10 @@ let allTabTexts = [];
 
 let distanceTraveled = 0;
 let lastTerrainX = 0, tileWidth = 64, tileHeight = 32;
+
+// Next distance (in meters) at which to spawn a giant enemy
+let nextGiantSpawnDistance = 1000;
+
 
 let lastDirection = 1; // player look dir
 let enemySpawnInterval = 3000;
@@ -568,6 +568,8 @@ function create() {
   lastTerrainX = 0;
   enemySpawnInterval = 3000;
   enemySpawnTimer = -enemySpawnInterval;
+  // first giant spawns at 1000m, then every +1000m
+  nextGiantSpawnDistance = 1000;
 
   shopVisible = false;
   gamePaused = false;
@@ -758,8 +760,8 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  this.physics.world.setBounds(0, 0, WORLD_WIDTH, config.height);
-  this.cameras.main.setBounds(0, 0, WORLD_WIDTH, config.height);
+  this.physics.world.setBounds(0, 0, 100000, config.height);
+  this.cameras.main.setBounds(0, 0, 100000, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
@@ -1293,6 +1295,12 @@ function update(time) {
   const distanceScale = 22;
   distanceTraveled = Math.floor(player.x / distanceScale);
 
+  // Spawn a giant enemy every 1000m (1000, 2000, 3000, ...)
+  if (distanceTraveled >= nextGiantSpawnDistance) {
+    spawnGiantEnemy(this);
+    nextGiantSpawnDistance += 1000;
+  }
+
   if (player.x > lastTerrainX - config.width * 2)
     generateTerrain(this, lastTerrainX + tileWidth, lastTerrainX + 640);
 
@@ -1307,7 +1315,7 @@ function update(time) {
     let direction = (Math.random() < 0.8 ? 1 : -1);
     const spawnX = player.x + direction * offsetX;
     const groundY = findGroundYAtX(spawnX);
-    if (groundY !== null) spawnEnemy(this, spawnX);
+    if (groundY !== null) spawnEnemy(this, spawnX, false);
     enemySpawnTimer = time;
   }
 
@@ -1488,7 +1496,7 @@ function findGroundYAtX(x) {
   return body.top;
 }
 
-function spawnEnemy(scene, x) {
+function spawnEnemy(scene, x, isGiant = false) {
   const body = findSurfaceTile(x);
   if (!body) return;
 
@@ -1498,8 +1506,18 @@ function spawnEnemy(scene, x) {
     .setOrigin(0.5, 1)
     .setCollideWorldBounds(true);
 
-  e.body.setSize(32, 80);
-  e.body.setOffset((128 - 32) / 2, 128 - 80);
+  // Mark whether this is a giant enemy
+  e.isGiant = !!isGiant;
+
+  if (isGiant) {
+    // Make the sprite ~5× larger and give it a much bigger hitbox
+    e.setScale(5);
+    e.body.setSize(32 * 5, 80 * 5);
+    e.body.setOffset((128 * 5 - 32 * 5) / 2, 128 * 5 - 80 * 5);
+  } else {
+    e.body.setSize(32, 80);
+    e.body.setOffset((128 - 32) / 2, 128 - 80);
+  }
   e.body.allowGravity = true;
 
   // AI parameters
@@ -1511,13 +1529,36 @@ function spawnEnemy(scene, x) {
   // time-based HP scaling
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const healthMult = 1 + elapsedMin * DIFFICULTY.HEALTH_GROWTH_PER_MIN;
-  e.maxHealth      = Math.round(ENEMY_BASE_HEALTH * healthMult);
+  let maxHp        = Math.round(ENEMY_BASE_HEALTH * healthMult);
+
+  // Giants have 10× the max HP of a normal enemy at this moment
+  if (isGiant) {
+    maxHp *= 10;
+  }
+  e.maxHealth = maxHp;
   enemyHealthMap.set(e, e.maxHealth);
 
   e.play('enemy_idle');
 
   const hb = scene.add.graphics();
   enemyHealthBars.set(e, hb);
+}
+
+// Spawn a giant enemy a bit ahead of the player on the terrain
+function spawnGiantEnemy(scene) {
+  if (!player) return;
+
+  // Try to spawn ~800px in front of the player
+  const desiredX = Math.min(player.x + 800, WORLD_WIDTH - 200);
+  const body = findSurfaceTile(desiredX);
+
+  if (body) {
+    spawnEnemy(scene, desiredX, true);
+  } else {
+    // Fallback: try a bit closer if the terrain isn't ready that far
+    const fallbackX = Math.min(player.x + 400, WORLD_WIDTH - 200);
+    spawnEnemy(scene, fallbackX, true);
+  }
 }
 
 // Helper: is an enemy in range to fire / valid target? (roughly on-screen + small margin)
@@ -1543,7 +1584,7 @@ function shootEnemyBullet(enemy, scene) {
     return;
   }
 
-  // Original firing rate check
+  // Original firing rate check (1 shot per second)
   if (scene.time.now - (enemy.lastShotTime || 0) < 1000) return;
 
   enemy.isShooting = true;
@@ -1561,29 +1602,60 @@ function shootEnemyBullet(enemy, scene) {
     else        enemy.play('enemy_idle', true);
   });
 
-  const b = enemyBullets.get(muzzleX, muzzleY);
-  if (!b) return;
-
-  b.setScale(0.01).setActive(true).setVisible(true);
-  b.body.setCircle(6);
-  b.body.allowGravity = false;
-  b.body.setCollideWorldBounds(true).onWorldBounds = true;
+  const AIM_HEIGHT_RATIO = 0.3;
+  const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
+  const baseAngle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
 
   const elapsedMin = (scene.time.now - gameStartMs) / 60000;
   const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
   const maxD = Math.round(ENEMY_BASE_DAMAGE_MAX * dmgMult);
-  const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
-  b.damage = Math.max(rawD, 0.5);
 
-  const AIM_HEIGHT_RATIO = 0.3;
-  const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
-  const angle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
+  if (enemy.isGiant) {
+    // Giants fire a shotgun blast (multiple pellets) with no timed travel limit.
+    const pelletCount = 12;
+    const spreadRad   = Phaser.Math.DegToRad(40);
 
-  b.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
+    for (let i = 0; i < pelletCount; i++) {
+      const b = enemyBullets.get(muzzleX, muzzleY);
+      if (!b) continue;
+
+      const randomOffset = (Math.random() - 0.5) * spreadRad;
+      const angle = baseAngle + randomOffset;
+
+      b.setScale(0.01).setActive(true).setVisible(true);
+      b.body.setCircle(6);
+      b.body.allowGravity = false;
+      b.body.setCollideWorldBounds(true).onWorldBounds = true;
+
+      const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
+      b.damage = Math.max(rawD, 0.5);
+
+      const speed = 500;
+      b.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+      // No delayed destruction here: pellets live until they hit the ground or leave the world bounds.
+    }
+  } else {
+    // Normal enemies fire a single bullet with a 3 second travel limit.
+    const b = enemyBullets.get(muzzleX, muzzleY);
+    if (!b) return;
+
+    b.setScale(0.01).setActive(true).setVisible(true);
+    b.body.setCircle(6);
+    b.body.allowGravity = false;
+    b.body.setCollideWorldBounds(true).onWorldBounds = true;
+
+    const rawD = Phaser.Math.Between(minD, maxD) * enemyDamageMultiplier;
+    b.damage = Math.max(rawD, 0.5);
+
+    const angle = baseAngle;
+    b.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
+
+    // Old timed travel limit (3s) preserved for regular enemies
+    scene.time.delayedCall(3000, () => { if (b.active) b.destroy(); });
+  }
 
   enemy.lastShotTime = scene.time.now;
-  scene.time.delayedCall(3000, () => { if (b.active) b.destroy(); });
 }
 
 // =====================
@@ -2214,14 +2286,6 @@ function showGameOver(scene) {
         .get();
       const higherCount = snap.size;
       const rank = higherCount + 1;
-
-      // Only allow saving if this run would place in the top 10
-      if (higherCount >= 10) {
-        setInfo(
-          `You would be #${rank} on the leaderboard, but only the top 10 scores are saved.`
-        );
-        return;
-      }
 
       if (isSignedIn) {
         const displayName =
