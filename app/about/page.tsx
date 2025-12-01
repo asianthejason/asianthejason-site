@@ -264,7 +264,7 @@ export default function AboutPage() {
                 <div className="about-social-buttons">
                   {/* Update these URLs to your exact handles if needed */}
                   <a
-                    href="https://www.instagram.com/animatedescape"
+                    href="https://www.instagram.com/animatedescapeofficial"
                     target="_blank"
                     rel="noreferrer"
                     className="account-btn subtle"
