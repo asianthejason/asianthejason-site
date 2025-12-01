@@ -100,12 +100,13 @@ export default function HomePage() {
     currentUser?.email &&
     currentUser.email.toLowerCase() === "asianthejason@gmail.com";
 
-  // Helper: format "November 21 Update"
+  // Helper: format "November 21, 2025 Update"
   const formatUpdateTitle = (d: Date | null | undefined) => {
     if (!d) return "Update";
     const formatter = new Intl.DateTimeFormat(undefined, {
       month: "long",
       day: "numeric",
+      year: "numeric",
     });
     return `${formatter.format(d)} Update`;
   };
