@@ -739,6 +739,13 @@ function create() {
       }
     }
 
+    // Make bosses (giant enemies) feel tanky: greatly reduce incoming damage.
+    // They already have 10× the base max HP; this reduction prevents shotguns / headshots
+    // from instantly deleting them due to their large hitbox.
+    if (e.isGiant) {
+      damage *= 0.25; // bosses take only 25% of normal damage
+    }
+
     // ---- APPLY DAMAGE & KILL ----
     const newHealth = (enemyHealthMap.get(e) || ENEMY_BASE_HEALTH) - damage;
     enemyHealthMap.set(e, newHealth);
