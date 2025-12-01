@@ -14,6 +14,10 @@ const config = {
   input: { mouse: { preventDefaultWheel: false } }
 };
 
+// World size for scrolling & camera (in pixels)
+const WORLD_WIDTH = 1000000;
+
+
 window.game = new Phaser.Game(config);
 
 // =====================
@@ -92,6 +96,7 @@ let enemyDamageMultiplier = 1;
 let gameStartMs = 0;
 
 let ENEMY_KILL_REWARD = 5;
+const GIANT_KILL_REWARD = 1000;
 let moneyMultiplier   = 1;
 
 // Track enemy health + bars
@@ -742,7 +747,10 @@ function create() {
       enemyHealthMap.delete(e);
       enemyHealthBars.get(e)?.destroy();
       enemyHealthBars.delete(e);
-      playerMoney += ENEMY_KILL_REWARD * moneyMultiplier;
+
+      // Reward: regular enemies give ENEMY_KILL_REWARD, giants give GIANT_KILL_REWARD.
+      const baseReward = e.isGiant ? GIANT_KILL_REWARD : ENEMY_KILL_REWARD;
+      playerMoney += baseReward * moneyMultiplier;
       moneyText.setText(`$${playerMoney}`);
       enemiesKilled++;
 
@@ -760,8 +768,8 @@ function create() {
   playerHealthBar = this.add.graphics().setDepth(1000);
 
   // Camera + world bounds
-  this.physics.world.setBounds(0, 0, 100000, config.height);
-  this.cameras.main.setBounds(0, 0, 100000, config.height);
+  this.physics.world.setBounds(0, 0, WORLD_WIDTH, config.height);
+  this.cameras.main.setBounds(0, 0, WORLD_WIDTH, config.height);
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
@@ -1295,9 +1303,14 @@ function update(time) {
   const distanceScale = 22;
   distanceTraveled = Math.floor(player.x / distanceScale);
 
-  // Spawn a giant enemy every 1000m (1000, 2000, 3000, ...)
+  // Spawn giant enemies every 1000m (1000, 2000, 3000, ...),
+  // with the number of bosses proportional to distance:
+  // 1000m → 1 boss, 2000m → 2 bosses, 5000m → 5 bosses, etc.
   if (distanceTraveled >= nextGiantSpawnDistance) {
-    spawnGiantEnemy(this);
+    const bossesToSpawn = Math.max(1, Math.floor(nextGiantSpawnDistance / 1000));
+    for (let i = 0; i < bossesToSpawn; i++) {
+      spawnGiantEnemy(this, i, bossesToSpawn);
+    }
     nextGiantSpawnDistance += 1000;
   }
 
@@ -1545,18 +1558,23 @@ function spawnEnemy(scene, x, isGiant = false) {
 }
 
 // Spawn a giant enemy a bit ahead of the player on the terrain
-function spawnGiantEnemy(scene) {
+// index + total let us spread multiple bosses out when several spawn at once.
+function spawnGiantEnemy(scene, index = 0, total = 1) {
   if (!player) return;
 
-  // Try to spawn ~800px in front of the player
-  const desiredX = Math.min(player.x + 800, WORLD_WIDTH - 200);
+  const spacing = 220;   // horizontal spacing between bosses
+  const baseOffset = 800; // distance in front of the player for the center boss
+  const offsetFromCenter = (index - (total - 1) / 2) * spacing;
+
+  // Try to spawn in front, clamped to world width
+  const desiredX = Math.min(player.x + baseOffset + offsetFromCenter, WORLD_WIDTH - 200);
   const body = findSurfaceTile(desiredX);
 
   if (body) {
     spawnEnemy(scene, desiredX, true);
   } else {
     // Fallback: try a bit closer if the terrain isn't ready that far
-    const fallbackX = Math.min(player.x + 400, WORLD_WIDTH - 200);
+    const fallbackX = Math.min(player.x + baseOffset * 0.5 + offsetFromCenter, WORLD_WIDTH - 200);
     spawnEnemy(scene, fallbackX, true);
   }
 }
