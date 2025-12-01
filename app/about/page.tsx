@@ -236,7 +236,7 @@ export default function AboutPage() {
               <article className="about-card">
                 <h2>What I do as a teacher</h2>
                 <p>
-                  I teach Computer Science and Robotics in Canada at a junior
+                  I teach Computer Science and Robotics in Canada at the junior
                   high and high school level. You can find some tools I&apos;ve
                   found helpful in my work on this website. Any other
                   information is non-ya-bees-knees.
