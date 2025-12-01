@@ -1648,7 +1648,7 @@ function shootEnemyBullet(enemy, scene) {
   // Adjust muzzle height: bosses (giants) have a higher gun position.
   const baseOffsetX = 20;
   const baseOffsetY = 40;
-  const giantOffsetY = 200; // boss muzzle is higher than regular enemies
+  const giantOffsetY = 100; // boss muzzle is higher than regular enemies
 
   const MUZZLE_OFFSET_X = baseOffsetX;
   const MUZZLE_OFFSET_Y = enemy.isGiant ? giantOffsetY : baseOffsetY;
