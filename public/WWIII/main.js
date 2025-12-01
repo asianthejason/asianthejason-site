@@ -1451,7 +1451,6 @@ function generateTerrain(scene, fromX, toX) {
     y = Phaser.Math.Clamp(y, config.height - 200, config.height - 50);
 
     lastY = y;
-    scene.physics.add.existing(ground);
     ground.create(x, y, 'ground').setScale(2).refreshBody();
 
     for (let fy = y + tileHeight; fy <= config.height; fy += tileHeight) {
