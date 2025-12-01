@@ -17,7 +17,7 @@ const config = {
 window.game = new Phaser.Game(config);
 
 // World width used for clamping camera/enemy spawns
-const WORLD_WIDTH = 100000;
+const WORLD_WIDTH = 10000000;
 
 // =====================
 //  Globals / State
