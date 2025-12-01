@@ -225,95 +225,36 @@ export default function AboutPage() {
               <span className="about-pill">About</span>
               <h1>Hi, I&apos;m Jason — a.k.a. AsiantheJason 👋</h1>
               <p>
-                I&apos;m a teacher, game dev, and professional button-masher.
-                Online I go by <strong>AsiantheJason</strong>, and yes,
-                I&apos;m the one to blame for{" "}
-                <strong>WWIII — Endless Defense</strong> and{" "}
-                <strong>Animated Escape</strong>.
+                I&apos;m a teacher, self-taught software dev, and animator. If you like what I do here, please share with your friends and donate if you can so I don't have to choose between eating or paying for the server.
               </p>
             </div>
 
             <div className="about-grid">
               <article className="about-card">
-                <h2>What I do</h2>
+                <h2>What I do as a teacher</h2>
                 <p>
-                  I build games and tools that mix problem-solving, strategy,
-                  and just enough chaos to keep things fun. By day I teach math,
-                  computer science, and robotics; by night I&apos;m usually
-                  tweaking spawn rates and wondering if that boss is still too
-                  easy.
-                </p>
-                <p>
-                  My goal: games that feel good to play, backed by real
-                  engineering and a lot of late-night debugging.
+                  I teach Computer Science and Robotics in Canada at a junior high and high school level. You can find some tools I've found helpful in my work on this website. Any other information is non-ya-bees-knees.
                 </p>
               </article>
 
               <article className="about-card">
-                <h2>About WWIII — Endless Defense</h2>
+                <h2>What I do as a dev</h2>
                 <p>
-                  <strong>WWIII — Endless Defense</strong> started as a
-                  &quot;weekend&quot; project and then decided to become a full
-                  web experience: online leaderboard, reviews, stats, and the
-                  occasional &quot;why did I die there&quot; moment.
-                </p>
-                <p>
-                  You move with <strong>WASD</strong>, you shoot stuff, you try
-                  not to panic, and somewhere in the middle you realize
-                  you&apos;re min-maxing ammo like it&apos;s a math contest.
+                  I work in the AI tech industry full time so in the little bit of free time I have, I like to build games. On this site, you will find some games I've developed on my own and feel free to leave a review, tell me what features you would like to see.
                 </p>
               </article>
 
               <article className="about-card">
-                <h2>Animated Escape &amp; other experiments</h2>
+                <h2>What I do as an animator</h2>
                 <p>
-                  I&apos;m also the creator of{" "}
-                  <strong>Animated Escape</strong>, another passion project that
-                  plays with animation, timing, and &quot;just one more
-                  run&quot; energy.
-                </p>
-                <p>
-                  I like using games as a sandbox for ideas: physics, AI, level
-                  design, and sneaking in more math than most people realize. If
-                  it makes you think <em>and</em> laugh a little, I&apos;m
-                  happy.
+                  My animation accounts go by Animated Escape. I make silly skits for fun. Everything I know is self-taught so don't expect Pixar here.
                 </p>
               </article>
 
               <article className="about-card about-card-fun">
-                <h2>Fun facts (questionable importance)</h2>
-                <ul>
-                  <li>Yes, I do read the leaderboard like sports stats.</li>
-                  <li>
-                    Keyboard shortcuts are my cardio. My WASD fingers are
-                    absolutely jacked.
-                  </li>
-                  <li>
-                    If you find a bug, it&apos;s a &quot;feature in
-                    beta.&quot; If you find two, congratulations, you&apos;re
-                    now part of QA.
-                  </li>
-                </ul>
+                <h2>Got Feedbacks?</h2>
+                <p>shoot me an email in the contact page.</p>
               </article>
-            </div>
-
-            <div className="about-cta">
-              <div>
-                <h3>Want to keep playing?</h3>
-                <p>
-                  Hit the game, climb the <strong>Leaderboard</strong>, or drop
-                  your thoughts in a <strong>Review</strong>. I actually read
-                  them. Probably with snacks.
-                </p>
-              </div>
-              <div className="about-cta-buttons">
-                <Link href="/" className="account-btn primary">
-                  Back to Game
-                </Link>
-                <Link href="/contact" className="account-btn subtle">
-                  Say hi
-                </Link>
-              </div>
             </div>
           </div>
         </section>
