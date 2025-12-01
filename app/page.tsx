@@ -308,7 +308,7 @@ export default function HomePage() {
         {/* Hero / title */}
         <section className="home-hero">
           <div className="home-hero-text">
-            <h1>Welcome to my little game corner on the internet 🎮</h1>
+            <h1>Welcome to my little corner on the internet 🎮</h1>
           </div>
         </section>
 
@@ -317,13 +317,13 @@ export default function HomePage() {
           <div className="home-support-shell">
             <h2>Support the games</h2>
             <p>
-              These games are solo-dev projects that take a lot of late nights,
+              These are solo-dev projects that take a lot of late nights,
               coffee, and testing. If you enjoy what I&apos;m building and want
               to help keep the projects going, any support is hugely
               appreciated.
             </p>
             <p className="home-support-small">
-              I&apos;ll be adding more games, features, and polish over time —
+              I&apos;ll be adding more games, tools, and features over time —
               your support goes directly into hosting, tools, and time to keep
               improving everything.
             </p>
