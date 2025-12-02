@@ -341,11 +341,7 @@ export default function HomePage() {
             <header className="home-section-header">
               <span className="home-section-pill">Games</span>
               <div>
-                <h2>Playable now & coming soon</h2>
-                <p>
-                  This will grow over time as I ship more projects. For now,
-                  WWIII is the main attraction.
-                </p>
+                <h2>More Games Coming Soon</h2>
               </div>
             </header>
 
