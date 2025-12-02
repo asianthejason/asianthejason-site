@@ -73,6 +73,10 @@ let enemySpawnInterval = 3000;
 let enemySpawnTimer = -enemySpawnInterval;
 
 const maxJumpTime = 250, jumpVelocity = -500;
+const PLAYER_BULLET_LIFETIME_MS = 1000;
+
+let worldBoundsHandlerRegistered = false;
+
 let isJumping = false, jumpStartTime = 0;
 
 // =====================
@@ -695,16 +699,14 @@ function create() {
 
   // Bullets vs enemies (pierce after damage, but ONLY when enemy is in firing range/on-screen)
   this.physics.add.overlap(bullets, enemies, (b, e) => {
+    // Early-outs: dead enemies or off-screen targets don't interact at all
+    if (!e.active) return;
+    if (!isEnemyInFiringRange(this, e)) return;
+
     // ignore repeated overlaps with same enemy for this bullet
     b.hitEnemies ??= new Set();
     if (b.hitEnemies.has(e)) return;
     b.hitEnemies.add(e);
-    if (!e.active) return;
-
-    // NEW: gate damage so enemies can't be hit while off-screen
-    if (!isEnemyInFiringRange(this, e)) {
-      return;
-    }
 
     // ---- DAMAGE ----
     let damage;
@@ -772,6 +774,17 @@ function create() {
   // Camera + world bounds
   this.physics.world.setBounds(0, 0, WORLD_WIDTH, config.height);
   this.cameras.main.setBounds(0, 0, WORLD_WIDTH, config.height);
+  if (!worldBoundsHandlerRegistered) {
+    this.physics.world.on('worldbounds', body => {
+      const obj = body.gameObject;
+      if (!obj) return;
+      if (bullets.contains(obj) || enemyBullets.contains(obj)) {
+        obj.destroy();
+      }
+    });
+    worldBoundsHandlerRegistered = true;
+  }
+
   this.cameras.main.startFollow(player, true, 1, 1);
   this.cameras.main.setZoom(1.5);
 
@@ -1728,7 +1741,7 @@ function shootBullet() {
 
       b.body.setVelocity(Math.cos(angle) * 600, Math.sin(angle) * 600);
 
-      this.time.delayedCall(800, () => { if (b.active) b.destroy(); });
+      this.time.delayedCall(PLAYER_BULLET_LIFETIME_MS, () => { if (b.active) b.destroy(); });
     }
   } else {
     const angle = Math.atan2(pointer.worldY - muzzleY, pointer.worldX - muzzleX);
@@ -1749,6 +1762,11 @@ function shootBullet() {
     if (w.name === "Sniper") b.isSniper = true;
 
     b.body.setVelocity(Math.cos(angle) * 600, Math.sin(angle) * 600);
+
+    // Ensure non-shotgun bullets are cleaned up after a fixed lifetime
+    this.time.delayedCall(PLAYER_BULLET_LIFETIME_MS, () => {
+      if (b.active) b.destroy();
+    });
   }
 
   player.play('player_shoot');
