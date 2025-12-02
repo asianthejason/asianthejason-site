@@ -116,6 +116,8 @@ const PIERCE_COUNTS = {
   'Machine Gun': 2
 };
 
+const ORIGINAL_PIERCE_COUNTS = { ...PIERCE_COUNTS };
+
 // --- Shotgun spread tuning ---
 const SHOTGUN_BASE_SPREAD_DEG = 40; // original full spread in degrees
 let shotgunSpreadRad = Phaser.Math.DegToRad(SHOTGUN_BASE_SPREAD_DEG);
@@ -566,6 +568,10 @@ function create() {
   playerHealth = 100;
   playerShield = 100;
 
+  enemyDamageMultiplier = 1;
+  moneyMultiplier = 1;
+  ENEMY_KILL_REWARD = 5;
+
   enemiesKilled = 0;
   bulletsFired.Pistol = 0;
   bulletsFired.Shotgun = 0;
@@ -617,6 +623,11 @@ function create() {
 
   // reset shotgun spread each run
   shotgunSpreadRad = Phaser.Math.DegToRad(SHOTGUN_BASE_SPREAD_DEG);
+
+  // reset pierce counts (e.g., pistol pierce upgrades)
+  Object.keys(PIERCE_COUNTS).forEach(key => {
+    PIERCE_COUNTS[key] = ORIGINAL_PIERCE_COUNTS[key];
+  });
 
   // Animations
   this.anims.create({ key: 'player_idle', frames: this.anims.generateFrameNumbers('playeridle', { start: 0, end: 6 }), frameRate: 28, repeat: -1 });
