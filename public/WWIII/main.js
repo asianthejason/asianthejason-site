@@ -73,7 +73,7 @@ let enemySpawnInterval = 3000;
 let enemySpawnTimer = -enemySpawnInterval;
 
 const maxJumpTime = 250, jumpVelocity = -500;
-const PLAYER_BULLET_LIFETIME_MS = 1000;
+const PLAYER_BULLET_LIFETIME_MS = 2500;
 
 let worldBoundsHandlerRegistered = false;
 
