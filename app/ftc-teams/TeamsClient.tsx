@@ -64,6 +64,27 @@ function matchKey(
   return `${seasonYear}:${eventCode}:${tournamentLevel}:${matchNumber}`;
 }
 
+// Factory to avoid stale-initial-state bugs
+function createEmptyDrilldown(): DrilldownState {
+  return {
+    seasons: undefined,
+    loadingSeasons: false,
+    seasonsError: null,
+    openSeasons: {},
+    eventsBySeason: {},
+    loadingEventsBySeason: {},
+    eventsErrorBySeason: {},
+    openEvents: {},
+    matchesByEventKey: {},
+    loadingMatchesByEventKey: {},
+    matchesErrorByEventKey: {},
+    openMatches: {},
+    scoresByMatchKey: {},
+    loadingScoresByMatchKey: {},
+    scoresErrorByMatchKey: {},
+  };
+}
+
 export function TeamsClient({ season, teams }: TeamsClientProps) {
   // === Filters / search (old UI behaviour) ===
   const [search, setSearch] = useState("");
@@ -131,36 +152,23 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     Record<number, DrilldownState>
   >({});
 
+  // For reading in render and in handlers
   function getDrilldown(teamNumber: number): DrilldownState {
-    return (
-      drilldownByTeam[teamNumber] ?? {
-        seasons: undefined,
-        loadingSeasons: false,
-        seasonsError: null,
-        openSeasons: {},
-        eventsBySeason: {},
-        loadingEventsBySeason: {},
-        eventsErrorBySeason: {},
-        openEvents: {},
-        matchesByEventKey: {},
-        loadingMatchesByEventKey: {},
-        matchesErrorByEventKey: {},
-        openMatches: {},
-        scoresByMatchKey: {},
-        loadingScoresByMatchKey: {},
-        scoresErrorByMatchKey: {},
-      }
-    );
+    return drilldownByTeam[teamNumber] ?? createEmptyDrilldown();
   }
 
+  // For updating without clobbering other fields
   function setDrilldown(teamNumber: number, patch: Partial<DrilldownState>) {
-    setDrilldownByTeam((prev) => ({
-      ...prev,
-      [teamNumber]: {
-        ...getDrilldown(teamNumber),
-        ...patch,
-      },
-    }));
+    setDrilldownByTeam((prev) => {
+      const base = prev[teamNumber] ?? createEmptyDrilldown();
+      return {
+        ...prev,
+        [teamNumber]: {
+          ...base,
+          ...patch,
+        },
+      };
+    });
   }
 
   // === CLICK HANDLERS ===
@@ -207,7 +215,10 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         throw new Error(json.error ?? "Failed to fetch seasons");
       }
 
-      const seasonsList = (json.seasons ?? []).slice().sort((a, b) => a - b);
+      // Most recent season first
+      const seasonsList = (json.seasons ?? [])
+        .slice()
+        .sort((a, b) => b - a);
 
       setDrilldown(teamNumber, {
         seasons: seasonsList,
@@ -270,14 +281,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         throw new Error(json.error ?? "Failed to fetch events");
       }
 
-      const d2 = getDrilldown(teamNumber);
       setDrilldown(teamNumber, {
         eventsBySeason: {
-          ...d2.eventsBySeason,
+          ...getDrilldown(teamNumber).eventsBySeason,
           [seasonYear]: json.events ?? [],
         },
         loadingEventsBySeason: {
-          ...d2.loadingEventsBySeason,
+          ...getDrilldown(teamNumber).loadingEventsBySeason,
           [seasonYear]: false,
         },
       });
@@ -351,14 +361,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         throw new Error(json.error ?? "Failed to fetch matches");
       }
 
-      const d2 = getDrilldown(teamNumber);
       setDrilldown(teamNumber, {
         matchesByEventKey: {
-          ...d2.matchesByEventKey,
+          ...getDrilldown(teamNumber).matchesByEventKey,
           [key]: json.matches ?? [],
         },
         loadingMatchesByEventKey: {
-          ...d2.loadingMatchesByEventKey,
+          ...getDrilldown(teamNumber).loadingMatchesByEventKey,
           [key]: false,
         },
       });
@@ -439,14 +448,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         throw new Error(json.error ?? "Failed to fetch match details");
       }
 
-      const d2 = getDrilldown(teamNumber);
       setDrilldown(teamNumber, {
         scoresByMatchKey: {
-          ...d2.scoresByMatchKey,
+          ...getDrilldown(teamNumber).scoresByMatchKey,
           [key]: json.match ?? null,
         },
         loadingScoresByMatchKey: {
-          ...d2.loadingScoresByMatchKey,
+          ...getDrilldown(teamNumber).loadingScoresByMatchKey,
           [key]: false,
         },
       });
@@ -469,7 +477,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   return (
     <section className="space-y-3">
-      {/* Controls – restored from your old UI */}
+      {/* Controls – your original UI */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[180px]">
           <label className="block text-xs text-gray-400 mb-1">
@@ -683,9 +691,11 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                             >
                                               <span className="text-gray-100">
                                                 {ev.eventName}{" "}
-                                                <span className="text-gray-400">
-                                                  ({ev.eventCode})
-                                                </span>
+                                                {ev.eventCode && (
+                                                  <span className="text-gray-400">
+                                                    ({ev.eventCode})
+                                                  </span>
+                                                )}
                                               </span>
                                               <span className="flex items-center gap-2 text-gray-400 text-[10px]">
                                                 {ev.city && (
