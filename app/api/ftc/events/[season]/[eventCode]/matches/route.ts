@@ -1,12 +1,16 @@
 // app/api/ftc/events/[season]/[eventCode]/matches/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getEventMatchesForTeam } from "@/lib/ftcEvents";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { season: string; eventCode: string } }
+  req: NextRequest,
+  {
+    params,
+  }: { params: Promise<{ season: string; eventCode: string }> }
 ) {
   try {
+    const { season: seasonStr, eventCode } = await params;
+
     const url = new URL(req.url);
     const teamNumberParam = url.searchParams.get("teamNumber");
 
@@ -25,15 +29,13 @@ export async function GET(
       );
     }
 
-    const season = Number(params.season);
+    const season = Number(seasonStr);
     if (!Number.isFinite(season)) {
       return NextResponse.json(
         { ok: false, error: "Invalid season" },
         { status: 400 }
       );
     }
-
-    const eventCode = params.eventCode;
 
     const matches = await getEventMatchesForTeam(
       season,

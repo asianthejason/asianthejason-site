@@ -1,23 +1,30 @@
 // app/api/ftc/events/[season]/[eventCode]/matches/[tournamentLevel]/[matchNumber]/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getMatchScoreDetails } from "@/lib/ftcEvents";
 
 export async function GET(
-  req: Request,
+  _req: NextRequest,
   {
     params,
   }: {
-    params: {
+    params: Promise<{
       season: string;
       eventCode: string;
       tournamentLevel: string;
       matchNumber: string;
-    };
+    }>;
   }
 ) {
   try {
-    const season = Number(params.season);
-    const matchNumber = Number(params.matchNumber);
+    const {
+      season: seasonStr,
+      eventCode,
+      tournamentLevel,
+      matchNumber: matchNumberStr,
+    } = await params;
+
+    const season = Number(seasonStr);
+    const matchNumber = Number(matchNumberStr);
 
     if (!Number.isFinite(season) || !Number.isFinite(matchNumber)) {
       return NextResponse.json(
@@ -25,8 +32,6 @@ export async function GET(
         { status: 400 }
       );
     }
-
-    const { eventCode, tournamentLevel } = params;
 
     const match = await getMatchScoreDetails(
       season,

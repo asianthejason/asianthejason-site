@@ -1,13 +1,14 @@
 // app/api/ftc/team/[teamNumber]/seasons/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getTeamSeasonsList } from "@/lib/ftcEvents";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { teamNumber: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ teamNumber: string }> }
 ) {
   try {
-    const teamNumber = Number(params.teamNumber);
+    const { teamNumber: teamNumberStr } = await params;
+    const teamNumber = Number(teamNumberStr);
 
     if (!Number.isFinite(teamNumber)) {
       return NextResponse.json(
