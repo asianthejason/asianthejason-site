@@ -49,6 +49,7 @@ type EventInfoState = {
   eventCode: string | null;
   eventName: string | null;
   city: string | null;
+  teamNumber: number | null;
   loading: boolean;
   error?: string | null;
   matches: FtcMatch[];
@@ -256,6 +257,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     eventCode: null,
     eventName: null,
     city: null,
+    teamNumber: null,
     loading: false,
     error: null,
     matches: [],
@@ -426,6 +428,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   // === EVENT INFO MODAL HANDLERS ===
 
   async function handleOpenEventInfo(
+    teamNumber: number,
     seasonYear: number,
     event: FtcTeamEvent
   ) {
@@ -434,6 +437,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     setEventInfo({
       open: true,
       seasonYear,
+      teamNumber,
       eventCode: eventCode || null,
       eventName: (event.eventName ?? "").toString() || null,
       city: (event.city ?? "").toString() || null,
@@ -458,7 +462,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         fetch(
           `/api/ftc/events/${seasonYear}/${encodeURIComponent(
             eventCode
-          )}/matches`
+          )}/matches?teamNumber=${teamNumber}`
         ),
         fetch(
           `/api/ftc/events/${seasonYear}/${encodeURIComponent(
@@ -467,33 +471,25 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         ),
       ]);
 
-      // Try to parse JSON even if the status is not OK; many of our API routes
-      // still return a JSON body with an `ok` flag when they 4xx/5xx.
-      let matchesJson: { ok: boolean; matches?: FtcMatch[]; error?: string } = {
-        ok: false,
-      };
-      try {
-        matchesJson = (await matchesRes.json()) as {
-          ok: boolean;
-          matches?: FtcMatch[];
-          error?: string;
-        };
-      } catch {
-        // ignore parse errors – we'll just treat it as no data
+      if (!matchesRes.ok && !rankingsRes.ok) {
+        throw new Error("Failed to load event info.");
       }
 
-      let rankingsJson: { ok: boolean; rankings?: any[]; error?: string } = {
-        ok: false,
-      };
-      try {
-        rankingsJson = (await rankingsRes.json()) as {
-          ok: boolean;
-          rankings?: any[];
-          error?: string;
-        };
-      } catch {
-        // ignore parse errors – we'll just treat it as no data
-      }
+      const matchesJson = matchesRes.ok
+        ? ((await matchesRes.json()) as {
+            ok: boolean;
+            matches?: FtcMatch[];
+            error?: string;
+          })
+        : { ok: false };
+
+      const rankingsJson = rankingsRes.ok
+        ? ((await rankingsRes.json()) as {
+            ok: boolean;
+            rankings?: any[];
+            error?: string;
+          })
+        : { ok: false };
 
       setEventInfo((prev) => ({
         ...prev,
@@ -501,13 +497,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         error:
           (!matchesJson.ok && matchesJson.error) ||
           (!rankingsJson.ok && rankingsJson.error) ||
-          (!matchesRes.ok && !rankingsRes.ok
-            ? "No event data was returned by the API."
-            : null),
-        matches:
-          matchesJson.ok && matchesJson.matches ? matchesJson.matches : [],
-        rankings:
-          rankingsJson.ok && rankingsJson.rankings ? rankingsJson.rankings : [],
+          null,
+        matches: matchesJson.ok && matchesJson.matches
+          ? matchesJson.matches
+          : [],
+        rankings: rankingsJson.ok && rankingsJson.rankings
+          ? rankingsJson.rankings
+          : [],
       }));
     } catch (err: any) {
       setEventInfo((prev) => ({
@@ -1000,6 +996,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleOpenEventInfo(
+                                                      t.teamNumber!,
                                                       seasonYear,
                                                       ev
                                                     );
