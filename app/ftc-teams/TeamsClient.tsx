@@ -446,10 +446,26 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     if (!nextOpen) return;
 
     const matchesKey = stateKey; // same key for matchesByEventKey
-    const already = d.matchesByEventKey[matchesKey];
-    const loading = d.loadingMatchesByEventKey[matchesKey];
+    const alreadyMatches = d.matchesByEventKey[matchesKey];
+    const loadingMatches = d.loadingMatchesByEventKey[matchesKey];
 
-    if (already || loading) return;
+    // If we already have matches for this event, just ensure scores
+    if (alreadyMatches && !loadingMatches) {
+      const eventCode = event.eventCode ?? "";
+      for (const m of alreadyMatches as any[]) {
+        const tl = m.tournamentLevel || m.TournamentLevel || "qual";
+        const mn = m.matchNumber || m.MatchNumber || 0;
+        if (!mn) continue;
+        void ensureScoreLoaded(teamNumber, seasonYear, eventCode, tl, mn);
+      }
+      return;
+    }
+
+    // Otherwise fetch matches, then preload scores
+    if (loadingMatches) {
+      // Another click started the fetch; when it finishes it will do its own preload
+      return;
+    }
 
     try {
       setDrilldown(teamNumber, {
@@ -890,6 +906,22 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         }
                                                       }
 
+                                                      const matchLevelRaw =
+                                                        (
+                                                          m.matchLevel ||
+                                                          m.MatchLevel ||
+                                                          tl
+                                                        )
+                                                          .toString()
+                                                          .toUpperCase();
+                                                      const prettyLevel =
+                                                        matchLevelRaw ===
+                                                          "QUAL" ||
+                                                        matchLevelRaw ===
+                                                          "QUALIFICATION"
+                                                          ? "QUALIFICATION"
+                                                          : matchLevelRaw;
+
                                                       return (
                                                         <div
                                                           key={mKey}
@@ -897,13 +929,9 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         >
                                                           <div className="flex justify-between items-baseline mb-1">
                                                             <div className="font-semibold text-gray-100">
-                                                              {tl
-                                                                .toUpperCase()
-                                                                .replace(
-                                                                  "QUAL",
-                                                                  "QUALIFICATION"
-                                                                )}{" "}
-                                                              #{mn}
+                                                              {prettyLevel} #{
+                                                                mn
+                                                              }
                                                             </div>
                                                             <div className="text-xs font-semibold">
                                                               <span
@@ -997,6 +1025,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
 /**
  * Compact score breakdown used inside each match card.
+ * (Totals are NOT shown here; they’re in the card header.)
  */
 function MatchScoreTable({ score }: { score: any }) {
   const alliances: any[] = Array.isArray(score?.alliances)
@@ -1048,12 +1077,6 @@ function MatchScoreTable({ score }: { score: any }) {
 
         {row("Auto points", red?.autoPoints, blue?.autoPoints)}
         {row("Teleop points", red?.teleopPoints, blue?.teleopPoints)}
-        {row(
-          "Total points",
-          red?.totalPoints,
-          blue?.totalPoints,
-          { bold: true }
-        )}
 
         {row("Auto artifacts", red?.autoArtifactPoints, blue?.autoArtifactPoints)}
         {row(
