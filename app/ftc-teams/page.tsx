@@ -1,7 +1,7 @@
 // app/ftc-teams/page.tsx
-import { getAllFtcTeamsForSeason, FtcTeam } from "@/lib/ftcEvents";
+import { getAllFtcTeamsForSeason } from "@/lib/ftcEvents";
+import type { FtcTeam } from "@/lib/ftcEvents";
 import { TeamsClient } from "./TeamsClient";
-
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +90,9 @@ export default async function FtcTeamsPage() {
         </p>
       )}
 
-      {!loadError && teams.length > 0 && <TeamsClient teams={teams} />}
+      {!loadError && teams.length > 0 && (
+        <TeamsClient season={SEASON} teams={teams} />
+      )}
     </main>
   );
 }
