@@ -16,11 +16,14 @@ function sortTeams(teams: FtcTeam[]): FtcTeam[] {
 function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
   return teams.filter((t) => {
     const num = t.teamNumber ?? 0;
-    const shortName = (t.teamNameShort as string | undefined)?.trim() ?? "";
-    const longName = (t.teamNameLong as string | undefined)?.trim() ?? "";
 
-    // require a positive team number and at least one non-empty name
-    return num > 0 && (shortName !== "" || longName !== "");
+    const city = (t.city as string | undefined)?.trim() ?? "";
+    const state = (t.stateProv as string | undefined)?.trim() ?? "";
+    const country = (t.country as string | undefined)?.trim() ?? "";
+
+    // Keep only teams with a positive number AND at least one
+    // non-empty location field. This removes the 99900+ dummy rows.
+    return num > 0 && (city !== "" || state !== "" || country !== "");
   });
 }
 
@@ -81,9 +84,9 @@ export default async function FtcTeamsPage() {
 
       {!loadError && teams.length === 0 && (
         <p className="text-sm text-gray-300">
-          No teams returned. The season might be incorrect, you may not have
-          access yet, or the response shape may have changed and the helper
-          needs a tweak.
+          No teams returned after filtering. The season might be incorrect, you
+          may not have access yet, or the response shape may have changed and
+          the helper needs a tweak.
         </p>
       )}
 
@@ -94,12 +97,6 @@ export default async function FtcTeamsPage() {
               <tr>
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
                   Team #
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Short Name
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Long Name
                 </th>
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
                   City
@@ -123,12 +120,6 @@ export default async function FtcTeamsPage() {
                 >
                   <td className="px-3 py-1.5 whitespace-nowrap">
                     {t.teamNumber ?? ""}
-                  </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.teamNameShort as string) ?? ""}
-                  </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.teamNameLong as string) ?? ""}
                   </td>
                   <td className="px-3 py-1.5 whitespace-nowrap">
                     {(t.city as string) ?? ""}
