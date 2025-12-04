@@ -180,6 +180,119 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     });
   }
 
+  // === SHARED SCORE-LOADING HELPER ===
+
+  async function ensureScoreLoaded(
+    teamNumber: number,
+    seasonYear: number,
+    eventCode: string,
+    tournamentLevel: string,
+    matchNumber: number
+  ) {
+    const key = matchKey(seasonYear, eventCode, tournamentLevel, matchNumber);
+    let d = getDrilldown(teamNumber);
+
+    // Already have data or loading in progress
+    if (
+      d.scoresByMatchKey[key] !== undefined ||
+      d.loadingScoresByMatchKey[key]
+    ) {
+      return;
+    }
+
+    setDrilldown(teamNumber, {
+      loadingScoresByMatchKey: {
+        ...d.loadingScoresByMatchKey,
+        [key]: true,
+      },
+      scoresErrorByMatchKey: {
+        ...d.scoresErrorByMatchKey,
+        [key]: undefined,
+      },
+    });
+
+    try {
+      const res = await fetch(
+        `/api/ftc/events/${seasonYear}/${encodeURIComponent(
+          eventCode
+        )}/matches/${tournamentLevel}/${matchNumber}`
+      );
+
+      // If FTC API throws 404/500 for some matches, treat as “no data yet”
+      if (!res.ok) {
+        if (res.status === 404 || res.status === 500) {
+          d = getDrilldown(teamNumber);
+          setDrilldown(teamNumber, {
+            scoresByMatchKey: {
+              ...d.scoresByMatchKey,
+              [key]: null,
+            },
+            loadingScoresByMatchKey: {
+              ...d.loadingScoresByMatchKey,
+              [key]: false,
+            },
+            scoresErrorByMatchKey: {
+              ...d.scoresErrorByMatchKey,
+              [key]: null,
+            },
+          });
+          return;
+        }
+
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const json = (await res.json()) as {
+        ok: boolean;
+        match?: FtcMatchScores | null;
+        error?: string;
+      };
+
+      d = getDrilldown(teamNumber);
+
+      if (!json.ok) {
+        setDrilldown(teamNumber, {
+          scoresByMatchKey: {
+            ...d.scoresByMatchKey,
+            [key]: null,
+          },
+          loadingScoresByMatchKey: {
+            ...d.loadingScoresByMatchKey,
+            [key]: false,
+          },
+          scoresErrorByMatchKey: {
+            ...d.scoresErrorByMatchKey,
+            [key]: null,
+          },
+        });
+        return;
+      }
+
+      setDrilldown(teamNumber, {
+        scoresByMatchKey: {
+          ...d.scoresByMatchKey,
+          [key]: json.match ?? null,
+        },
+        loadingScoresByMatchKey: {
+          ...d.loadingScoresByMatchKey,
+          [key]: false,
+        },
+      });
+    } catch (err: any) {
+      const d2 = getDrilldown(teamNumber);
+      setDrilldown(teamNumber, {
+        loadingScoresByMatchKey: {
+          ...d2.loadingScoresByMatchKey,
+          [key]: false,
+        },
+        scoresErrorByMatchKey: {
+          ...d2.scoresErrorByMatchKey,
+          [key]: err?.message ?? "Failed to load score details.",
+        },
+      });
+    }
+  }
+
   // === CLICK HANDLERS ===
 
   // TEAM ROW → toggle accordion + lazy-load seasons
@@ -290,13 +403,17 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         throw new Error(json.error ?? "Failed to fetch events");
       }
 
+      const matchesStateBefore = getDrilldown(teamNumber);
+
+      const events = json.events ?? [];
+
       setDrilldown(teamNumber, {
         eventsBySeason: {
-          ...getDrilldown(teamNumber).eventsBySeason,
-          [seasonYear]: json.events ?? [],
+          ...matchesStateBefore.eventsBySeason,
+          [seasonYear]: events,
         },
         loadingEventsBySeason: {
-          ...getDrilldown(teamNumber).loadingEventsBySeason,
+          ...matchesStateBefore.loadingEventsBySeason,
           [seasonYear]: false,
         },
       });
@@ -371,16 +488,29 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         throw new Error(json.error ?? "Failed to fetch matches");
       }
 
+      const matches = json.matches ?? [];
+
+      const d2 = getDrilldown(teamNumber);
       setDrilldown(teamNumber, {
         matchesByEventKey: {
-          ...getDrilldown(teamNumber).matchesByEventKey,
-          [matchesKey]: json.matches ?? [],
+          ...d2.matchesByEventKey,
+          [matchesKey]: matches,
         },
         loadingMatchesByEventKey: {
-          ...getDrilldown(teamNumber).loadingMatchesByEventKey,
+          ...d2.loadingMatchesByEventKey,
           [matchesKey]: false,
         },
       });
+
+      // === NEW: preload all match scores in the background ===
+      const eventCode = event.eventCode ?? "";
+      for (const m of matches as any[]) {
+        const tl = m.tournamentLevel || m.TournamentLevel || "qual";
+        const mn = m.matchNumber || m.MatchNumber || 0;
+        if (!mn) continue;
+        // fire-and-forget; don't await, we just want the cache filled
+        void ensureScoreLoaded(teamNumber, seasonYear, eventCode, tl, mn);
+      }
     } catch (err: any) {
       const d2 = getDrilldown(teamNumber);
       setDrilldown(teamNumber, {
@@ -396,7 +526,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
   }
 
-  // MATCH ROW → toggle open + lazy-load score details
+  // MATCH ROW → toggle open + (if needed) ensure score is loaded
   async function handleToggleMatch(
     teamNumber: number,
     seasonYear: number,
@@ -421,102 +551,14 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
     if (!nextOpen) return;
 
-    const already = d.scoresByMatchKey[key];
-    const loading = d.loadingScoresByMatchKey[key];
-
-    if (already || loading) return;
-
-    try {
-      setDrilldown(teamNumber, {
-        loadingScoresByMatchKey: {
-          ...d.loadingScoresByMatchKey,
-          [key]: true,
-        },
-        scoresErrorByMatchKey: {
-          ...d.scoresErrorByMatchKey,
-          [key]: undefined,
-        },
-      });
-
-      const res = await fetch(
-        `/api/ftc/events/${seasonYear}/${encodeURIComponent(
-          eventCode
-        )}/matches/${tournamentLevel}/${matchNumber}`
-      );
-
-      // If FTC API throws 404/500 for some matches, treat as “no data yet”
-      if (!res.ok) {
-        if (res.status === 404 || res.status === 500) {
-          const d2 = getDrilldown(teamNumber);
-          setDrilldown(teamNumber, {
-            scoresByMatchKey: {
-              ...d2.scoresByMatchKey,
-              [key]: null,
-            },
-            loadingScoresByMatchKey: {
-              ...d2.loadingScoresByMatchKey,
-              [key]: false,
-            },
-            scoresErrorByMatchKey: {
-              ...d2.scoresErrorByMatchKey,
-              [key]: null,
-            },
-          });
-          return;
-        }
-
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const json = (await res.json()) as {
-        ok: boolean;
-        match?: FtcMatchScores | null;
-        error?: string;
-      };
-
-      if (!json.ok) {
-        // same “no data yet” behaviour
-        const d2 = getDrilldown(teamNumber);
-        setDrilldown(teamNumber, {
-          scoresByMatchKey: {
-            ...d2.scoresByMatchKey,
-            [key]: null,
-          },
-          loadingScoresByMatchKey: {
-            ...d2.loadingScoresByMatchKey,
-            [key]: false,
-          },
-          scoresErrorByMatchKey: {
-            ...d2.scoresErrorByMatchKey,
-            [key]: null,
-          },
-        });
-        return;
-      }
-
-      setDrilldown(teamNumber, {
-        scoresByMatchKey: {
-          ...getDrilldown(teamNumber).scoresByMatchKey,
-          [key]: json.match ?? null,
-        },
-        loadingScoresByMatchKey: {
-          ...getDrilldown(teamNumber).loadingScoresByMatchKey,
-          [key]: false,
-        },
-      });
-    } catch (err: any) {
-      const d2 = getDrilldown(teamNumber);
-      setDrilldown(teamNumber, {
-        loadingScoresByMatchKey: {
-          ...d2.loadingScoresByMatchKey,
-          [key]: false,
-        },
-        scoresErrorByMatchKey: {
-          ...d2.scoresErrorByMatchKey,
-          [key]: err?.message ?? "Failed to load score details.",
-        },
-      });
-    }
+    // If preloading hasn't fetched yet, make sure we have the score
+    await ensureScoreLoaded(
+      teamNumber,
+      seasonYear,
+      eventCode,
+      tournamentLevel,
+      matchNumber
+    );
   }
 
   // === RENDER ===
@@ -826,7 +868,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       m.blue?.score ??
                                                       null;
 
-                                                    // If match listing doesn’t have scores, pull from score JSON
+                                                    // If match listing doesn’t have scores, pull from preloaded score JSON
                                                     const alliances = Array.isArray(
                                                       (score as any)?.alliances
                                                     )
