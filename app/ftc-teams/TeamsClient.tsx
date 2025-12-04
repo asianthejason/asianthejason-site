@@ -31,7 +31,7 @@ type DrilldownState = {
   // Which events are expanded (keyed by "season:eventKey")
   openEvents: Record<string, boolean>;
 
-  // Event -> matches
+  // Event -> matches (for this team)
   matchesByEventKey: Record<string, FtcMatch[] | undefined>;
   loadingMatchesByEventKey: Record<string, boolean>;
   matchesErrorByEventKey: Record<string, string | null | undefined>;
@@ -40,6 +40,19 @@ type DrilldownState = {
   scoresByMatchKey: Record<string, FtcMatchScores | null | undefined>;
   loadingScoresByMatchKey: Record<string, boolean>;
   scoresErrorByMatchKey: Record<string, string | null | undefined>;
+};
+
+// Modal state for event info
+type EventInfoState = {
+  open: boolean;
+  seasonYear: number | null;
+  eventCode: string | null;
+  eventName: string | null;
+  city: string | null;
+  loading: boolean;
+  error?: string | null;
+  matches: FtcMatch[];
+  rankings: any[];
 };
 
 function getDisplayName(t: FtcTeam): string {
@@ -111,7 +124,7 @@ function getAlliancesFromScore(score: any): any[] {
   return [];
 }
 
-// Helper: pull alliance team numbers out of the MATCH row
+// Helper: pull alliance team numbers out of a MATCH row (listing)
 function getAllianceTeamsFromMatch(match: any): {
   redTeams: number[];
   blueTeams: number[];
@@ -134,7 +147,7 @@ function getAllianceTeamsFromMatch(match: any): {
       entry.Team?.TeamNumber ??
       null;
 
-    if (!teamNumRaw && teamNumRaw !== 0) continue;
+    if (teamNumRaw === null || teamNumRaw === undefined) continue;
 
     const teamNumber = Number(teamNumRaw) || 0;
 
@@ -150,7 +163,7 @@ function getAllianceTeamsFromMatch(match: any): {
     }
   }
 
-  // Ensure exactly two slots per alliance (pad with undefined / trim extras)
+  // Ensure exactly two slots per alliance (pad / trim)
   while (redTeams.length < 2) redTeams.push(NaN);
   while (blueTeams.length < 2) blueTeams.push(NaN);
 
@@ -158,6 +171,16 @@ function getAllianceTeamsFromMatch(match: any): {
     redTeams: redTeams.slice(0, 2),
     blueTeams: blueTeams.slice(0, 2),
   };
+}
+
+// Helper: get basic red/blue scores from the match listing
+function getListingScores(match: any): { red: number | null; blue: number | null } {
+  const redScore: number | null =
+    match.redScore ?? match.RedScore ?? match.red?.score ?? null;
+  const blueScore: number | null =
+    match.blueScore ?? match.BlueScore ?? match.blue?.score ?? null;
+
+  return { red: redScore, blue: blueScore };
 }
 
 export function TeamsClient({ season, teams }: TeamsClientProps) {
@@ -218,13 +241,26 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     });
   }, [teams, search, stateFilter, countryFilter]);
 
-  // === Drilldown state ===
+  // === Drilldown state (per-team) ===
   const [expandedTeamNumber, setExpandedTeamNumber] =
     useState<number | null>(null);
 
   const [drilldownByTeam, setDrilldownByTeam] = useState<
     Record<number, DrilldownState>
   >({});
+
+  // Event info modal state
+  const [eventInfo, setEventInfo] = useState<EventInfoState>({
+    open: false,
+    seasonYear: null,
+    eventCode: null,
+    eventName: null,
+    city: null,
+    loading: false,
+    error: null,
+    matches: [],
+    rankings: [],
+  });
 
   // For reading in render and in handlers
   function getDrilldown(teamNumber: number): DrilldownState {
@@ -386,6 +422,97 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     },
     []
   );
+
+  // === EVENT INFO MODAL HANDLERS ===
+
+  async function handleOpenEventInfo(
+    seasonYear: number,
+    event: FtcTeamEvent
+  ) {
+    const eventCode = (event.eventCode ?? "").toString().trim();
+
+    setEventInfo({
+      open: true,
+      seasonYear,
+      eventCode: eventCode || null,
+      eventName: (event.eventName ?? "").toString() || null,
+      city: (event.city ?? "").toString() || null,
+      loading: true,
+      error: null,
+      matches: [],
+      rankings: [],
+    });
+
+    if (!eventCode) {
+      setEventInfo((prev) => ({
+        ...prev,
+        loading: false,
+        error:
+          "This event does not have an event code, so detailed info is not available.",
+      }));
+      return;
+    }
+
+    try {
+      const [matchesRes, rankingsRes] = await Promise.all([
+        fetch(
+          `/api/ftc/events/${seasonYear}/${encodeURIComponent(
+            eventCode
+          )}/matches`
+        ),
+        fetch(
+          `/api/ftc/events/${seasonYear}/${encodeURIComponent(
+            eventCode
+          )}/rankings`
+        ),
+      ]);
+
+      if (!matchesRes.ok && !rankingsRes.ok) {
+        throw new Error("Failed to load event info.");
+      }
+
+      const matchesJson = matchesRes.ok
+        ? ((await matchesRes.json()) as {
+            ok: boolean;
+            matches?: FtcMatch[];
+            error?: string;
+          })
+        : { ok: false };
+
+      const rankingsJson = rankingsRes.ok
+        ? ((await rankingsRes.json()) as {
+            ok: boolean;
+            rankings?: any[];
+            error?: string;
+          })
+        : { ok: false };
+
+      setEventInfo((prev) => ({
+        ...prev,
+        loading: false,
+        error:
+          (!matchesJson.ok && matchesJson.error) ||
+          (!rankingsJson.ok && rankingsJson.error) ||
+          null,
+        matches: matchesJson.ok && matchesJson.matches
+          ? matchesJson.matches
+          : [],
+        rankings: rankingsJson.ok && rankingsJson.rankings
+          ? rankingsJson.rankings
+          : [],
+      }));
+    } catch (err: any) {
+      setEventInfo((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message ?? "Failed to load event info.",
+      }));
+    }
+  }
+
+  function handleCloseEventInfo() {
+    setEventInfo((prev) => ({ ...prev, open: false }));
+  }
 
   // === CLICK HANDLERS ===
 
@@ -616,360 +743,630 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   // === RENDER ===
 
   return (
-    <section className="space-y-3">
-      {/* Controls */}
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[180px]">
-          <label className="block text-xs text-gray-400 mb-1">
-            Search by team # or name
-          </label>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="e.g. 12345 or Techno Chix"
-            className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
-          />
+    <>
+      <section className="space-y-3">
+        {/* Controls */}
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs text-gray-400 mb-1">
+              Search by team # or name
+            </label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="e.g. 12345 or Techno Chix"
+              className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
+            />
+          </div>
+
+          <div className="min-w-[140px]">
+            <label className="block text-xs text-gray-400 mb-1">
+              State / Prov
+            </label>
+            <select
+              value={stateFilter}
+              onChange={(e) => setStateFilter(e.target.value)}
+              className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
+            >
+              <option value="">All</option>
+              {stateOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="min-w-[140px]">
+            <label className="block text-xs text-gray-400 mb-1">
+              Country
+            </label>
+            <select
+              value={countryFilter}
+              onChange={(e) => setCountryFilter(e.target.value)}
+              className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
+            >
+              <option value="">All</option>
+              {countryOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="min-w-[140px]">
-          <label className="block text-xs text-gray-400 mb-1">
-            State / Prov
-          </label>
-          <select
-            value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
-          >
-            <option value="">All</option>
-            {stateOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+        <p className="text-xs text-gray-400">
+          Showing {filteredTeams.length} of {teams.length} teams
+        </p>
 
-        <div className="min-w-[140px]">
-          <label className="block text-xs text-gray-400 mb-1">Country</label>
-          <select
-            value={countryFilter}
-            onChange={(e) => setCountryFilter(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
-          >
-            <option value="">All</option>
-            {countryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+        {/* Table with accordion */}
+        <div className="rounded-xl border border-white/10 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-white/5">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Team #
+                </th>
+                <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
+                  Team Name
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  City
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  State / Prov
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Country
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Rookie Year
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filteredTeams.map((t, idx) => {
+                const isOpen = expandedTeamNumber === t.teamNumber;
+                const d = t.teamNumber ? getDrilldown(t.teamNumber) : undefined;
 
-      <p className="text-xs text-gray-400">
-        Showing {filteredTeams.length} of {teams.length} teams
-      </p>
-
-      {/* Table with accordion */}
-      <div className="rounded-xl border border-white/10 overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-white/5">
-            <tr>
-              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Team #
-              </th>
-              <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
-                Team Name
-              </th>
-              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                City
-              </th>
-              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                State / Prov
-              </th>
-              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Country
-              </th>
-              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Rookie Year
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {filteredTeams.map((t, idx) => {
-              const isOpen = expandedTeamNumber === t.teamNumber;
-              const d = t.teamNumber ? getDrilldown(t.teamNumber) : undefined;
-
-              return (
-                <Fragment key={t.teamNumber ?? `team-${idx}`}>
-                  {/* Team row */}
-                  <tr
-                    className="hover:bg-white/5 cursor-pointer"
-                    onClick={() => handleToggleTeam(t)}
-                  >
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      {t.teamNumber ?? ""}
-                    </td>
-                    <td className="px-3 py-1.5 align-top max-w-xs w-64 whitespace-normal break-words">
-                      {getDisplayName(t) || "(no name)"}
-                    </td>
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      {(t.city ?? "").toString()}
-                    </td>
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      {(t.stateProv ?? "").toString()}
-                    </td>
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      {(t.country ?? "").toString()}
-                    </td>
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      {t.rookieYear ?? ""}
-                    </td>
-                  </tr>
-
-                  {/* Drilldown row */}
-                  {isOpen && t.teamNumber && d && (
-                    <tr className="bg-black/40">
-                      <td colSpan={6} className="px-4 py-3">
-                        {/* Seasons / events / matches accordion */}
-                        {d.loadingSeasons && (
-                          <div className="text-xs text-gray-400">
-                            Loading seasons…
-                          </div>
-                        )}
-                        {d.seasonsError && (
-                          <div className="text-xs text-red-400">
-                            {d.seasonsError}
-                          </div>
-                        )}
-                        {d.seasons && d.seasons.length === 0 && (
-                          <div className="text-xs text-gray-400">
-                            No seasons found for this team.
-                          </div>
-                        )}
-
-                        {d.seasons && d.seasons.length > 0 && (
-                          <div className="space-y-2">
-                            {d.seasons.map((seasonYear) => {
-                              const events =
-                                d.eventsBySeason[seasonYear] ?? [];
-                              const eventsLoading =
-                                d.loadingEventsBySeason[seasonYear];
-                              const eventsError =
-                                d.eventsErrorBySeason[seasonYear];
-                              const seasonOpen =
-                                d.openSeasons[seasonYear] ?? false;
-
-                              return (
-                                <div key={seasonYear}>
-                                  {/* Season header */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleToggleSeason(t, seasonYear);
-                                    }}
-                                    className="w-full flex justify-between items-center text-left text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
-                                  >
-                                    <span className="font-semibold text-gray-100">
-                                      Season {seasonYear}
-                                    </span>
-                                    <span className="text-gray-300">
-                                      {seasonOpen ? "−" : "+"}
-                                    </span>
-                                  </button>
-
-                                  {/* Events list */}
-                                  {seasonOpen && (
-                                    <div className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1">
-                                      {eventsLoading && (
-                                        <div className="text-xs text-gray-400">
-                                          Loading events…
-                                        </div>
-                                      )}
-                                      {eventsError && (
-                                        <div className="text-xs text-red-400">
-                                          {eventsError}
-                                        </div>
-                                      )}
-                                      {!eventsLoading &&
-                                        !eventsError &&
-                                        events.length === 0 && (
-                                          <div className="text-xs text-gray-500">
-                                            No events recorded.
-                                          </div>
-                                        )}
-
-                                      {events.map((ev) => {
-                                        const stateKey = getEventKeyForState(
-                                          seasonYear,
-                                          ev
-                                        );
-                                        const matches =
-                                          d.matchesByEventKey[stateKey];
-                                        const matchesLoading =
-                                          d.loadingMatchesByEventKey[
-                                            stateKey
-                                          ];
-                                        const matchesError =
-                                          d.matchesErrorByEventKey[stateKey];
-                                        const eventOpen =
-                                          d.openEvents[stateKey] ?? false;
-
-                                        return (
-                                          <div key={stateKey}>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleToggleEvent(
-                                                  t.teamNumber!,
-                                                  seasonYear,
-                                                  ev
-                                                );
-                                              }}
-                                              className="w-full flex justify-between items-center text-left text-xs bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded"
-                                            >
-                                              <span className="text-gray-100">
-                                                {ev.eventName}{" "}
-                                                {ev.eventCode && (
-                                                  <span className="text-gray-400">
-                                                    ({ev.eventCode})
-                                                  </span>
-                                                )}
-                                              </span>
-                                              <span className="flex items-center gap-2 text-gray-400 text-[10px]">
-                                                {ev.city && (
-                                                  <span>
-                                                    {ev.city}
-                                                    {ev.stateProv && ", "}
-                                                    {ev.stateProv}
-                                                  </span>
-                                                )}
-                                                <span>
-                                                  {eventOpen ? "−" : "+"}
-                                                </span>
-                                              </span>
-                                            </button>
-
-                                            {/* Match cards */}
-                                            {eventOpen && (
-                                              <div className="mt-2 ml-4 border-l border-white/10 pl-3">
-                                                {matchesLoading && (
-                                                  <div className="text-[11px] text-gray-400">
-                                                    Loading matches…
-                                                  </div>
-                                                )}
-                                                {matchesError && (
-                                                  <div className="text-[11px] text-red-400">
-                                                    {matchesError}
-                                                  </div>
-                                                )}
-                                                {!matchesLoading &&
-                                                  !matchesError &&
-                                                  matches &&
-                                                  matches.length === 0 && (
-                                                    <div className="text-[11px] text-gray-500">
-                                                      No matches found for this
-                                                      event.
-                                                    </div>
-                                                  )}
-
-                                                {matches &&
-                                                  matches.length > 0 && (
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                      {matches.map(
-                                                        (m: any) => {
-                                                          const tl =
-                                                            m.tournamentLevel ||
-                                                            m.TournamentLevel ||
-                                                            "qual";
-                                                          const mn =
-                                                            m.matchNumber ||
-                                                            m.MatchNumber ||
-                                                            0;
-                                                          const mKey =
-                                                            matchKey(
-                                                              seasonYear,
-                                                              ev.eventCode ??
-                                                                "",
-                                                              tl,
-                                                              mn
-                                                            );
-
-                                                          const score =
-                                                            d
-                                                              .scoresByMatchKey[
-                                                              mKey
-                                                            ];
-                                                          const scoreLoading =
-                                                            d
-                                                              .loadingScoresByMatchKey[
-                                                              mKey
-                                                            ] || false;
-                                                          const scoreError =
-                                                            d
-                                                              .scoresErrorByMatchKey[
-                                                              mKey
-                                                            ] ?? null;
-
-                                                          return (
-                                                            <MatchCard
-                                                              key={mKey}
-                                                              teamNumber={
-                                                                t.teamNumber!
-                                                              }
-                                                              seasonYear={
-                                                                seasonYear
-                                                              }
-                                                              eventCode={
-                                                                ev.eventCode ??
-                                                                ""
-                                                              }
-                                                              tournamentLevel={
-                                                                tl
-                                                              }
-                                                              matchNumber={mn}
-                                                              match={m}
-                                                              score={score}
-                                                              scoreLoading={
-                                                                scoreLoading
-                                                              }
-                                                              scoreError={
-                                                                scoreError
-                                                              }
-                                                              ensureScoreLoaded={
-                                                                ensureScoreLoaded
-                                                              }
-                                                            />
-                                                          );
-                                                        }
-                                                      )}
-                                                    </div>
-                                                  )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                return (
+                  <Fragment key={t.teamNumber ?? `team-${idx}`}>
+                    {/* Team row */}
+                    <tr
+                      className="hover:bg-white/5 cursor-pointer"
+                      onClick={() => handleToggleTeam(t)}
+                    >
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {t.teamNumber ?? ""}
+                      </td>
+                      <td className="px-3 py-1.5 align-top max-w-xs w-64 whitespace-normal break-words">
+                        {getDisplayName(t) || "(no name)"}
+                      </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {(t.city ?? "").toString()}
+                      </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {(t.stateProv ?? "").toString()}
+                      </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {(t.country ?? "").toString()}
+                      </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {t.rookieYear ?? ""}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
+
+                    {/* Drilldown row */}
+                    {isOpen && t.teamNumber && d && (
+                      <tr className="bg-black/40">
+                        <td colSpan={6} className="px-4 py-3">
+                          {/* Seasons / events / matches accordion */}
+                          {d.loadingSeasons && (
+                            <div className="text-xs text-gray-400">
+                              Loading seasons…
+                            </div>
+                          )}
+                          {d.seasonsError && (
+                            <div className="text-xs text-red-400">
+                              {d.seasonsError}
+                            </div>
+                          )}
+                          {d.seasons && d.seasons.length === 0 && (
+                            <div className="text-xs text-gray-400">
+                              No seasons found for this team.
+                            </div>
+                          )}
+
+                          {d.seasons && d.seasons.length > 0 && (
+                            <div className="space-y-2">
+                              {d.seasons.map((seasonYear) => {
+                                const events =
+                                  d.eventsBySeason[seasonYear] ?? [];
+                                const eventsLoading =
+                                  d.loadingEventsBySeason[seasonYear];
+                                const eventsError =
+                                  d.eventsErrorBySeason[seasonYear];
+                                const seasonOpen =
+                                  d.openSeasons[seasonYear] ?? false;
+
+                                return (
+                                  <div key={seasonYear}>
+                                    {/* Season header */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleSeason(t, seasonYear);
+                                      }}
+                                      className="w-full flex justify-between items-center text-left text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
+                                    >
+                                      <span className="font-semibold text-gray-100">
+                                        Season {seasonYear}
+                                      </span>
+                                      <span className="text-gray-300">
+                                        {seasonOpen ? "−" : "+"}
+                                      </span>
+                                    </button>
+
+                                    {/* Events list */}
+                                    {seasonOpen && (
+                                      <div className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1">
+                                        {eventsLoading && (
+                                          <div className="text-xs text-gray-400">
+                                            Loading events…
+                                          </div>
+                                        )}
+                                        {eventsError && (
+                                          <div className="text-xs text-red-400">
+                                            {eventsError}
+                                          </div>
+                                        )}
+                                        {!eventsLoading &&
+                                          !eventsError &&
+                                          events.length === 0 && (
+                                            <div className="text-xs text-gray-500">
+                                              No events recorded.
+                                            </div>
+                                          )}
+
+                                        {events.map((ev) => {
+                                          const stateKey =
+                                            getEventKeyForState(
+                                              seasonYear,
+                                              ev
+                                            );
+                                          const matches =
+                                            d.matchesByEventKey[stateKey];
+                                          const matchesLoading =
+                                            d.loadingMatchesByEventKey[
+                                              stateKey
+                                            ];
+                                          const matchesError =
+                                            d.matchesErrorByEventKey[
+                                              stateKey
+                                            ];
+                                          const eventOpen =
+                                            d.openEvents[stateKey] ?? false;
+
+                                          return (
+                                            <div key={stateKey}>
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleEvent(
+                                                      t.teamNumber!,
+                                                      seasonYear,
+                                                      ev
+                                                    );
+                                                  }}
+                                                  className="flex-1 flex justify-between items-center text-left text-xs bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded"
+                                                >
+                                                  <span className="text-gray-100">
+                                                    {ev.eventName}{" "}
+                                                    {ev.eventCode && (
+                                                      <span className="text-gray-400">
+                                                        ({ev.eventCode})
+                                                      </span>
+                                                    )}
+                                                  </span>
+                                                  <span className="flex items-center gap-2 text-gray-400 text-[10px]">
+                                                    {ev.city && (
+                                                      <span>
+                                                        {ev.city}
+                                                        {ev.stateProv && ", "}
+                                                        {ev.stateProv}
+                                                      </span>
+                                                    )}
+                                                    <span>
+                                                      {eventOpen ? "−" : "+"}
+                                                    </span>
+                                                  </span>
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleOpenEventInfo(
+                                                      seasonYear,
+                                                      ev
+                                                    );
+                                                  }}
+                                                  className="text-[10px] px-2 py-1 rounded border border-white/15 bg-black/40 hover:bg-white/10 text-gray-200"
+                                                >
+                                                  Event info
+                                                </button>
+                                              </div>
+
+                                              {/* Match cards (this team only) */}
+                                              {eventOpen && (
+                                                <div className="mt-2 ml-4 border-l border-white/10 pl-3">
+                                                  {matchesLoading && (
+                                                    <div className="text-[11px] text-gray-400">
+                                                      Loading matches…
+                                                    </div>
+                                                  )}
+                                                  {matchesError && (
+                                                    <div className="text-[11px] text-red-400">
+                                                      {matchesError}
+                                                    </div>
+                                                  )}
+                                                  {!matchesLoading &&
+                                                    !matchesError &&
+                                                    matches &&
+                                                    matches.length === 0 && (
+                                                      <div className="text-[11px] text-gray-500">
+                                                        No matches found for
+                                                        this event.
+                                                      </div>
+                                                    )}
+
+                                                  {matches &&
+                                                    matches.length > 0 && (
+                                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                        {matches.map(
+                                                          (m: any) => {
+                                                            const tl =
+                                                              m.tournamentLevel ||
+                                                              m.TournamentLevel ||
+                                                              "qual";
+                                                            const mn =
+                                                              m.matchNumber ||
+                                                              m.MatchNumber ||
+                                                              0;
+                                                            const mKey =
+                                                              matchKey(
+                                                                seasonYear,
+                                                                ev.eventCode ??
+                                                                  "",
+                                                                tl,
+                                                                mn
+                                                              );
+
+                                                            const score =
+                                                              d
+                                                                .scoresByMatchKey[
+                                                                mKey
+                                                              ];
+                                                            const scoreLoading =
+                                                              d
+                                                                .loadingScoresByMatchKey[
+                                                                mKey
+                                                              ] || false;
+                                                            const scoreError =
+                                                              d
+                                                                .scoresErrorByMatchKey[
+                                                                mKey
+                                                              ] ?? null;
+
+                                                            return (
+                                                              <MatchCard
+                                                                key={mKey}
+                                                                teamNumber={
+                                                                  t.teamNumber!
+                                                                }
+                                                                seasonYear={
+                                                                  seasonYear
+                                                                }
+                                                                eventCode={
+                                                                  ev.eventCode ??
+                                                                  ""
+                                                                }
+                                                                tournamentLevel={
+                                                                  tl
+                                                                }
+                                                                matchNumber={
+                                                                  mn
+                                                                }
+                                                                match={m}
+                                                                score={score}
+                                                                scoreLoading={
+                                                                  scoreLoading
+                                                                }
+                                                                scoreError={
+                                                                  scoreError
+                                                                }
+                                                                ensureScoreLoaded={
+                                                                  ensureScoreLoaded
+                                                                }
+                                                              />
+                                                            );
+                                                          }
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* EVENT INFO MODAL */}
+      {eventInfo.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="relative max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-neutral-950 shadow-xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div className="space-y-0.5">
+                <div className="text-sm font-semibold text-gray-100">
+                  Event info
+                </div>
+                <div className="text-xs text-gray-400">
+                  {eventInfo.eventName || "Unknown event"}
+                  {eventInfo.city && ` • ${eventInfo.city}`}
+                  {eventInfo.seasonYear && ` • ${eventInfo.seasonYear}`}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseEventInfo}
+                className="rounded-md px-2 py-1 text-xs text-gray-300 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-xs">
+              {eventInfo.loading && (
+                <div className="text-gray-300">Loading event details…</div>
+              )}
+
+              {!eventInfo.loading && eventInfo.error && (
+                <div className="text-red-400">{eventInfo.error}</div>
+              )}
+
+              {/* Qualification matches table */}
+              {!eventInfo.loading && !eventInfo.error && (
+                <>
+                  <div>
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
+                      Qualification matches
+                    </h3>
+                    {eventInfo.matches.length === 0 ? (
+                      <div className="text-gray-500">
+                        No match data available for this event.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <table className="min-w-full text-[11px]">
+                          <thead className="bg-white/5">
+                            <tr>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Match
+                              </th>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Red teams
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Red score
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Blue score
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Blue teams
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {eventInfo.matches
+                              .filter((m: any) => {
+                                const lvl =
+                                  (m.tournamentLevel ||
+                                    m.TournamentLevel ||
+                                    m.matchLevel ||
+                                    m.MatchLevel ||
+                                    "")
+                                    .toString()
+                                    .toLowerCase();
+                                return lvl.startsWith("qual");
+                              })
+                              .map((m: any, idx: number) => {
+                                const lvlRaw =
+                                  (m.tournamentLevel ||
+                                    m.TournamentLevel ||
+                                    m.matchLevel ||
+                                    m.MatchLevel ||
+                                    "")
+                                    .toString()
+                                    .toUpperCase();
+                                const prettyLevel =
+                                  lvlRaw === "QUAL" ||
+                                  lvlRaw === "QUALIFICATION"
+                                    ? "QUAL"
+                                    : lvlRaw || "MATCH";
+
+                                const matchNum =
+                                  m.matchNumber || m.MatchNumber || idx + 1;
+
+                                const { redTeams, blueTeams } =
+                                  getAllianceTeamsFromMatch(m);
+                                const { red, blue } = getListingScores(m);
+
+                                const renderTeams = (teams: number[]) =>
+                                  teams
+                                    .map((tn) =>
+                                      !tn || Number.isNaN(tn) ? "—" : tn
+                                    )
+                                    .join(", ");
+
+                                return (
+                                  <tr key={`qual-${idx}`}>
+                                    <td className="px-2 py-1 whitespace-nowrap text-gray-100">
+                                      {prettyLevel} #{matchNum}
+                                    </td>
+                                    <td className="px-2 py-1 text-red-200">
+                                      {renderTeams(redTeams)}
+                                    </td>
+                                    <td className="px-2 py-1 text-right text-red-200">
+                                      {red ?? "—"}
+                                    </td>
+                                    <td className="px-2 py-1 text-right text-blue-200">
+                                      {blue ?? "—"}
+                                    </td>
+                                    <td className="px-2 py-1 text-right text-blue-200">
+                                      {renderTeams(blueTeams)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Rankings table */}
+                  <div>
+                    <h3 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
+                      Event rankings
+                    </h3>
+                    {eventInfo.rankings.length === 0 ? (
+                      <div className="text-gray-500">
+                        No rankings data available for this event.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <table className="min-w-full text-[11px]">
+                          <thead className="bg-white/5">
+                            <tr>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Rank
+                              </th>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Team
+                              </th>
+                              <th className="px-2 py-1 text-center font-semibold">
+                                W-L-T
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                RP
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                TBP
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Played
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {eventInfo.rankings.map((r: any, idx: number) => {
+                              const rank =
+                                r.rank ??
+                                r.Rank ??
+                                r.rankPosition ??
+                                r.RankPosition ??
+                                idx + 1;
+                              const teamNumber =
+                                r.teamNumber ??
+                                r.TeamNumber ??
+                                r.team?.teamNumber ??
+                                r.Team?.TeamNumber ??
+                                "—";
+
+                              const wins =
+                                r.wins ?? r.Wins ?? r.win ?? r.Win ?? 0;
+                              const losses =
+                                r.losses ?? r.Losses ?? r.loss ?? r.Loss ?? 0;
+                              const ties =
+                                r.ties ?? r.Ties ?? r.tie ?? r.Tie ?? 0;
+
+                              const rp =
+                                r.rankingPoints ??
+                                r.RankingPoints ??
+                                r.rp ??
+                                r.RP ??
+                                null;
+                              const tbp =
+                                r.tieBreakerPoints ??
+                                r.TieBreakerPoints ??
+                                r.tbp ??
+                                r.TBP ??
+                                null;
+                              const played =
+                                r.played ??
+                                r.Played ??
+                                r.matchesPlayed ??
+                                r.MatchesPlayed ??
+                                wins + losses + ties;
+
+                              return (
+                                <tr key={`rank-${idx}`}>
+                                  <td className="px-2 py-1 text-gray-100">
+                                    {rank}
+                                  </td>
+                                  <td className="px-2 py-1 text-gray-100">
+                                    {teamNumber}
+                                  </td>
+                                  <td className="px-2 py-1 text-center text-gray-200">
+                                    {wins}-{losses}
+                                    {ties ? `-${ties}` : ""}
+                                  </td>
+                                  <td className="px-2 py-1 text-right text-gray-200">
+                                    {rp ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right text-gray-200">
+                                    {tbp ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right text-gray-200">
+                                    {played ?? "—"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
