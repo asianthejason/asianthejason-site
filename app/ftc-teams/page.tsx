@@ -17,14 +17,27 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
   return teams.filter((t) => {
     const num = t.teamNumber ?? 0;
 
-    const city = (t.city as string | undefined)?.trim() ?? "";
-    const state = (t.stateProv as string | undefined)?.trim() ?? "";
-    const country = (t.country as string | undefined)?.trim() ?? "";
+    const nameShort = (t.nameShort ?? "").toString().trim();
+    const nameFull = (t.nameFull ?? "").toString().trim();
+    const city = (t.city ?? "").toString().trim();
+    const state = (t.stateProv ?? "").toString().trim();
+    const country = (t.country ?? "").toString().trim();
 
-    // Keep only teams with a positive number AND at least one
-    // non-empty location field. This removes the 99900+ dummy rows.
-    return num > 0 && (city !== "" || state !== "" || country !== "");
+    // Keep teams that have:
+    // - a positive team number
+    // - AND at least one of: name or location data
+    // This drops the 999xx dummy rows that are all blank.
+    const hasName = nameShort !== "" || nameFull !== "";
+    const hasLocation = city !== "" || state !== "" || country !== "";
+
+    return num > 0 && (hasName || hasLocation);
   });
+}
+
+function getDisplayName(t: FtcTeam): string {
+  const shortName = (t.nameShort ?? "").toString().trim();
+  const fullName = (t.nameFull ?? "").toString().trim();
+  return shortName || fullName || "";
 }
 
 export default async function FtcTeamsPage() {
@@ -99,6 +112,9 @@ export default async function FtcTeamsPage() {
                   Team #
                 </th>
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Team Name
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
                   City
                 </th>
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
@@ -122,13 +138,16 @@ export default async function FtcTeamsPage() {
                     {t.teamNumber ?? ""}
                   </td>
                   <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.city as string) ?? ""}
+                    {getDisplayName(t)}
                   </td>
                   <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.stateProv as string) ?? ""}
+                    {(t.city ?? "").toString()}
                   </td>
                   <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.country as string) ?? ""}
+                    {(t.stateProv ?? "").toString()}
+                  </td>
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    {(t.country ?? "").toString()}
                   </td>
                   <td className="px-3 py-1.5 whitespace-nowrap">
                     {t.rookieYear ?? ""}
