@@ -28,7 +28,7 @@ type DrilldownState = {
   loadingEventsBySeason: Record<number, boolean>;
   eventsErrorBySeason: Record<number, string | null | undefined>;
 
-  // Which events are expanded (keyed by "season:eventCode")
+  // Which events are expanded (keyed by "season:eventKey")
   openEvents: Record<string, boolean>;
 
   // Event -> matches
@@ -51,8 +51,8 @@ function getDisplayName(t: FtcTeam): string {
   return shortName || fullName || "";
 }
 
-function eventKey(seasonYear: number, eventCode: string) {
-  return `${seasonYear}:${eventCode}`;
+function eventKey(seasonYear: number, eventKeyPart: string) {
+  return `${seasonYear}:${eventKeyPart}`;
 }
 
 function matchKey(
@@ -62,6 +62,15 @@ function matchKey(
   matchNumber: number
 ) {
   return `${seasonYear}:${eventCode}:${tournamentLevel}:${matchNumber}`;
+}
+
+// Build a stable key for UI state even if eventCode is blank
+function getEventKeyForState(seasonYear: number, event: FtcTeamEvent): string {
+  const rawCode =
+    (event.eventCode ?? "").toString().trim() ||
+    (event.eventName ?? "").toString().trim() ||
+    `${event.city ?? ""}-${event.startDate ?? ""}`;
+  return eventKey(seasonYear, rawCode);
 }
 
 // Factory to avoid stale-initial-state bugs
@@ -312,20 +321,21 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     seasonYear: number,
     event: FtcTeamEvent
   ) {
-    const key = eventKey(seasonYear, event.eventCode);
+    const stateKey = getEventKeyForState(seasonYear, event);
     const d = getDrilldown(teamNumber);
 
-    const currentlyOpen = !!d.openEvents[key];
+    const currentlyOpen = !!d.openEvents[stateKey];
     const nextOpen = !currentlyOpen;
 
     setDrilldown(teamNumber, {
-      openEvents: { ...d.openEvents, [key]: nextOpen },
+      openEvents: { ...d.openEvents, [stateKey]: nextOpen },
     });
 
     if (!nextOpen) return;
 
-    const already = d.matchesByEventKey[key];
-    const loading = d.loadingMatchesByEventKey[key];
+    const matchesKey = stateKey; // we use the same key for matchesByEventKey
+    const already = d.matchesByEventKey[matchesKey];
+    const loading = d.loadingMatchesByEventKey[matchesKey];
 
     if (already || loading) return;
 
@@ -333,17 +343,17 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
       setDrilldown(teamNumber, {
         loadingMatchesByEventKey: {
           ...d.loadingMatchesByEventKey,
-          [key]: true,
+          [matchesKey]: true,
         },
         matchesErrorByEventKey: {
           ...d.matchesErrorByEventKey,
-          [key]: undefined,
+          [matchesKey]: undefined,
         },
       });
 
       const res = await fetch(
         `/api/ftc/events/${seasonYear}/${encodeURIComponent(
-          event.eventCode
+          event.eventCode ?? ""
         )}/matches?teamNumber=${teamNumber}`
       );
 
@@ -364,11 +374,11 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
       setDrilldown(teamNumber, {
         matchesByEventKey: {
           ...getDrilldown(teamNumber).matchesByEventKey,
-          [key]: json.matches ?? [],
+          [matchesKey]: json.matches ?? [],
         },
         loadingMatchesByEventKey: {
           ...getDrilldown(teamNumber).loadingMatchesByEventKey,
-          [key]: false,
+          [matchesKey]: false,
         },
       });
     } catch (err: any) {
@@ -376,11 +386,11 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
       setDrilldown(teamNumber, {
         loadingMatchesByEventKey: {
           ...d2.loadingMatchesByEventKey,
-          [key]: false,
+          [stateKey]: false,
         },
         matchesErrorByEventKey: {
           ...d2.matchesErrorByEventKey,
-          [key]: err?.message ?? "Failed to load matches.",
+          [stateKey]: err?.message ?? "Failed to load matches.",
         },
       });
     }
@@ -662,21 +672,21 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                         )}
 
                                       {events.map((ev) => {
-                                        const eKey = eventKey(
+                                        const stateKey = getEventKeyForState(
                                           seasonYear,
-                                          ev.eventCode
+                                          ev
                                         );
                                         const matches =
-                                          d.matchesByEventKey[eKey];
+                                          d.matchesByEventKey[stateKey];
                                         const matchesLoading =
-                                          d.loadingMatchesByEventKey[eKey];
+                                          d.loadingMatchesByEventKey[stateKey];
                                         const matchesError =
-                                          d.matchesErrorByEventKey[eKey];
+                                          d.matchesErrorByEventKey[stateKey];
                                         const eventOpen =
-                                          d.openEvents[eKey] ?? false;
+                                          d.openEvents[stateKey] ?? false;
 
                                         return (
-                                          <div key={ev.eventCode}>
+                                          <div key={stateKey}>
                                             <button
                                               type="button"
                                               onClick={(e) => {
@@ -746,7 +756,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       0;
                                                     const mKey = matchKey(
                                                       seasonYear,
-                                                      ev.eventCode,
+                                                      ev.eventCode ?? "",
                                                       tl,
                                                       mn
                                                     );
@@ -789,7 +799,8 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                             handleToggleMatch(
                                                               t.teamNumber!,
                                                               seasonYear,
-                                                              ev.eventCode,
+                                                              ev.eventCode ??
+                                                                "",
                                                               tl,
                                                               mn
                                                             );

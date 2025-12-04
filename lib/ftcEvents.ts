@@ -150,22 +150,36 @@ export async function getTeamEventsForSeason(
   season: number,
   teamNumber: number
 ): Promise<FtcTeamEvent[]> {
-  const data = await ftcFetch<{ events?: any[] }>(`/${season}/events`, {
+  const data = await ftcFetch<{ events: any[] }>(`/${season}/events`, {
     teamNumber,
   });
 
   const events = data.events ?? [];
 
-  return events.map((e) => ({
-    eventCode: e.eventCode,
-    eventName: e.eventName ?? e.name ?? e.description ?? "Unnamed event",
-    city: e.city,
-    stateProv: e.stateProv,
-    country: e.country,
-    startDate: e.startDate,
-    endDate: e.endDate,
-  }));
+  return events.map((e) => {
+    // Try multiple possible fields for the event code
+    const rawCode =
+      e.eventCode ??
+      e.code ??
+      e.codeShort ??
+      e.tournamentCode ??
+      e.eventCodeShort ??
+      e.id;
+
+    const eventCode = (rawCode ?? "").toString().trim();
+
+    return {
+      eventCode,
+      eventName: e.eventName ?? e.name ?? e.description ?? "Unnamed event",
+      city: e.city,
+      stateProv: e.stateProv,
+      country: e.country,
+      startDate: e.startDate,
+      endDate: e.endDate,
+    } as FtcTeamEvent;
+  });
 }
+
 
 /**
  * Convenience: get multiple seasons of events for a team.
