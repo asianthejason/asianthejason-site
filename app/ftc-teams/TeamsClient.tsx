@@ -1,7 +1,7 @@
 // app/ftc-teams/TeamsClient.tsx
 "use client";
 
-import { useMemo, useState, useEffect, Fragment } from "react";
+import { useMemo, useState, useEffect, useCallback, Fragment } from "react";
 import type {
   FtcTeam,
   FtcTeamEvent,
@@ -197,117 +197,162 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   }
 
   // === SCORE-LOADING HELPER (never called from render) ===
-
-  async function ensureScoreLoaded(
-    teamNumber: number,
-    seasonYear: number,
-    eventCode: string,
-    tournamentLevel: string,
-    matchNumber: number
-  ) {
-    const key = matchKey(seasonYear, eventCode, tournamentLevel, matchNumber);
-    let d = getDrilldown(teamNumber);
-
-    // Already have data or a load in progress
-    if (
-      d.scoresByMatchKey[key] !== undefined ||
-      d.loadingScoresByMatchKey[key]
-    ) {
-      return;
-    }
-
-    setDrilldown(teamNumber, {
-      loadingScoresByMatchKey: {
-        ...d.loadingScoresByMatchKey,
-        [key]: true,
-      },
-      scoresErrorByMatchKey: {
-        ...d.scoresErrorByMatchKey,
-        [key]: undefined,
-      },
-    });
-
-    try {
-      const res = await fetch(
-        `/api/ftc/events/${seasonYear}/${encodeURIComponent(
-          eventCode
-        )}/matches/${tournamentLevel}/${matchNumber}`
+  // Uses only functional updates to avoid stale state issues.
+  const ensureScoreLoaded = useCallback(
+    async (
+      teamNumber: number,
+      seasonYear: number,
+      eventCode: string,
+      tournamentLevel: string,
+      matchNumber: number
+    ) => {
+      const key = matchKey(
+        seasonYear,
+        eventCode,
+        tournamentLevel,
+        matchNumber
       );
 
-      // If FTC API throws 404/500 for some matches, treat as “no data yet”
-      if (!res.ok) {
-        if (res.status === 404 || res.status === 500) {
-          d = getDrilldown(teamNumber);
-          setDrilldown(teamNumber, {
-            scoresByMatchKey: {
-              ...d.scoresByMatchKey,
-              [key]: null,
-            },
-            loadingScoresByMatchKey: {
-              ...d.loadingScoresByMatchKey,
-              [key]: false,
-            },
-            scoresErrorByMatchKey: {
-              ...d.scoresErrorByMatchKey,
-              [key]: null,
-            },
-          });
-          return;
+      let shouldFetch = false;
+
+      // First, atomically mark as loading if we don't already have data or a load in progress.
+      setDrilldownByTeam((prev) => {
+        const base = prev[teamNumber] ?? createEmptyDrilldown();
+        const already = base.scoresByMatchKey[key];
+        const loading = base.loadingScoresByMatchKey[key];
+
+        if (already !== undefined || loading) {
+          // Someone else already started / finished the load.
+          return prev;
         }
 
-        throw new Error(`HTTP ${res.status}`);
-      }
+        shouldFetch = true;
 
-      const json = (await res.json()) as {
-        ok: boolean;
-        match?: FtcMatchScores | null;
-        error?: string;
-      };
+        return {
+          ...prev,
+          [teamNumber]: {
+            ...base,
+            loadingScoresByMatchKey: {
+              ...base.loadingScoresByMatchKey,
+              [key]: true,
+            },
+            scoresErrorByMatchKey: {
+              ...base.scoresErrorByMatchKey,
+              [key]: undefined,
+            },
+          },
+        };
+      });
 
-      d = getDrilldown(teamNumber);
-
-      if (!json.ok) {
-        setDrilldown(teamNumber, {
-          scoresByMatchKey: {
-            ...d.scoresByMatchKey,
-            [key]: null,
-          },
-          loadingScoresByMatchKey: {
-            ...d.loadingScoresByMatchKey,
-            [key]: false,
-          },
-          scoresErrorByMatchKey: {
-            ...d.scoresErrorByMatchKey,
-            [key]: null,
-          },
-        });
+      if (!shouldFetch) {
         return;
       }
 
-      setDrilldown(teamNumber, {
-        scoresByMatchKey: {
-          ...d.scoresByMatchKey,
-          [key]: json.match ?? null,
-        },
-        loadingScoresByMatchKey: {
-          ...d.loadingScoresByMatchKey,
-          [key]: false,
-        },
-      });
-    } catch (err: any) {
-      const d2 = getDrilldown(teamNumber);
-      setDrilldown(teamNumber, {
-        loadingScoresByMatchKey: {
-          ...d2.loadingScoresByMatchKey,
-          [key]: false,
-        },
-        scoresErrorByMatchKey: {
-          ...d2.scoresErrorByMatchKey,
-          [key]: err?.message ?? "Failed to load score details.",
-        },
-      });
-    }
-  }
+      try {
+        const res = await fetch(
+          `/api/ftc/events/${seasonYear}/${encodeURIComponent(
+            eventCode
+          )}/matches/${tournamentLevel}/${matchNumber}`
+        );
+
+        // If FTC API throws 404/500 for some matches, treat as “no data yet”
+        if (!res.ok) {
+          if (res.status === 404 || res.status === 500) {
+            setDrilldownByTeam((prev) => {
+              const base = prev[teamNumber] ?? createEmptyDrilldown();
+              return {
+                ...prev,
+                [teamNumber]: {
+                  ...base,
+                  scoresByMatchKey: {
+                    ...base.scoresByMatchKey,
+                    [key]: null,
+                  },
+                  loadingScoresByMatchKey: {
+                    ...base.loadingScoresByMatchKey,
+                    [key]: false,
+                  },
+                  scoresErrorByMatchKey: {
+                    ...base.scoresErrorByMatchKey,
+                    [key]: null,
+                  },
+                },
+              };
+            });
+            return;
+          }
+
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const json = (await res.json()) as {
+          ok: boolean;
+          match?: FtcMatchScores | null;
+          error?: string;
+        };
+
+        setDrilldownByTeam((prev) => {
+          const base = prev[teamNumber] ?? createEmptyDrilldown();
+
+          if (!json.ok) {
+            return {
+              ...prev,
+              [teamNumber]: {
+                ...base,
+                scoresByMatchKey: {
+                  ...base.scoresByMatchKey,
+                  [key]: null,
+                },
+                loadingScoresByMatchKey: {
+                  ...base.loadingScoresByMatchKey,
+                  [key]: false,
+                },
+                scoresErrorByMatchKey: {
+                  ...base.scoresErrorByMatchKey,
+                  [key]: null,
+                },
+              },
+            };
+          }
+
+          return {
+            ...prev,
+            [teamNumber]: {
+              ...base,
+              scoresByMatchKey: {
+                ...base.scoresByMatchKey,
+                [key]: json.match ?? null,
+              },
+              loadingScoresByMatchKey: {
+                ...base.loadingScoresByMatchKey,
+                [key]: false,
+              },
+            },
+          };
+        });
+      } catch (err: any) {
+        setDrilldownByTeam((prev) => {
+          const base = prev[teamNumber] ?? createEmptyDrilldown();
+          return {
+            ...prev,
+            [teamNumber]: {
+              ...base,
+              loadingScoresByMatchKey: {
+                ...base.loadingScoresByMatchKey,
+                [key]: false,
+              },
+              scoresErrorByMatchKey: {
+                ...base.scoresErrorByMatchKey,
+                [key]:
+                  err?.message ?? "Failed to load score details.",
+              },
+            },
+          };
+        });
+      }
+    },
+    [setDrilldownByTeam]
+  );
 
   // === CLICK HANDLERS ===
 
@@ -619,12 +664,12 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {filteredTeams.map((t) => {
+            {filteredTeams.map((t, idx) => {
               const isOpen = expandedTeamNumber === t.teamNumber;
               const d = t.teamNumber ? getDrilldown(t.teamNumber) : undefined;
 
               return (
-                <Fragment key={t.teamNumber ?? Math.random()}>
+                <Fragment key={t.teamNumber ?? `team-${idx}`}>
                   {/* Team row */}
                   <tr
                     className="hover:bg-white/5 cursor-pointer"
@@ -692,7 +737,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                       e.stopPropagation();
                                       handleToggleSeason(t, seasonYear);
                                     }}
-                                    className="w-full flex justify-between items-center text-left text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
+                                    className="w-full flex justify-between items-center text-left text-xs bg白/5 hover:bg-white/10 px-2 py-1 rounded"
                                   >
                                     <span className="font-semibold text-gray-100">
                                       Season {seasonYear}
@@ -731,7 +776,9 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                         const matches =
                                           d.matchesByEventKey[stateKey];
                                         const matchesLoading =
-                                          d.loadingMatchesByEventKey[stateKey];
+                                          d.loadingMatchesByEventKey[
+                                            stateKey
+                                          ];
                                         const matchesError =
                                           d.matchesErrorByEventKey[stateKey];
                                         const eventOpen =
@@ -796,69 +843,78 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                     </div>
                                                   )}
 
-                                                {matches && matches.length > 0 && (
-                                                  <div className="flex flex-wrap gap-3">
-                                                    {matches.map((m: any) => {
-                                                      const tl =
-                                                        m.tournamentLevel ||
-                                                        m.TournamentLevel ||
-                                                        "qual";
-                                                      const mn =
-                                                        m.matchNumber ||
-                                                        m.MatchNumber ||
-                                                        0;
-                                                      const mKey = matchKey(
-                                                        seasonYear,
-                                                        ev.eventCode ?? "",
-                                                        tl,
-                                                        mn
-                                                      );
+                                                {matches &&
+                                                  matches.length > 0 && (
+                                                    <div className="flex flex-wrap gap-3">
+                                                      {matches.map(
+                                                        (m: any) => {
+                                                          const tl =
+                                                            m.tournamentLevel ||
+                                                            m.TournamentLevel ||
+                                                            "qual";
+                                                          const mn =
+                                                            m.matchNumber ||
+                                                            m.MatchNumber ||
+                                                            0;
+                                                          const mKey =
+                                                            matchKey(
+                                                              seasonYear,
+                                                              ev.eventCode ??
+                                                                "",
+                                                              tl,
+                                                              mn
+                                                            );
 
-                                                      const score =
-                                                        d.scoresByMatchKey[
-                                                          mKey
-                                                        ];
-                                                      const scoreLoading =
-                                                        d
-                                                          .loadingScoresByMatchKey[
-                                                          mKey
-                                                        ] || false;
-                                                      const scoreError =
-                                                        d
-                                                          .scoresErrorByMatchKey[
-                                                          mKey
-                                                        ] ?? null;
+                                                          const score =
+                                                            d
+                                                              .scoresByMatchKey[
+                                                              mKey
+                                                            ];
+                                                          const scoreLoading =
+                                                            d
+                                                              .loadingScoresByMatchKey[
+                                                              mKey
+                                                            ] || false;
+                                                          const scoreError =
+                                                            d
+                                                              .scoresErrorByMatchKey[
+                                                              mKey
+                                                            ] ?? null;
 
-                                                      return (
-                                                        <MatchCard
-                                                          key={mKey}
-                                                          teamNumber={
-                                                            t.teamNumber!
-                                                          }
-                                                          seasonYear={
-                                                            seasonYear
-                                                          }
-                                                          eventCode={
-                                                            ev.eventCode ?? ""
-                                                          }
-                                                          tournamentLevel={tl}
-                                                          matchNumber={mn}
-                                                          match={m}
-                                                          score={score}
-                                                          scoreLoading={
-                                                            scoreLoading
-                                                          }
-                                                          scoreError={
-                                                            scoreError
-                                                          }
-                                                          ensureScoreLoaded={
-                                                            ensureScoreLoaded
-                                                          }
-                                                        />
-                                                      );
-                                                    })}
-                                                  </div>
-                                                )}
+                                                          return (
+                                                            <MatchCard
+                                                              key={mKey}
+                                                              teamNumber={
+                                                                t.teamNumber!
+                                                              }
+                                                              seasonYear={
+                                                                seasonYear
+                                                              }
+                                                              eventCode={
+                                                                ev.eventCode ??
+                                                                ""
+                                                              }
+                                                              tournamentLevel={
+                                                                tl
+                                                              }
+                                                              matchNumber={mn}
+                                                              match={m}
+                                                              score={score}
+                                                              scoreLoading={
+                                                                scoreLoading
+                                                              }
+                                                              scoreError={
+                                                                scoreError
+                                                              }
+                                                              ensureScoreLoaded={
+                                                                ensureScoreLoaded
+                                                              }
+                                                            />
+                                                          );
+                                                        }
+                                                      )}
+                                                    </div>
+                                                  )}
                                               </div>
                                             )}
                                           </div>
@@ -1144,8 +1200,8 @@ function MatchScoreTable({ score }: { score: any }) {
   };
 
   const row = (key: string) => {
-    const redVal = red ? red[key] : undefined;
-    const blueVal = blue ? blue[key] : undefined;
+    const redVal = red ? (red as any)[key] : undefined;
+    const blueVal = blue ? (blue as any)[key] : undefined;
     const label = humanizeKey(key);
     const bold = boldKeys.has(key);
 
