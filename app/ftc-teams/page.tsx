@@ -1,5 +1,6 @@
 // app/ftc-teams/page.tsx
 import { getAllFtcTeamsForSeason, FtcTeam } from "@/lib/ftcEvents";
+import TeamsClient from "./TeamsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +29,6 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
 
     return num > 0 && (hasName || hasLocation);
   });
-}
-
-function getDisplayName(t: FtcTeam): string {
-  const shortName = (t.nameShort ?? "").toString().trim();
-  const fullName = (t.nameFull ?? "").toString().trim();
-  return shortName || fullName || "";
 }
 
 export default async function FtcTeamsPage() {
@@ -83,11 +78,6 @@ export default async function FtcTeamsPage() {
         <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           <p className="font-semibold mb-1">Error loading FTC data</p>
           <p className="whitespace-pre-wrap">{loadError}</p>
-          <p className="mt-1 opacity-80">
-            Check your <code>FTC_API_USERNAME</code> /
-            <code>FTC_API_TOKEN</code> env vars and that your server can reach
-            <code> ftc-api.firstinspires.org</code>.
-          </p>
         </div>
       )}
 
@@ -99,61 +89,7 @@ export default async function FtcTeamsPage() {
         </p>
       )}
 
-      {!loadError && teams.length > 0 && (
-        <div className="rounded-xl border border-white/10 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-white/5">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Team #
-                </th>
-                <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
-                  Team Name
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  City
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  State / Prov
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Country
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Rookie Year
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {teams.map((t) => (
-                <tr
-                  key={t.teamNumber ?? Math.random()}
-                  className="hover:bg-white/5"
-                >
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {t.teamNumber ?? ""}
-                  </td>
-                  <td className="px-3 py-1.5 align-top max-w-xs w-64 whitespace-normal break-words">
-                    {getDisplayName(t)}
-                  </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.city ?? "").toString()}
-                  </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.stateProv ?? "").toString()}
-                  </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {(t.country ?? "").toString()}
-                  </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    {t.rookieYear ?? ""}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {!loadError && teams.length > 0 && <TeamsClient teams={teams} />}
     </main>
   );
 }
