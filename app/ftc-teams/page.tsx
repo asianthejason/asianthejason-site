@@ -1,9 +1,9 @@
 // app/ftc-teams/page.tsx
 import { getAllFtcTeamsForSeason, FtcTeam } from "@/lib/ftcEvents";
 
-export const dynamic = "force-dynamic"; // always fetch fresh on request
+export const dynamic = "force-dynamic";
 
-const SEASON = 2025; // change this to the season you want
+const SEASON = 2025;
 
 function sortTeams(teams: FtcTeam[]): FtcTeam[] {
   return [...teams].sort((a, b) => {
@@ -23,10 +23,6 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
     const state = (t.stateProv ?? "").toString().trim();
     const country = (t.country ?? "").toString().trim();
 
-    // Keep teams that have:
-    // - a positive team number
-    // - AND at least one of: name or location data
-    // This drops the 999xx dummy rows that are all blank.
     const hasName = nameShort !== "" || nameFull !== "";
     const hasLocation = city !== "" || state !== "" || country !== "";
 
@@ -111,7 +107,7 @@ export default async function FtcTeamsPage() {
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
                   Team #
                 </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
                   Team Name
                 </th>
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
@@ -137,7 +133,7 @@ export default async function FtcTeamsPage() {
                   <td className="px-3 py-1.5 whitespace-nowrap">
                     {t.teamNumber ?? ""}
                   </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
+                  <td className="px-3 py-1.5 align-top max-w-xs w-64 whitespace-normal break-words">
                     {getDisplayName(t)}
                   </td>
                   <td className="px-3 py-1.5 whitespace-nowrap">
