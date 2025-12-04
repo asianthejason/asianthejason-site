@@ -36,9 +36,6 @@ type DrilldownState = {
   loadingMatchesByEventKey: Record<string, boolean>;
   matchesErrorByEventKey: Record<string, string | null | undefined>;
 
-  // Which matches are expanded (keyed by "season:eventCode:tLevel:matchNumber")
-  openMatches: Record<string, boolean>;
-
   // Match -> score details
   scoresByMatchKey: Record<string, FtcMatchScores | null | undefined>;
   loadingScoresByMatchKey: Record<string, boolean>;
@@ -87,7 +84,6 @@ function createEmptyDrilldown(): DrilldownState {
     matchesByEventKey: {},
     loadingMatchesByEventKey: {},
     matchesErrorByEventKey: {},
-    openMatches: {},
     scoresByMatchKey: {},
     loadingScoresByMatchKey: {},
     scoresErrorByMatchKey: {},
@@ -153,9 +149,8 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   }, [teams, search, stateFilter, countryFilter]);
 
   // === Drilldown state ===
-  const [expandedTeamNumber, setExpandedTeamNumber] = useState<number | null>(
-    null
-  );
+  const [expandedTeamNumber, setExpandedTeamNumber] =
+    useState<number | null>(null);
 
   const [drilldownByTeam, setDrilldownByTeam] = useState<
     Record<number, DrilldownState>
@@ -432,7 +427,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
   }
 
-  // EVENT ROW → toggle open + lazy-load matches
+  // EVENT ROW → toggle open + lazy-load matches (and preload scores)
   async function handleToggleEvent(
     teamNumber: number,
     seasonYear: number,
@@ -502,13 +497,12 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         },
       });
 
-      // === NEW: preload all match scores in the background ===
+      // Preload all match scores in the background
       const eventCode = event.eventCode ?? "";
       for (const m of matches as any[]) {
         const tl = m.tournamentLevel || m.TournamentLevel || "qual";
         const mn = m.matchNumber || m.MatchNumber || 0;
         if (!mn) continue;
-        // fire-and-forget; don't await, we just want the cache filled
         void ensureScoreLoaded(teamNumber, seasonYear, eventCode, tl, mn);
       }
     } catch (err: any) {
@@ -524,41 +518,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         },
       });
     }
-  }
-
-  // MATCH ROW → toggle open + (if needed) ensure score is loaded
-  async function handleToggleMatch(
-    teamNumber: number,
-    seasonYear: number,
-    eventCode: string,
-    tournamentLevel: string,
-    matchNumber: number
-  ) {
-    const key = matchKey(
-      seasonYear,
-      eventCode,
-      tournamentLevel,
-      matchNumber
-    );
-    const d = getDrilldown(teamNumber);
-
-    const currentlyOpen = !!d.openMatches[key];
-    const nextOpen = !currentlyOpen;
-
-    setDrilldown(teamNumber, {
-      openMatches: { ...d.openMatches, [key]: nextOpen },
-    });
-
-    if (!nextOpen) return;
-
-    // If preloading hasn't fetched yet, make sure we have the score
-    await ensureScoreLoaded(
-      teamNumber,
-      seasonYear,
-      eventCode,
-      tournamentLevel,
-      matchNumber
-    );
   }
 
   // === RENDER ===
@@ -799,9 +758,9 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                               </span>
                                             </button>
 
-                                            {/* Matches */}
+                                            {/* Match cards */}
                                             {eventOpen && (
-                                              <div className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1">
+                                              <div className="mt-2 ml-4 border-l border-white/10 pl-3">
                                                 {matchesLoading && (
                                                   <div className="text-[11px] text-gray-400">
                                                     Loading matches…
@@ -822,172 +781,195 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                     </div>
                                                   )}
 
-                                                {matches &&
-                                                  matches.map((m: any) => {
-                                                    const tl =
-                                                      m.tournamentLevel ||
-                                                      m.TournamentLevel ||
-                                                      "qual";
-                                                    const mn =
-                                                      m.matchNumber ||
-                                                      m.MatchNumber ||
-                                                      0;
-                                                    const mKey = matchKey(
-                                                      seasonYear,
-                                                      ev.eventCode ?? "",
-                                                      tl,
-                                                      mn
-                                                    );
-                                                    const score =
-                                                      d.scoresByMatchKey[
-                                                        mKey
-                                                      ];
-                                                    const scoreLoading =
-                                                      d
-                                                        .loadingScoresByMatchKey[
-                                                        mKey
-                                                      ];
-                                                    const scoreError =
-                                                      d
-                                                        .scoresErrorByMatchKey[
-                                                        mKey
-                                                      ];
-                                                    const matchOpen =
-                                                      d.openMatches[mKey] ??
-                                                      false;
-
-                                                    // Derive red/blue scores:
-                                                    let redScore: number | null =
-                                                      m.redScore ??
-                                                      m.RedScore ??
-                                                      m.red?.score ??
-                                                      null;
-                                                    let blueScore: number | null =
-                                                      m.blueScore ??
-                                                      m.BlueScore ??
-                                                      m.blue?.score ??
-                                                      null;
-
-                                                    // If match listing doesn’t have scores, pull from preloaded score JSON
-                                                    const alliances = Array.isArray(
-                                                      (score as any)?.alliances
-                                                    )
-                                                      ? (score as any)
-                                                          .alliances
-                                                      : [];
-
-                                                    const redAlliance =
-                                                      alliances.find(
-                                                        (a: any) =>
-                                                          (a.alliance ?? "")
-                                                            .toString()
-                                                            .toLowerCase() ===
-                                                          "red"
+                                                {matches && matches.length > 0 && (
+                                                  <div className="flex flex-wrap gap-3">
+                                                    {matches.map((m: any) => {
+                                                      const tl =
+                                                        m.tournamentLevel ||
+                                                        m.TournamentLevel ||
+                                                        "qual";
+                                                      const mn =
+                                                        m.matchNumber ||
+                                                        m.MatchNumber ||
+                                                        0;
+                                                      const mKey = matchKey(
+                                                        seasonYear,
+                                                        ev.eventCode ?? "",
+                                                        tl,
+                                                        mn
                                                       );
-                                                    const blueAlliance =
-                                                      alliances.find(
-                                                        (a: any) =>
-                                                          (a.alliance ?? "")
-                                                            .toString()
-                                                            .toLowerCase() ===
-                                                          "blue"
-                                                      );
+                                                      const score =
+                                                        d.scoresByMatchKey[
+                                                          mKey
+                                                        ];
+                                                      const scoreLoading =
+                                                        d
+                                                          .loadingScoresByMatchKey[
+                                                          mKey
+                                                        ];
+                                                      const scoreError =
+                                                        d
+                                                          .scoresErrorByMatchKey[
+                                                          mKey
+                                                        ];
 
-                                                    if (
-                                                      redScore == null &&
-                                                      redAlliance
-                                                    ) {
-                                                      redScore =
-                                                        redAlliance.totalPoints ??
+                                                      // Derive red/blue scores from listing or score JSON
+                                                      let redScore: number | null =
+                                                        m.redScore ??
+                                                        m.RedScore ??
+                                                        m.red?.score ??
                                                         null;
-                                                    }
-                                                    if (
-                                                      blueScore == null &&
-                                                      blueAlliance
-                                                    ) {
-                                                      blueScore =
-                                                        blueAlliance.totalPoints ??
+                                                      let blueScore: number | null =
+                                                        m.blueScore ??
+                                                        m.BlueScore ??
+                                                        m.blue?.score ??
                                                         null;
-                                                    }
 
-                                                    return (
-                                                      <div
-                                                        key={mKey}
-                                                        className="text-[11px]"
-                                                      >
-                                                        <button
-                                                          type="button"
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleToggleMatch(
-                                                              t.teamNumber!,
-                                                              seasonYear,
-                                                              ev.eventCode ??
-                                                                "",
-                                                              tl,
-                                                              mn
-                                                            );
-                                                          }}
-                                                          className="w-full flex justify-between items-center text-left bg-white/[0.03] hover:bg-white/[0.07] px-2 py-1 rounded"
+                                                      const alliances =
+                                                        Array.isArray(
+                                                          (score as any)
+                                                            ?.alliances
+                                                        )
+                                                          ? (score as any)
+                                                              .alliances
+                                                          : [];
+
+                                                      const redAlliance =
+                                                        alliances.find(
+                                                          (a: any) =>
+                                                            (a.alliance ?? "")
+                                                              .toString()
+                                                              .toLowerCase() ===
+                                                            "red"
+                                                        );
+                                                      const blueAlliance =
+                                                        alliances.find(
+                                                          (a: any) =>
+                                                            (a.alliance ?? "")
+                                                              .toString()
+                                                              .toLowerCase() ===
+                                                            "blue"
+                                                        );
+
+                                                      const redTotal =
+                                                        redAlliance
+                                                          ?.totalPoints ??
+                                                        redScore ??
+                                                        null;
+                                                      const blueTotal =
+                                                        blueAlliance
+                                                          ?.totalPoints ??
+                                                        blueScore ??
+                                                        null;
+
+                                                      let winner:
+                                                        | "Red"
+                                                        | "Blue"
+                                                        | "Tie"
+                                                        | null = null;
+                                                      if (
+                                                        redTotal != null &&
+                                                        blueTotal != null
+                                                      ) {
+                                                        if (
+                                                          redTotal >
+                                                          blueTotal
+                                                        ) {
+                                                          winner = "Red";
+                                                        } else if (
+                                                          blueTotal >
+                                                          redTotal
+                                                        ) {
+                                                          winner = "Blue";
+                                                        } else if (
+                                                          redTotal ===
+                                                            blueTotal &&
+                                                          redTotal !== 0
+                                                        ) {
+                                                          winner = "Tie";
+                                                        }
+                                                      }
+
+                                                      return (
+                                                        <div
+                                                          key={mKey}
+                                                          className="bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-[11px] w-full sm:w-64 md:w-72"
                                                         >
-                                                          <span className="text-gray-100">
-                                                            {tl.toUpperCase()}{" "}
-                                                            #{mn}
-                                                          </span>
-                                                          <span className="text-gray-200">
-                                                            {redScore ??
-                                                              "?"}{" "}
-                                                            <span className="text-red-400">
-                                                              Red
-                                                            </span>{" "}
-                                                            –{" "}
-                                                            <span className="text-blue-400">
-                                                              Blue
-                                                            </span>{" "}
-                                                            {blueScore ?? "?"}
-                                                          </span>
-                                                        </button>
-
-                                                        {/* Score details */}
-                                                        {matchOpen && (
-                                                          <div className="mt-1 ml-4 border-l border-white/10 pl-3">
-                                                            {scoreLoading && (
-                                                              <div className="text-[10px] text-gray-400">
-                                                                Loading score
-                                                                details…
-                                                              </div>
-                                                            )}
-                                                            {scoreError && (
-                                                              <div className="text-[10px] text-red-400">
-                                                                {scoreError}
-                                                              </div>
-                                                            )}
-                                                            {!scoreLoading &&
-                                                              !scoreError &&
-                                                              score && (
-                                                                <MatchScoreTable
-                                                                  score={
-                                                                    score as any
-                                                                  }
-                                                                />
-                                                              )}
-                                                            {!scoreLoading &&
-                                                              !scoreError &&
-                                                              score ===
-                                                                null && (
-                                                                <div className="text-[10px] text-gray-500">
-                                                                  No score
-                                                                  details
-                                                                  available for
-                                                                  this match
-                                                                  yet.
-                                                                </div>
-                                                              )}
+                                                          <div className="flex justify-between items-baseline mb-1">
+                                                            <div className="font-semibold text-gray-100">
+                                                              {tl
+                                                                .toUpperCase()
+                                                                .replace(
+                                                                  "QUAL",
+                                                                  "QUALIFICATION"
+                                                                )}{" "}
+                                                              #{mn}
+                                                            </div>
+                                                            <div className="text-xs font-semibold">
+                                                              <span
+                                                                className={
+                                                                  winner ===
+                                                                  "Red"
+                                                                    ? "underline text-red-300"
+                                                                    : "text-red-300"
+                                                                }
+                                                              >
+                                                                Red{" "}
+                                                                {redTotal ??
+                                                                  "?"}
+                                                              </span>
+                                                              <span className="mx-1 text-gray-400">
+                                                                –
+                                                              </span>
+                                                              <span
+                                                                className={
+                                                                  winner ===
+                                                                  "Blue"
+                                                                    ? "underline text-blue-300"
+                                                                    : "text-blue-300"
+                                                                }
+                                                              >
+                                                                Blue{" "}
+                                                                {blueTotal ??
+                                                                  "?"}
+                                                              </span>
+                                                            </div>
                                                           </div>
-                                                        )}
-                                                      </div>
-                                                    );
-                                                  })}
+
+                                                          {scoreLoading && (
+                                                            <div className="text-[10px] text-gray-400">
+                                                              Loading breakdown…
+                                                            </div>
+                                                          )}
+                                                          {scoreError && (
+                                                            <div className="text-[10px] text-red-400">
+                                                              {scoreError}
+                                                            </div>
+                                                          )}
+                                                          {!scoreLoading &&
+                                                            !scoreError &&
+                                                            score && (
+                                                              <MatchScoreTable
+                                                                score={
+                                                                  score as any
+                                                                }
+                                                              />
+                                                            )}
+                                                          {!scoreLoading &&
+                                                            !scoreError &&
+                                                            score === null && (
+                                                              <div className="text-[10px] text-gray-500">
+                                                                No score
+                                                                details
+                                                                available for
+                                                                this match yet.
+                                                              </div>
+                                                            )}
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
                                           </div>
@@ -1014,8 +996,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 }
 
 /**
- * Small “chart” / scoreboard for a match:
- *   Red vs Blue, with auto / teleop / total / fouls / RP.
+ * Compact score breakdown used inside each match card.
  */
 function MatchScoreTable({ score }: { score: any }) {
   const alliances: any[] = Array.isArray(score?.alliances)
@@ -1028,14 +1009,6 @@ function MatchScoreTable({ score }: { score: any }) {
   const blue = alliances.find(
     (a) => (a.alliance ?? "").toString().toLowerCase() === "blue"
   );
-
-  const redTotal = red?.totalPoints ?? 0;
-  const blueTotal = blue?.totalPoints ?? 0;
-
-  let winner: "Red" | "Blue" | "Tie" | null = null;
-  if (redTotal > blueTotal) winner = "Red";
-  else if (blueTotal > redTotal) winner = "Blue";
-  else if (redTotal === blueTotal && redTotal !== 0) winner = "Tie";
 
   const row = (
     label: string,
@@ -1057,20 +1030,13 @@ function MatchScoreTable({ score }: { score: any }) {
   );
 
   return (
-    <div className="text-[10px] text-gray-100 bg-black/60 rounded px-2 py-2 mt-1 inline-block min-w-[260px]">
-      {/* Header */}
+    <div className="text-[10px] text-gray-100 bg-black/50 rounded px-2 py-2 mt-1">
       <div className="flex items-center justify-between mb-1">
         <span className="uppercase tracking-wide text-[9px] text-gray-400">
           Score breakdown
         </span>
-        {winner && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10">
-            {winner === "Tie" ? "Tie game" : `${winner} wins`}
-          </span>
-        )}
       </div>
 
-      {/* Grid “chart” */}
       <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
         <div></div>
         <div className="pb-1 text-center font-semibold text-red-300 border-b border-white/10">
@@ -1105,16 +1071,8 @@ function MatchScoreTable({ score }: { score: any }) {
         {row("Leave points", red?.autoLeavePoints, blue?.autoLeavePoints)}
         {row("Base points", red?.teleopBasePoints, blue?.teleopBasePoints)}
 
-        {row(
-          "Major fouls",
-          red?.majorFouls,
-          blue?.majorFouls
-        )}
-        {row(
-          "Minor fouls",
-          red?.minorFouls,
-          blue?.minorFouls
-        )}
+        {row("Major fouls", red?.majorFouls, blue?.majorFouls)}
+        {row("Minor fouls", red?.minorFouls, blue?.minorFouls)}
 
         {row(
           "RP: Movement",
