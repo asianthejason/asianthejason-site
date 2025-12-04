@@ -197,7 +197,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   }
 
   // === SCORE-LOADING HELPER (never called from render) ===
-  // Uses only functional updates to avoid stale state issues.
+  // Simpler version: we rely on the MatchCard effect guard to avoid refetching.
   const ensureScoreLoaded = useCallback(
     async (
       teamNumber: number,
@@ -213,21 +213,9 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         matchNumber
       );
 
-      let shouldFetch = false;
-
-      // First, atomically mark as loading if we don't already have data or a load in progress.
+      // Mark as loading + clear previous error.
       setDrilldownByTeam((prev) => {
         const base = prev[teamNumber] ?? createEmptyDrilldown();
-        const already = base.scoresByMatchKey[key];
-        const loading = base.loadingScoresByMatchKey[key];
-
-        if (already !== undefined || loading) {
-          // Someone else already started / finished the load.
-          return prev;
-        }
-
-        shouldFetch = true;
-
         return {
           ...prev,
           [teamNumber]: {
@@ -243,10 +231,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
           },
         };
       });
-
-      if (!shouldFetch) {
-        return;
-      }
 
       try {
         const res = await fetch(
@@ -351,7 +335,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         });
       }
     },
-    [setDrilldownByTeam]
+    []
   );
 
   // === CLICK HANDLERS ===
@@ -737,7 +721,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                       e.stopPropagation();
                                       handleToggleSeason(t, seasonYear);
                                     }}
-                                    className="w-full flex justify-between items-center text-left text-xs bg白/5 hover:bg-white/10 px-2 py-1 rounded"
+                                    className="w-full flex justify-between items-center text-left text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
                                   >
                                     <span className="font-semibold text-gray-100">
                                       Season {seasonYear}
