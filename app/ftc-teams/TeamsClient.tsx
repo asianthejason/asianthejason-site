@@ -147,7 +147,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   /* ========= CLICK HANDLERS ========= */
 
-  // TEAM ROW → load list of seasons (years)
+  // TEAM ROW → load list of seasons (years) and auto-open the latest season
   async function handleToggleTeam(team: FtcTeam) {
     const teamNumber = team.teamNumber;
     if (!teamNumber) return;
@@ -191,10 +191,29 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
       const seasonsList = (json.seasons ?? []).slice().sort((a, b) => a - b);
 
+      // Update seasons + open the most recent one
+      const latestSeason =
+        seasonsList.length > 0 ? seasonsList[seasonsList.length - 1] : undefined;
+
+      const prev = getDrilldown(teamNumber);
+
       setDrilldown(teamNumber, {
         seasons: seasonsList,
         loadingSeasons: false,
+        openSeasons:
+          latestSeason !== undefined
+            ? { ...prev.openSeasons, [latestSeason]: true }
+            : prev.openSeasons,
       });
+
+      // If we have a latest season, immediately load its events so the user
+      // sees an accordion open after a single click.
+      if (latestSeason !== undefined) {
+        await handleToggleSeason(team, latestSeason, {
+          forceOpen: true,
+          skipToggleIfAlreadyOpen: true,
+        });
+      }
     } catch (err: any) {
       setDrilldown(teamNumber, {
         loadingSeasons: false,
@@ -203,14 +222,28 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
   }
 
+  type SeasonToggleOptions = {
+    forceOpen?: boolean;
+    skipToggleIfAlreadyOpen?: boolean;
+  };
+
   // SEASON ROW → toggle open + (if opening) load events for that season
-  async function handleToggleSeason(team: FtcTeam, seasonYear: number) {
+  async function handleToggleSeason(
+    team: FtcTeam,
+    seasonYear: number,
+    options: SeasonToggleOptions = {}
+  ) {
     const teamNumber = team.teamNumber;
     if (!teamNumber) return;
 
     const d = getDrilldown(teamNumber);
     const currentlyOpen = !!d.openSeasons[seasonYear];
-    const nextOpen = !currentlyOpen;
+
+    const nextOpen = options.forceOpen
+      ? true
+      : options.skipToggleIfAlreadyOpen && currentlyOpen
+      ? true
+      : !currentlyOpen;
 
     // toggle open/close
     setDrilldown(teamNumber, {
@@ -462,7 +495,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   return (
     <div className="space-y-4">
-      {/* Filters / search */}
+      {/* Filters / search – same simple layout as before */}
       <div className="flex flex-wrap gap-3 items-center text-sm">
         <label className="flex items-center gap-2">
           <span className="text-gray-300">Country</span>
@@ -690,6 +723,15 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                     {matchesError}
                                                   </div>
                                                 )}
+                                                {!matchesLoading &&
+                                                  !matchesError &&
+                                                  matches &&
+                                                  matches.length === 0 && (
+                                                    <div className="text-[11px] text-gray-500">
+                                                      No matches found for this
+                                                      event.
+                                                    </div>
+                                                  )}
                                                 {matches &&
                                                   matches.map((m: any) => {
                                                     const tl =
