@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEventMatchesForTeam } from "@/lib/ftcEvents";
 
 /**
- * Fetch ALL qualification matches for an event (no team filter) from the
- * official FTC Events API.
+ * Fetch ALL qualification matches for an event (no team filter) from
+ * the official FTC Events API. Used by the "Event info" modal.
  */
 async function fetchEventQualificationMatches(
   season: number,
@@ -14,7 +14,9 @@ async function fetchEventQualificationMatches(
   const apiKey = process.env.FTC_API_KEY;
 
   if (!username || !apiKey) {
-    throw new Error("FTC API credentials (FTC_API_USER / FTC_API_KEY) are not set");
+    throw new Error(
+      "FTC API credentials (FTC_API_USER / FTC_API_KEY) are not set"
+    );
   }
 
   const url = `https://ftc-api.firstinspires.org/v2.0/${season}/matches/${encodeURIComponent(
@@ -26,7 +28,6 @@ async function fetchEventQualificationMatches(
       Authorization:
         "Basic " + Buffer.from(`${username}:${apiKey}`).toString("base64"),
     },
-    // cache on the server a bit so repeated opens of the modal are fast
     next: { revalidate: 60 },
   });
 
@@ -42,10 +43,12 @@ async function fetchEventQualificationMatches(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { season: string; eventCode: string } }
+  {
+    params,
+  }: { params: Promise<{ season: string; eventCode: string }> }
 ) {
   try {
-    const { season: seasonStr, eventCode } = params;
+    const { season: seasonStr, eventCode } = await params;
 
     const url = new URL(req.url);
     const teamNumberParam = url.searchParams.get("teamNumber");
@@ -73,7 +76,7 @@ export async function GET(
 
       matches = await getEventMatchesForTeam(season, eventCode, teamNumber);
     }
-    // === Mode 2: event-wide quals (event-info modal) ===
+    // === Mode 2: event-wide quals (event-info modal, no teamNumber) ===
     else {
       matches = await fetchEventQualificationMatches(season, eventCode);
     }

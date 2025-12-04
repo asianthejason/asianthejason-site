@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Fetch event rankings from the FTC Events API.
- * This is what the event-info modal uses for the rankings table.
+ * Used by the "Event info" modal for the rankings table.
  */
 async function fetchEventRankings(
   season: number,
@@ -13,7 +13,9 @@ async function fetchEventRankings(
   const apiKey = process.env.FTC_API_KEY;
 
   if (!username || !apiKey) {
-    throw new Error("FTC API credentials (FTC_API_USER / FTC_API_KEY) are not set");
+    throw new Error(
+      "FTC API credentials (FTC_API_USER / FTC_API_KEY) are not set"
+    );
   }
 
   const url = `https://ftc-api.firstinspires.org/v2.0/${season}/rankings/${encodeURIComponent(
@@ -34,17 +36,18 @@ async function fetchEventRankings(
     );
   }
 
-  // Shape is something like { rankings: [...] }
   const data = (await res.json()) as { rankings?: any[] };
   return data.rankings ?? [];
 }
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { season: string; eventCode: string } }
+  {
+    params,
+  }: { params: Promise<{ season: string; eventCode: string }> }
 ) {
   try {
-    const { season: seasonStr, eventCode } = params;
+    const { season: seasonStr, eventCode } = await params;
 
     const season = Number(seasonStr);
     if (!Number.isFinite(season)) {
