@@ -90,6 +90,27 @@ function createEmptyDrilldown(): DrilldownState {
   };
 }
 
+// Helper: find the alliances array wherever it lives in the score payload
+function getAlliancesFromScore(score: any): any[] {
+  if (!score || typeof score !== "object") return [];
+
+  if (Array.isArray(score.alliances)) {
+    return score.alliances;
+  }
+
+  // Look through nested properties for an array of objects with "alliance"
+  for (const v of Object.values(score)) {
+    if (Array.isArray(v)) {
+      const match = v.some(
+        (x) => x && typeof x === "object" && "alliance" in x
+      );
+      if (match) return v as any[];
+    }
+  }
+
+  return [];
+}
+
 export function TeamsClient({ season, teams }: TeamsClientProps) {
   // === Filters / search (old UI behaviour) ===
   const [search, setSearch] = useState("");
@@ -175,7 +196,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     });
   }
 
-  // === SHARED SCORE-LOADING HELPER ===
+  // === SCORE-LOADING HELPER (now only called from match cards) ===
 
   async function ensureScoreLoaded(
     teamNumber: number,
@@ -187,7 +208,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     const key = matchKey(seasonYear, eventCode, tournamentLevel, matchNumber);
     let d = getDrilldown(teamNumber);
 
-    // Already have data or loading in progress
+    // Already have data or a load in progress
     if (
       d.scoresByMatchKey[key] !== undefined ||
       d.loadingScoresByMatchKey[key]
@@ -427,7 +448,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
   }
 
-  // EVENT ROW → toggle open + lazy-load matches (and preload scores)
+  // EVENT ROW → toggle open + lazy-load matches (no score preload)
   async function handleToggleEvent(
     teamNumber: number,
     seasonYear: number,
@@ -449,20 +470,8 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     const alreadyMatches = d.matchesByEventKey[matchesKey];
     const loadingMatches = d.loadingMatchesByEventKey[matchesKey];
 
-    // If we already have matches for this event, just ensure scores
-    if (alreadyMatches && !loadingMatches) {
-      const eventCode = event.eventCode ?? "";
-      for (const m of alreadyMatches as any[]) {
-        const tl = m.tournamentLevel || m.TournamentLevel || "qual";
-        const mn = m.matchNumber || m.MatchNumber || 0;
-        if (!mn) continue;
-        void ensureScoreLoaded(teamNumber, seasonYear, eventCode, tl, mn);
-      }
-      return;
-    }
-
-    // Otherwise fetch matches, then preload scores
-    if (loadingMatches) {
+    if (alreadyMatches || loadingMatches) {
+      // We already have (or are loading) the match list; scores will load per card.
       return;
     }
 
@@ -511,15 +520,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
           [matchesKey]: false,
         },
       });
-
-      // Preload all match scores in the background
-      const eventCode = event.eventCode ?? "";
-      for (const m of matches as any[]) {
-        const tl = m.tournamentLevel || m.TournamentLevel || "qual";
-        const mn = m.matchNumber || m.MatchNumber || 0;
-        if (!mn) continue;
-        void ensureScoreLoaded(teamNumber, seasonYear, eventCode, tl, mn);
-      }
     } catch (err: any) {
       const d2 = getDrilldown(teamNumber);
       setDrilldown(teamNumber, {
@@ -813,6 +813,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         tl,
                                                         mn
                                                       );
+
                                                       const score =
                                                         d.scoresByMatchKey[
                                                           mKey
@@ -828,7 +829,22 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                           mKey
                                                         ];
 
-                                                      // Derive red/blue scores from listing or score JSON
+                                                      // If we don't yet have score data for this card, kick off a load.
+                                                      if (
+                                                        score === undefined &&
+                                                        !scoreLoading &&
+                                                        !scoreError
+                                                      ) {
+                                                        void ensureScoreLoaded(
+                                                          t.teamNumber!,
+                                                          seasonYear,
+                                                          ev.eventCode ?? "",
+                                                          tl,
+                                                          mn
+                                                        );
+                                                      }
+
+                                                      // Derive red/blue totals from listing or score JSON
                                                       let redScore: number | null =
                                                         m.redScore ??
                                                         m.RedScore ??
@@ -841,12 +857,10 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         null;
 
                                                       const alliances =
-                                                        Array.isArray(
-                                                          (score as any)
-                                                            ?.alliances
-                                                        )
-                                                          ? (score as any)
-                                                              .alliances
+                                                        score
+                                                          ? getAlliancesFromScore(
+                                                              score
+                                                            )
                                                           : [];
 
                                                       const redAlliance =
@@ -867,12 +881,12 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         );
 
                                                       const redTotal =
-                                                        redAlliance
+                                                        (redAlliance as any)
                                                           ?.totalPoints ??
                                                         redScore ??
                                                         null;
                                                       const blueTotal =
-                                                        blueAlliance
+                                                        (blueAlliance as any)
                                                           ?.totalPoints ??
                                                         blueScore ??
                                                         null;
@@ -1062,9 +1076,7 @@ function humanizeKey(key: string): string {
  * Categories are derived dynamically from whatever the API returns.
  */
 function MatchScoreTable({ score }: { score: any }) {
-  const alliances: any[] = Array.isArray(score?.alliances)
-    ? score.alliances
-    : [];
+  const alliances = getAlliancesFromScore(score);
 
   const red = alliances.find(
     (a) => (a.alliance ?? "").toString().toLowerCase() === "red"
