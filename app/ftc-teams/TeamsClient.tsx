@@ -333,7 +333,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
     if (!nextOpen) return;
 
-    const matchesKey = stateKey; // we use the same key for matchesByEventKey
+    const matchesKey = stateKey; // same key for matchesByEventKey
     const already = d.matchesByEventKey[matchesKey];
     const loading = d.loadingMatchesByEventKey[matchesKey];
 
@@ -444,7 +444,27 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         )}/matches/${tournamentLevel}/${matchNumber}`
       );
 
+      // If FTC API throws 404/500 for some matches, treat as “no data yet”
       if (!res.ok) {
+        if (res.status === 404 || res.status === 500) {
+          const d2 = getDrilldown(teamNumber);
+          setDrilldown(teamNumber, {
+            scoresByMatchKey: {
+              ...d2.scoresByMatchKey,
+              [key]: null,
+            },
+            loadingScoresByMatchKey: {
+              ...d2.loadingScoresByMatchKey,
+              [key]: false,
+            },
+            scoresErrorByMatchKey: {
+              ...d2.scoresErrorByMatchKey,
+              [key]: null,
+            },
+          });
+          return;
+        }
+
         throw new Error(`HTTP ${res.status}`);
       }
 
@@ -455,7 +475,23 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
       };
 
       if (!json.ok) {
-        throw new Error(json.error ?? "Failed to fetch match details");
+        // same “no data yet” behaviour
+        const d2 = getDrilldown(teamNumber);
+        setDrilldown(teamNumber, {
+          scoresByMatchKey: {
+            ...d2.scoresByMatchKey,
+            [key]: null,
+          },
+          loadingScoresByMatchKey: {
+            ...d2.loadingScoresByMatchKey,
+            [key]: false,
+          },
+          scoresErrorByMatchKey: {
+            ...d2.scoresErrorByMatchKey,
+            [key]: null,
+          },
+        });
+        return;
       }
 
       setDrilldown(teamNumber, {
@@ -778,14 +814,59 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       d.openMatches[mKey] ??
                                                       false;
 
-                                                    const redScore =
+                                                    // Derive red/blue scores:
+                                                    let redScore: number | null =
                                                       m.redScore ??
                                                       m.RedScore ??
-                                                      m.red?.score;
-                                                    const blueScore =
+                                                      m.red?.score ??
+                                                      null;
+                                                    let blueScore: number | null =
                                                       m.blueScore ??
                                                       m.BlueScore ??
-                                                      m.blue?.score;
+                                                      m.blue?.score ??
+                                                      null;
+
+                                                    // If match listing doesn’t have scores, pull from score JSON
+                                                    const alliances = Array.isArray(
+                                                      (score as any)?.alliances
+                                                    )
+                                                      ? (score as any)
+                                                          .alliances
+                                                      : [];
+
+                                                    const redAlliance =
+                                                      alliances.find(
+                                                        (a: any) =>
+                                                          (a.alliance ?? "")
+                                                            .toString()
+                                                            .toLowerCase() ===
+                                                          "red"
+                                                      );
+                                                    const blueAlliance =
+                                                      alliances.find(
+                                                        (a: any) =>
+                                                          (a.alliance ?? "")
+                                                            .toString()
+                                                            .toLowerCase() ===
+                                                          "blue"
+                                                      );
+
+                                                    if (
+                                                      redScore == null &&
+                                                      redAlliance
+                                                    ) {
+                                                      redScore =
+                                                        redAlliance.totalPoints ??
+                                                        null;
+                                                    }
+                                                    if (
+                                                      blueScore == null &&
+                                                      blueAlliance
+                                                    ) {
+                                                      blueScore =
+                                                        blueAlliance.totalPoints ??
+                                                        null;
+                                                    }
 
                                                     return (
                                                       <div
@@ -842,13 +923,11 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                             {!scoreLoading &&
                                                               !scoreError &&
                                                               score && (
-                                                                <pre className="text-[10px] text-gray-100 bg-black/60 rounded px-2 py-1 overflow-x-auto">
-                                                                  {JSON.stringify(
-                                                                    score,
-                                                                    null,
-                                                                    2
-                                                                  )}
-                                                                </pre>
+                                                                <MatchScoreTable
+                                                                  score={
+                                                                    score as any
+                                                                  }
+                                                                />
                                                               )}
                                                             {!scoreLoading &&
                                                               !scoreError &&
@@ -857,8 +936,9 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                                 <div className="text-[10px] text-gray-500">
                                                                   No score
                                                                   details
-                                                                  returned for
-                                                                  this match.
+                                                                  available for
+                                                                  this match
+                                                                  yet.
                                                                 </div>
                                                               )}
                                                           </div>
@@ -888,5 +968,128 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         </table>
       </div>
     </section>
+  );
+}
+
+/**
+ * Small “chart” / scoreboard for a match:
+ *   Red vs Blue, with auto / teleop / total / fouls / RP.
+ */
+function MatchScoreTable({ score }: { score: any }) {
+  const alliances: any[] = Array.isArray(score?.alliances)
+    ? score.alliances
+    : [];
+
+  const red = alliances.find(
+    (a) => (a.alliance ?? "").toString().toLowerCase() === "red"
+  );
+  const blue = alliances.find(
+    (a) => (a.alliance ?? "").toString().toLowerCase() === "blue"
+  );
+
+  const redTotal = red?.totalPoints ?? 0;
+  const blueTotal = blue?.totalPoints ?? 0;
+
+  let winner: "Red" | "Blue" | "Tie" | null = null;
+  if (redTotal > blueTotal) winner = "Red";
+  else if (blueTotal > redTotal) winner = "Blue";
+  else if (redTotal === blueTotal && redTotal !== 0) winner = "Tie";
+
+  const row = (
+    label: string,
+    redVal: any,
+    blueVal: any,
+    opts: { bold?: boolean } = {}
+  ) => (
+    <div
+      className={`contents ${opts.bold ? "font-semibold text-gray-100" : ""}`}
+    >
+      <div className="py-0.5 pr-2 text-gray-300">{label}</div>
+      <div className="py-0.5 text-red-200 text-right">
+        {redVal ?? redVal === 0 ? redVal : "–"}
+      </div>
+      <div className="py-0.5 text-blue-200 text-right">
+        {blueVal ?? blueVal === 0 ? blueVal : "–"}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="text-[10px] text-gray-100 bg-black/60 rounded px-2 py-2 mt-1 inline-block min-w-[260px]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-1">
+        <span className="uppercase tracking-wide text-[9px] text-gray-400">
+          Score breakdown
+        </span>
+        {winner && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10">
+            {winner === "Tie" ? "Tie game" : `${winner} wins`}
+          </span>
+        )}
+      </div>
+
+      {/* Grid “chart” */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
+        <div></div>
+        <div className="pb-1 text-center font-semibold text-red-300 border-b border-white/10">
+          Red
+        </div>
+        <div className="pb-1 text-center font-semibold text-blue-300 border-b border-white/10">
+          Blue
+        </div>
+
+        {row("Auto points", red?.autoPoints, blue?.autoPoints)}
+        {row("Teleop points", red?.teleopPoints, blue?.teleopPoints)}
+        {row(
+          "Total points",
+          red?.totalPoints,
+          blue?.totalPoints,
+          { bold: true }
+        )}
+
+        {row("Auto artifacts", red?.autoArtifactPoints, blue?.autoArtifactPoints)}
+        {row(
+          "Teleop artifacts",
+          red?.teleopArtifactPoints,
+          blue?.teleopArtifactPoints
+        )}
+        {row("Patterns", red?.autoPatternPoints, blue?.autoPatternPoints)}
+        {row(
+          "Teleop patterns",
+          red?.teleopPatternPoints,
+          blue?.teleopPatternPoints
+        )}
+
+        {row("Leave points", red?.autoLeavePoints, blue?.autoLeavePoints)}
+        {row("Base points", red?.teleopBasePoints, blue?.teleopBasePoints)}
+
+        {row(
+          "Major fouls",
+          red?.majorFouls,
+          blue?.majorFouls
+        )}
+        {row(
+          "Minor fouls",
+          red?.minorFouls,
+          blue?.minorFouls
+        )}
+
+        {row(
+          "RP: Movement",
+          red?.movementRP ? "✓" : "",
+          blue?.movementRP ? "✓" : ""
+        )}
+        {row(
+          "RP: Goal",
+          red?.goalRP ? "✓" : "",
+          blue?.goalRP ? "✓" : ""
+        )}
+        {row(
+          "RP: Pattern",
+          red?.patternRP ? "✓" : "",
+          blue?.patternRP ? "✓" : ""
+        )}
+      </div>
+    </div>
   );
 }
