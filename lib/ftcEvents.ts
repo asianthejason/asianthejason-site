@@ -1,7 +1,8 @@
-// src/lib/ftcEvents.ts
+// lib/ftcEvents.ts
 import "server-only";
 
-const FTC_API_BASE = "https://ftc-events.firstinspires.org/v2.0";
+// ✅ Use the actual API host, NOT ftc-events.firstinspires.org
+const FTC_API_BASE = "https://ftc-api.firstinspires.org/v2.0";
 
 export interface FtcTeam {
   teamNumber?: number;
@@ -11,7 +12,7 @@ export interface FtcTeam {
   stateProv?: string;
   country?: string;
   rookieYear?: number;
-  [key: string]: unknown; // allow extra fields from the API
+  [key: string]: unknown;
 }
 
 interface FtcTeamsResponse {
@@ -19,7 +20,6 @@ interface FtcTeamsResponse {
   count?: number;
   pageCurrent?: number;
   pageTotal?: number;
-  // other metadata fields exist; we only care about these
 }
 
 function getAuthHeader(): string {
@@ -37,9 +37,6 @@ function getAuthHeader(): string {
   return `Basic ${authString}`;
 }
 
-/**
- * Low-level FTC API fetch helper.
- */
 async function fetchFtc<T>(
   path: string,
   query: Record<string, string | number | undefined> = {},
@@ -72,9 +69,6 @@ async function fetchFtc<T>(
   return (await res.json()) as T;
 }
 
-/**
- * Fetch ALL teams for a given season, following pagination.
- */
 export async function getAllFtcTeamsForSeason(
   season: number,
 ): Promise<FtcTeam[]> {
@@ -84,20 +78,14 @@ export async function getAllFtcTeamsForSeason(
   while (true) {
     const data = await fetchFtc<FtcTeamsResponse>(`/${season}/teams`, {
       page,
-      size: 250, // adjust if docs say different; 250 is usually safe
+      size: 250,
     });
 
     const teams = data.teams ?? [];
     all.push(...teams);
 
-    // If paging metadata is missing, just stop after one call
-    if (!data.pageCurrent || !data.pageTotal) {
-      break;
-    }
-
-    if (data.pageCurrent >= data.pageTotal) {
-      break;
-    }
+    if (!data.pageCurrent || !data.pageTotal) break;
+    if (data.pageCurrent >= data.pageTotal) break;
 
     page += 1;
   }
