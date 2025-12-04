@@ -111,61 +111,53 @@ function getAlliancesFromScore(score: any): any[] {
   return [];
 }
 
-// Try to pull up to 2 team numbers out of an alliance object
-function getAllianceTeamNumbers(alliance: any): number[] {
-  if (!alliance || typeof alliance !== "object") return [];
-  const nums: number[] = [];
+// Helper: pull alliance team numbers out of the MATCH row
+function getAllianceTeamsFromMatch(match: any): {
+  redTeams: number[];
+  blueTeams: number[];
+} {
+  const teamsArray: any[] =
+    (Array.isArray(match.teams) && match.teams) ||
+    (Array.isArray(match.Teams) && match.Teams) ||
+    [];
 
-  // 1) Common pattern: alliance.teams = [{ teamNumber }, ...]
-  if (Array.isArray(alliance.teams)) {
-    for (const t of alliance.teams) {
-      const raw =
-        t?.teamNumber ??
-        t?.team_number ??
-        t?.team ??
-        t?.number ??
-        t?.teamNum ??
-        null;
-      if (raw != null) {
-        const n =
-          typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
-        if (!Number.isNaN(n)) nums.push(n);
-      }
-      if (nums.length >= 2) return nums;
+  const redTeams: number[] = [];
+  const blueTeams: number[] = [];
+
+  for (const entry of teamsArray) {
+    if (!entry || typeof entry !== "object") continue;
+
+    const teamNumRaw =
+      entry.teamNumber ??
+      entry.TeamNumber ??
+      entry.team?.teamNumber ??
+      entry.Team?.TeamNumber ??
+      null;
+
+    if (!teamNumRaw && teamNumRaw !== 0) continue;
+
+    const teamNumber = Number(teamNumRaw) || 0;
+
+    const allianceRaw =
+      (entry.alliance ?? entry.Alliance ?? entry.station ?? entry.Station ?? "")
+        .toString()
+        .toLowerCase();
+
+    if (allianceRaw.includes("red")) {
+      redTeams.push(teamNumber);
+    } else if (allianceRaw.includes("blue")) {
+      blueTeams.push(teamNumber);
     }
   }
 
-  // 2) Flat fields on the alliance object
-  const candidateKeys = [
-    "teamNumber1",
-    "teamNumber2",
-    "team1Number",
-    "team2Number",
-    "team1",
-    "team2",
-  ];
-  for (const key of candidateKeys) {
-    const raw = (alliance as any)[key];
-    if (raw != null) {
-      const n =
-        typeof raw === "string" ? parseInt(raw, 10) : Number(raw);
-      if (!Number.isNaN(n)) nums.push(n);
-    }
-  }
-  if (nums.length >= 2) return nums.slice(0, 2);
+  // Ensure exactly two slots per alliance (pad with undefined / trim extras)
+  while (redTeams.length < 2) redTeams.push(NaN);
+  while (blueTeams.length < 2) blueTeams.push(NaN);
 
-  // 3) Last-resort: look at any numeric-looking primitive fields
-  for (const [, raw] of Object.entries(alliance)) {
-    if (nums.length >= 2) break;
-    if (raw == null) continue;
-    if (typeof raw === "number" && Number.isFinite(raw)) {
-      nums.push(raw);
-    } else if (typeof raw === "string" && /^\d+$/.test(raw)) {
-      nums.push(parseInt(raw, 10));
-    }
-  }
-
-  return nums.slice(0, 2);
+  return {
+    redTeams: redTeams.slice(0, 2),
+    blueTeams: blueTeams.slice(0, 2),
+  };
 }
 
 export function TeamsClient({ season, teams }: TeamsClientProps) {
@@ -886,7 +878,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
                                                 {matches &&
                                                   matches.length > 0 && (
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                       {matches.map(
                                                         (m: any) => {
                                                           const tl =
@@ -1060,9 +1052,6 @@ function MatchCard(props: MatchCardProps) {
   const redTotal = (redAlliance as any)?.totalPoints ?? redScore ?? null;
   const blueTotal = (blueAlliance as any)?.totalPoints ?? blueScore ?? null;
 
-  const redTeams = getAllianceTeamNumbers(redAlliance);
-  const blueTeams = getAllianceTeamNumbers(blueAlliance);
-
   let winner: "Red" | "Blue" | "Tie" | null = null;
   if (redTotal != null && blueTotal != null) {
     if (redTotal > blueTotal) winner = "Red";
@@ -1080,31 +1069,28 @@ function MatchCard(props: MatchCardProps) {
       ? "QUALIFICATION"
       : matchLevelRaw;
 
-  const renderTeamNumber = (
-    num: number | undefined,
-    alliance: "red" | "blue"
-  ) => {
-    if (!num) {
-      return <span className="opacity-40">—</span>;
+  const { redTeams, blueTeams } = getAllianceTeamsFromMatch(match);
+
+  const renderTeamNumber = (tn: number) => {
+    if (!tn || Number.isNaN(tn)) {
+      return <span className="text-gray-500">—</span>;
     }
-    const isSelected = num === teamNumber;
-    const baseColor =
-      alliance === "red" ? "text-red-200" : "text-blue-200";
-    const classes = `${baseColor} ${
-      isSelected ? "font-bold text-white" : ""
-    }`;
-    return <span className={classes}>{num}</span>;
+    const isSelected = tn === teamNumber;
+    return (
+      <span className={isSelected ? "font-semibold text-white" : ""}>
+        {tn}
+      </span>
+    );
   };
 
   return (
-    <div className="bg-black/60 border border-white/10 rounded-lg px-4 py-3 text-xs w-full">
-      <div className="flex justify-between items-start mb-2">
+    <div className="bg-black/60 border border-white/10 rounded-lg px-4 py-3 text-[12px] w-full">
+      <div className="flex justify-between gap-3 mb-2">
         <div className="font-semibold text-gray-100">
           {prettyLevel} #{mn}
         </div>
-
-        <div className="flex flex-col items-end">
-          <div className="text-sm font-semibold">
+        <div className="text-right text-xs">
+          <div className="font-semibold">
             <span
               className={
                 winner === "Red" ? "underline text-red-300" : "text-red-300"
@@ -1121,20 +1107,14 @@ function MatchCard(props: MatchCardProps) {
               Blue {blueTotal ?? "?"}
             </span>
           </div>
-
-          {/* Alliance team numbers (2 rows, 2 per alliance) */}
-          <div className="mt-1 grid grid-cols-2 gap-x-6 text-[11px]">
-            <div className="text-right">
-              {renderTeamNumber(redTeams[0], "red")}
+          <div className="mt-1 flex justify-end gap-8 text-[10px] text-gray-300">
+            <div className="flex flex-col items-end leading-tight">
+              {renderTeamNumber(redTeams[0])}
+              {renderTeamNumber(redTeams[1])}
             </div>
-            <div className="text-right">
-              {renderTeamNumber(blueTeams[0], "blue")}
-            </div>
-            <div className="text-right">
-              {renderTeamNumber(redTeams[1], "red")}
-            </div>
-            <div className="text-right">
-              {renderTeamNumber(blueTeams[1], "blue")}
+            <div className="flex flex-col items-end leading-tight">
+              {renderTeamNumber(blueTeams[0])}
+              {renderTeamNumber(blueTeams[1])}
             </div>
           </div>
         </div>
@@ -1301,7 +1281,7 @@ function MatchScoreTable({ score }: { score: any }) {
   };
 
   return (
-    <div className="text-[10px] text-gray-100 bg-black/50 rounded px-2 py-2 mt-1">
+    <div className="text-[11px] text-gray-100 bg-black/50 rounded px-2 py-2 mt-1">
       <div className="flex items-center justify-between mb-1">
         <span className="uppercase tracking-wide text-[9px] text-gray-400">
           Score breakdown
