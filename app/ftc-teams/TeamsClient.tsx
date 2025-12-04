@@ -1,7 +1,7 @@
 // app/ftc-teams/TeamsClient.tsx
 "use client";
 
-import { useMemo, useState, Fragment } from "react";
+import { useMemo, useState, useEffect, Fragment } from "react";
 import type {
   FtcTeam,
   FtcTeamEvent,
@@ -112,7 +112,7 @@ function getAlliancesFromScore(score: any): any[] {
 }
 
 export function TeamsClient({ season, teams }: TeamsClientProps) {
-  // === Filters / search (old UI behaviour) ===
+  // === Filters / search ===
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "" = All
   const [countryFilter, setCountryFilter] = useState(""); // "" = All
@@ -196,7 +196,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     });
   }
 
-  // === SCORE-LOADING HELPER (now only called from match cards) ===
+  // === SCORE-LOADING HELPER (never called from render) ===
 
   async function ensureScoreLoaded(
     teamNumber: number,
@@ -448,7 +448,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
   }
 
-  // EVENT ROW → toggle open + lazy-load matches (no score preload)
+  // EVENT ROW → toggle open + lazy-load matches (scores are loaded by MatchCard)
   async function handleToggleEvent(
     teamNumber: number,
     seasonYear: number,
@@ -539,7 +539,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   return (
     <section className="space-y-3">
-      {/* Controls – your original UI */}
+      {/* Controls */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[180px]">
           <label className="block text-xs text-gray-400 mb-1">
@@ -651,27 +651,27 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                   </tr>
 
                   {/* Drilldown row */}
-                  {isOpen && t.teamNumber && (
+                  {isOpen && t.teamNumber && d && (
                     <tr className="bg-black/40">
                       <td colSpan={6} className="px-4 py-3">
                         {/* Seasons / events / matches accordion */}
-                        {d?.loadingSeasons && (
+                        {d.loadingSeasons && (
                           <div className="text-xs text-gray-400">
                             Loading seasons…
                           </div>
                         )}
-                        {d?.seasonsError && (
+                        {d.seasonsError && (
                           <div className="text-xs text-red-400">
                             {d.seasonsError}
                           </div>
                         )}
-                        {d?.seasons && d.seasons.length === 0 && (
+                        {d.seasons && d.seasons.length === 0 && (
                           <div className="text-xs text-gray-400">
                             No seasons found for this team.
                           </div>
                         )}
 
-                        {d?.seasons && d.seasons.length > 0 && (
+                        {d.seasons && d.seasons.length > 0 && (
                           <div className="space-y-2">
                             {d.seasons.map((seasonYear) => {
                               const events =
@@ -822,191 +822,39 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         d
                                                           .loadingScoresByMatchKey[
                                                           mKey
-                                                        ];
+                                                        ] || false;
                                                       const scoreError =
                                                         d
                                                           .scoresErrorByMatchKey[
                                                           mKey
-                                                        ];
-
-                                                      // If we don't yet have score data for this card, kick off a load.
-                                                      if (
-                                                        score === undefined &&
-                                                        !scoreLoading &&
-                                                        !scoreError
-                                                      ) {
-                                                        void ensureScoreLoaded(
-                                                          t.teamNumber!,
-                                                          seasonYear,
-                                                          ev.eventCode ?? "",
-                                                          tl,
-                                                          mn
-                                                        );
-                                                      }
-
-                                                      // Derive red/blue totals from listing or score JSON
-                                                      let redScore: number | null =
-                                                        m.redScore ??
-                                                        m.RedScore ??
-                                                        m.red?.score ??
-                                                        null;
-                                                      let blueScore: number | null =
-                                                        m.blueScore ??
-                                                        m.BlueScore ??
-                                                        m.blue?.score ??
-                                                        null;
-
-                                                      const alliances =
-                                                        score
-                                                          ? getAlliancesFromScore(
-                                                              score
-                                                            )
-                                                          : [];
-
-                                                      const redAlliance =
-                                                        alliances.find(
-                                                          (a: any) =>
-                                                            (a.alliance ?? "")
-                                                              .toString()
-                                                              .toLowerCase() ===
-                                                            "red"
-                                                        );
-                                                      const blueAlliance =
-                                                        alliances.find(
-                                                          (a: any) =>
-                                                            (a.alliance ?? "")
-                                                              .toString()
-                                                              .toLowerCase() ===
-                                                            "blue"
-                                                        );
-
-                                                      const redTotal =
-                                                        (redAlliance as any)
-                                                          ?.totalPoints ??
-                                                        redScore ??
-                                                        null;
-                                                      const blueTotal =
-                                                        (blueAlliance as any)
-                                                          ?.totalPoints ??
-                                                        blueScore ??
-                                                        null;
-
-                                                      let winner:
-                                                        | "Red"
-                                                        | "Blue"
-                                                        | "Tie"
-                                                        | null = null;
-                                                      if (
-                                                        redTotal != null &&
-                                                        blueTotal != null
-                                                      ) {
-                                                        if (
-                                                          redTotal >
-                                                          blueTotal
-                                                        ) {
-                                                          winner = "Red";
-                                                        } else if (
-                                                          blueTotal >
-                                                          redTotal
-                                                        ) {
-                                                          winner = "Blue";
-                                                        } else if (
-                                                          redTotal ===
-                                                            blueTotal &&
-                                                          redTotal !== 0
-                                                        ) {
-                                                          winner = "Tie";
-                                                        }
-                                                      }
-
-                                                      const matchLevelRaw =
-                                                        (
-                                                          m.matchLevel ||
-                                                          m.MatchLevel ||
-                                                          tl
-                                                        )
-                                                          .toString()
-                                                          .toUpperCase();
-                                                      const prettyLevel =
-                                                        matchLevelRaw ===
-                                                          "QUAL" ||
-                                                        matchLevelRaw ===
-                                                          "QUALIFICATION"
-                                                          ? "QUALIFICATION"
-                                                          : matchLevelRaw;
+                                                        ] ?? null;
 
                                                       return (
-                                                        <div
+                                                        <MatchCard
                                                           key={mKey}
-                                                          className="bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-[11px] w-full sm:w-64 md:w-72"
-                                                        >
-                                                          <div className="flex justify-between items-baseline mb-1">
-                                                            <div className="font-semibold text-gray-100">
-                                                              {prettyLevel} #{
-                                                                mn
-                                                              }
-                                                            </div>
-                                                            <div className="text-xs font-semibold">
-                                                              <span
-                                                                className={
-                                                                  winner ===
-                                                                  "Red"
-                                                                    ? "underline text-red-300"
-                                                                    : "text-red-300"
-                                                                }
-                                                              >
-                                                                Red{" "}
-                                                                {redTotal ??
-                                                                  "?"}
-                                                              </span>
-                                                              <span className="mx-1 text-gray-400">
-                                                                –
-                                                              </span>
-                                                              <span
-                                                                className={
-                                                                  winner ===
-                                                                  "Blue"
-                                                                    ? "underline text-blue-300"
-                                                                    : "text-blue-300"
-                                                                }
-                                                              >
-                                                                Blue{" "}
-                                                                {blueTotal ??
-                                                                  "?"}
-                                                              </span>
-                                                            </div>
-                                                          </div>
-
-                                                          {scoreLoading && (
-                                                            <div className="text-[10px] text-gray-400">
-                                                              Loading breakdown…
-                                                            </div>
-                                                          )}
-                                                          {scoreError && (
-                                                            <div className="text-[10px] text-red-400">
-                                                              {scoreError}
-                                                            </div>
-                                                          )}
-                                                          {!scoreLoading &&
-                                                            !scoreError &&
-                                                            score && (
-                                                              <MatchScoreTable
-                                                                score={
-                                                                  score as any
-                                                                }
-                                                              />
-                                                            )}
-                                                          {!scoreLoading &&
-                                                            !scoreError &&
-                                                            score === null && (
-                                                              <div className="text-[10px] text-gray-500">
-                                                                No score
-                                                                details
-                                                                available for
-                                                                this match yet.
-                                                              </div>
-                                                            )}
-                                                        </div>
+                                                          teamNumber={
+                                                            t.teamNumber!
+                                                          }
+                                                          seasonYear={
+                                                            seasonYear
+                                                          }
+                                                          eventCode={
+                                                            ev.eventCode ?? ""
+                                                          }
+                                                          tournamentLevel={tl}
+                                                          matchNumber={mn}
+                                                          match={m}
+                                                          score={score}
+                                                          scoreLoading={
+                                                            scoreLoading
+                                                          }
+                                                          scoreError={
+                                                            scoreError
+                                                          }
+                                                          ensureScoreLoaded={
+                                                            ensureScoreLoaded
+                                                          }
+                                                        />
                                                       );
                                                     })}
                                                   </div>
@@ -1035,6 +883,147 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     </section>
   );
 }
+
+/* ---------- Match card (loads its own score once and keeps it) ---------- */
+
+type MatchCardProps = {
+  teamNumber: number;
+  seasonYear: number;
+  eventCode: string;
+  tournamentLevel: string;
+  matchNumber: number;
+  match: any;
+  score: FtcMatchScores | null | undefined;
+  scoreLoading: boolean;
+  scoreError: string | null;
+  ensureScoreLoaded: (
+    teamNumber: number,
+    seasonYear: number,
+    eventCode: string,
+    tournamentLevel: string,
+    matchNumber: number
+  ) => Promise<void>;
+};
+
+function MatchCard(props: MatchCardProps) {
+  const {
+    teamNumber,
+    seasonYear,
+    eventCode,
+    tournamentLevel,
+    matchNumber,
+    match,
+    score,
+    scoreLoading,
+    scoreError,
+    ensureScoreLoaded,
+  } = props;
+
+  // Kick off the score fetch AFTER render, once per match.
+  useEffect(() => {
+    if (score === undefined && !scoreLoading && !scoreError) {
+      void ensureScoreLoaded(
+        teamNumber,
+        seasonYear,
+        eventCode,
+        tournamentLevel,
+        matchNumber
+      );
+    }
+  }, [
+    score,
+    scoreLoading,
+    scoreError,
+    teamNumber,
+    seasonYear,
+    eventCode,
+    tournamentLevel,
+    matchNumber,
+    ensureScoreLoaded,
+  ]);
+
+  const tl = tournamentLevel;
+  const mn = matchNumber;
+
+  // Derive red/blue totals from listing or score JSON
+  let redScore: number | null =
+    match.redScore ?? match.RedScore ?? match.red?.score ?? null;
+  let blueScore: number | null =
+    match.blueScore ?? match.BlueScore ?? match.blue?.score ?? null;
+
+  const alliances = score ? getAlliancesFromScore(score) : [];
+
+  const redAlliance = alliances.find(
+    (a: any) => (a.alliance ?? "").toString().toLowerCase() === "red"
+  );
+  const blueAlliance = alliances.find(
+    (a: any) => (a.alliance ?? "").toString().toLowerCase() === "blue"
+  );
+
+  const redTotal = (redAlliance as any)?.totalPoints ?? redScore ?? null;
+  const blueTotal = (blueAlliance as any)?.totalPoints ?? blueScore ?? null;
+
+  let winner: "Red" | "Blue" | "Tie" | null = null;
+  if (redTotal != null && blueTotal != null) {
+    if (redTotal > blueTotal) winner = "Red";
+    else if (blueTotal > redTotal) winner = "Blue";
+    else if (redTotal === blueTotal && redTotal !== 0) winner = "Tie";
+  }
+
+  const matchLevelRaw = (
+    match.matchLevel || match.MatchLevel || tl
+  )
+    .toString()
+    .toUpperCase();
+  const prettyLevel =
+    matchLevelRaw === "QUAL" || matchLevelRaw === "QUALIFICATION"
+      ? "QUALIFICATION"
+      : matchLevelRaw;
+
+  return (
+    <div className="bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-[11px] w-full sm:w-64 md:w-72">
+      <div className="flex justify-between items-baseline mb-1">
+        <div className="font-semibold text-gray-100">
+          {prettyLevel} #{mn}
+        </div>
+        <div className="text-xs font-semibold">
+          <span
+            className={
+              winner === "Red" ? "underline text-red-300" : "text-red-300"
+            }
+          >
+            Red {redTotal ?? "?"}
+          </span>
+          <span className="mx-1 text-gray-400">–</span>
+          <span
+            className={
+              winner === "Blue" ? "underline text-blue-300" : "text-blue-300"
+            }
+          >
+            Blue {blueTotal ?? "?"}
+          </span>
+        </div>
+      </div>
+
+      {scoreLoading && (
+        <div className="text-[10px] text-gray-400">Loading breakdown…</div>
+      )}
+      {scoreError && (
+        <div className="text-[10px] text-red-400">{scoreError}</div>
+      )}
+      {!scoreLoading && !scoreError && score && (
+        <MatchScoreTable score={score as any} />
+      )}
+      {!scoreLoading && !scoreError && score === null && (
+        <div className="text-[10px] text-gray-500">
+          No score details available for this match yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Dynamic score table helpers ---------- */
 
 /**
  * Turn a raw alliance key like "autoArtifactPoints" into a nice label.
@@ -1072,7 +1061,6 @@ function humanizeKey(key: string): string {
 
 /**
  * Compact score breakdown used inside each match card.
- * (Totals are NOT shown here; they’re in the card header.)
  * Categories are derived dynamically from whatever the API returns.
  */
 function MatchScoreTable({ score }: { score: any }) {
@@ -1097,8 +1085,6 @@ function MatchScoreTable({ score }: { score: any }) {
     for (const k of Object.keys(obj)) {
       const v = obj[k];
       if (v === undefined || v === null) continue;
-      // Skip totals (we show them in the card header)
-      if (k === "totalPoints") continue;
       // Ignore obviously structural fields
       if (k === "alliance" || k === "team") continue;
       // Only show primitive values, not arrays/objects
@@ -1120,6 +1106,7 @@ function MatchScoreTable({ score }: { score: any }) {
   const preferredOrder = [
     "autoPoints",
     "teleopPoints",
+    "totalPoints",
     "autoArtifactPoints",
     "teleopArtifactPoints",
     "autoPatternPoints",
@@ -1144,11 +1131,16 @@ function MatchScoreTable({ score }: { score: any }) {
   remainingKeys.sort((a, b) => a.localeCompare(b));
   orderedKeys.push(...remainingKeys);
 
-  const boldKeys = new Set<string>(["autoPoints", "teleopPoints"]);
+  const boldKeys = new Set<string>([
+    "autoPoints",
+    "teleopPoints",
+    "totalPoints",
+  ]);
 
   const formatVal = (val: any) => {
     if (typeof val === "boolean") return val ? "✓" : "";
-    return val ?? (val === 0 ? 0 : "–");
+    if (val === 0) return 0;
+    return val ?? "–";
   };
 
   const row = (key: string) => {
