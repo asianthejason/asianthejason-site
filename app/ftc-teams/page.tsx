@@ -1,6 +1,7 @@
 // app/ftc-teams/page.tsx
 import { getAllFtcTeamsForSeason, FtcTeam } from "@/lib/ftcEvents";
-import TeamsClient from "./TeamsClient";
+import { TeamsClient } from "./TeamsClient";
+
 
 export const dynamic = "force-dynamic";
 
