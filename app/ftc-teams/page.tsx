@@ -1,4 +1,4 @@
-// src/app/ftc-teams/page.tsx
+// app/ftc-teams/page.tsx
 import { getAllFtcTeamsForSeason, FtcTeam } from "@/lib/ftcEvents";
 
 export const dynamic = "force-dynamic"; // always fetch fresh on request
@@ -13,12 +13,24 @@ function sortTeams(teams: FtcTeam[]): FtcTeam[] {
   });
 }
 
+function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
+  return teams.filter((t) => {
+    const num = t.teamNumber ?? 0;
+    const shortName = (t.teamNameShort as string | undefined)?.trim() ?? "";
+    const longName = (t.teamNameLong as string | undefined)?.trim() ?? "";
+
+    // require a positive team number and at least one non-empty name
+    return num > 0 && (shortName !== "" || longName !== "");
+  });
+}
+
 export default async function FtcTeamsPage() {
   let teams: FtcTeam[] = [];
   let loadError: string | null = null;
 
   try {
-    teams = sortTeams(await getAllFtcTeamsForSeason(SEASON));
+    const rawTeams = await getAllFtcTeamsForSeason(SEASON);
+    teams = sortTeams(filterRealTeams(rawTeams));
   } catch (err) {
     loadError =
       err instanceof Error ? err.message : "Unknown error loading FTC data";
@@ -62,7 +74,7 @@ export default async function FtcTeamsPage() {
           <p className="mt-1 opacity-80">
             Check your <code>FTC_API_USERNAME</code> /
             <code>FTC_API_TOKEN</code> env vars and that your server can reach
-            <code> ftc-events.firstinspires.org</code>.
+            <code> ftc-api.firstinspires.org</code>.
           </p>
         </div>
       )}
