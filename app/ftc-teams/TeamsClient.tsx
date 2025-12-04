@@ -463,7 +463,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
     // Otherwise fetch matches, then preload scores
     if (loadingMatches) {
-      // Another click started the fetch; when it finishes it will do its own preload
       return;
     }
 
@@ -1024,8 +1023,43 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 }
 
 /**
+ * Turn a raw alliance key like "autoArtifactPoints" into a nice label.
+ * Handles RP keys specially.
+ */
+function humanizeKey(key: string): string {
+  if (key === "movementRP") return "RP: Movement";
+  if (key === "goalRP") return "RP: Goal";
+  if (key === "patternRP") return "RP: Pattern";
+
+  // Generic "ends with RP" heuristic
+  if (key.endsWith("RP")) {
+    const base = key.slice(0, -2);
+    const spaced = base
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+      .trim();
+    const titled = spaced
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+    return `RP: ${titled}`;
+  }
+
+  const spaced = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
+
+  return spaced
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
  * Compact score breakdown used inside each match card.
  * (Totals are NOT shown here; they’re in the card header.)
+ * Categories are derived dynamically from whatever the API returns.
  */
 function MatchScoreTable({ score }: { score: any }) {
   const alliances: any[] = Array.isArray(score?.alliances)
@@ -1039,24 +1073,93 @@ function MatchScoreTable({ score }: { score: any }) {
     (a) => (a.alliance ?? "").toString().toLowerCase() === "blue"
   );
 
-  const row = (
-    label: string,
-    redVal: any,
-    blueVal: any,
-    opts: { bold?: boolean } = {}
-  ) => (
-    <div
-      className={`contents ${opts.bold ? "font-semibold text-gray-100" : ""}`}
-    >
-      <div className="py-0.5 pr-2 text-gray-300">{label}</div>
-      <div className="py-0.5 text-red-200 text-right">
-        {redVal ?? redVal === 0 ? redVal : "–"}
+  if (!red && !blue) {
+    return null;
+  }
+
+  // Collect all scalar keys (numbers / booleans / strings) across red + blue
+  const keySet = new Set<string>();
+
+  const addKeysFrom = (obj: any) => {
+    if (!obj) return;
+    for (const k of Object.keys(obj)) {
+      const v = obj[k];
+      if (v === undefined || v === null) continue;
+      // Skip totals (we show them in the card header)
+      if (k === "totalPoints") continue;
+      // Ignore obviously structural fields
+      if (k === "alliance" || k === "team") continue;
+      // Only show primitive values, not arrays/objects
+      if (typeof v === "object") continue;
+      keySet.add(k);
+    }
+  };
+
+  addKeysFrom(red);
+  addKeysFrom(blue);
+
+  const allKeys = Array.from(keySet);
+
+  if (allKeys.length === 0) {
+    return null;
+  }
+
+  // Preferred ordering for common FTC stats; rest go alphabetically.
+  const preferredOrder = [
+    "autoPoints",
+    "teleopPoints",
+    "autoArtifactPoints",
+    "teleopArtifactPoints",
+    "autoPatternPoints",
+    "teleopPatternPoints",
+    "autoLeavePoints",
+    "leavePoints",
+    "teleopBasePoints",
+    "basePoints",
+    "foulPointsCommitted",
+    "majorFouls",
+    "minorFouls",
+    "movementRP",
+    "goalRP",
+    "patternRP",
+  ];
+
+  const orderedKeys: string[] = [];
+  for (const key of preferredOrder) {
+    if (allKeys.includes(key)) orderedKeys.push(key);
+  }
+  const remainingKeys = allKeys.filter((k) => !preferredOrder.includes(k));
+  remainingKeys.sort((a, b) => a.localeCompare(b));
+  orderedKeys.push(...remainingKeys);
+
+  const boldKeys = new Set<string>(["autoPoints", "teleopPoints"]);
+
+  const formatVal = (val: any) => {
+    if (typeof val === "boolean") return val ? "✓" : "";
+    return val ?? (val === 0 ? 0 : "–");
+  };
+
+  const row = (key: string) => {
+    const redVal = red ? red[key] : undefined;
+    const blueVal = blue ? blue[key] : undefined;
+    const label = humanizeKey(key);
+    const bold = boldKeys.has(key);
+
+    return (
+      <div
+        key={key}
+        className={`contents ${bold ? "font-semibold text-gray-100" : ""}`}
+      >
+        <div className="py-0.5 pr-2 text-gray-300">{label}</div>
+        <div className="py-0.5 text-red-200 text-right">
+          {formatVal(redVal)}
+        </div>
+        <div className="py-0.5 text-blue-200 text-right">
+          {formatVal(blueVal)}
+        </div>
       </div>
-      <div className="py-0.5 text-blue-200 text-right">
-        {blueVal ?? blueVal === 0 ? blueVal : "–"}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="text-[10px] text-gray-100 bg-black/50 rounded px-2 py-2 mt-1">
@@ -1075,43 +1178,7 @@ function MatchScoreTable({ score }: { score: any }) {
           Blue
         </div>
 
-        {row("Auto points", red?.autoPoints, blue?.autoPoints)}
-        {row("Teleop points", red?.teleopPoints, blue?.teleopPoints)}
-
-        {row("Auto artifacts", red?.autoArtifactPoints, blue?.autoArtifactPoints)}
-        {row(
-          "Teleop artifacts",
-          red?.teleopArtifactPoints,
-          blue?.teleopArtifactPoints
-        )}
-        {row("Patterns", red?.autoPatternPoints, blue?.autoPatternPoints)}
-        {row(
-          "Teleop patterns",
-          red?.teleopPatternPoints,
-          blue?.teleopPatternPoints
-        )}
-
-        {row("Leave points", red?.autoLeavePoints, blue?.autoLeavePoints)}
-        {row("Base points", red?.teleopBasePoints, blue?.teleopBasePoints)}
-
-        {row("Major fouls", red?.majorFouls, blue?.majorFouls)}
-        {row("Minor fouls", red?.minorFouls, blue?.minorFouls)}
-
-        {row(
-          "RP: Movement",
-          red?.movementRP ? "✓" : "",
-          blue?.movementRP ? "✓" : ""
-        )}
-        {row(
-          "RP: Goal",
-          red?.goalRP ? "✓" : "",
-          blue?.goalRP ? "✓" : ""
-        )}
-        {row(
-          "RP: Pattern",
-          red?.patternRP ? "✓" : "",
-          blue?.patternRP ? "✓" : ""
-        )}
+        {orderedKeys.map(row)}
       </div>
     </div>
   );
