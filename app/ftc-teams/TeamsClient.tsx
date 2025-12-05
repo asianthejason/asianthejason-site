@@ -1431,11 +1431,27 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       </div>
                                                     )}
 
-                                                  {matches &&
-                                                    matches.length > 0 && (
-                                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                        {matches.map(
-                                                          (m: any) => {
+                                                  {!matchesLoading &&
+                                                    !matchesError &&
+                                                    matches &&
+                                                    matches.length > 0 && (() => {
+                                                      const allMatches = matches as any[];
+                                                      const filteredMatches = allMatches.filter((m) =>
+                                                        matchIncludesTeam(m, t.teamNumber!)
+                                                      );
+
+                                                      if (filteredMatches.length === 0) {
+                                                        return (
+                                                          <div className="text-[14px] text-gray-500">
+                                                            This team has no recorded matches for this event.
+                                                          </div>
+                                                        );
+                                                      }
+
+                                                      return (
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                          {filteredMatches.map(
+                                                            (m: any) => {
                                                             const tl =
                                                               m.tournamentLevel ||
                                                               m.TournamentLevel ||
@@ -1514,7 +1530,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                           }
                                                         )}
                                                       </div>
-                                                    )}
+                                                    )())}
                                                 </div>
                                               )}
                                             </div>
