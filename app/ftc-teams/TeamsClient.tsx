@@ -1666,7 +1666,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                     </td>
                                     <td className="whitespace-nowrap px-3 py-1.5 text-xs text-red-200">
                                       {redTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
-                                        <div className="flex flex-wrap gap-2">
+                                        <div className="flex flex-col gap-1">
                                           {redTeams
                                             .filter((tn) => !Number.isNaN(tn) && tn)
                                             .map((tn) => renderTeamBadge(tn, "red"))}
@@ -1677,7 +1677,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                     </td>
                                     <td className="whitespace-nowrap px-3 py-1.5 text-xs text-blue-200">
                                       {blueTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
-                                        <div className="flex flex-wrap gap-2">
+                                        <div className="flex flex-col gap-1">
                                           {blueTeams
                                             .filter((tn) => !Number.isNaN(tn) && tn)
                                             .map((tn) => renderTeamBadge(tn, "blue"))}
