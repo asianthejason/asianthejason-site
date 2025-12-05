@@ -560,7 +560,7 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
         }
 
         .home-hero {
-          max-width: 1100px;
+          max-width: 1250px;
           margin: 28px auto 0;
           padding: 0 24px;
         }
