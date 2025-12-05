@@ -1530,7 +1530,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                           }
                                                         )}
                                                       </div>
-                                                    )())}
+                                                    })()}
                                                 </div>
                                               )}
                                             </div>
