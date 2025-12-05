@@ -2102,22 +2102,23 @@ function MatchCard(props: MatchCardProps) {
         </div>
         <div className="text-right text-[14px]">
           <div className="font-semibold">
-            <span
-              className={
-                winner === "Red" ? "underline text-red-300" : "text-red-300"
-              }
-            >
-              Red {redTotal ?? "?"}
-            </span>
-            <span className="mx-1 text-gray-400">–</span>
-            <span
-              className={
-                winner === "Blue" ? "underline text-blue-300" : "text-blue-300"
-              }
-            >
-              Blue {blueTotal ?? "?"}
-            </span>
-          </div>
+  <span
+    className={
+      winner === "Red" ? "underline text-red-300" : "text-red-300"
+    }
+  >
+    Red {redTotal ?? "?"}
+  </span>
+  <span className="mx-1 text-gray-400">–</span>
+  <span
+    className={
+      winner === "Blue" ? "underline text-blue-300" : "text-blue-300"
+    }
+  >
+    Blue {blueTotal ?? "?"}
+  </span>
+</div>
+
           <div className="mt-1 flex justify-end gap-8 text-[14px] text-gray-300">
             <div className="flex flex-col items-end leading-tight">
               {renderTeamNumber(redTeams[0])}
