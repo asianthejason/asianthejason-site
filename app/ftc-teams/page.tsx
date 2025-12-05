@@ -1,9 +1,9 @@
 // app/ftc-teams/page.tsx
+import Link from "next/link";
+import SiteHeader from "../components/SiteHeader";
 import { getAllFtcTeamsForSeason } from "@/lib/ftcEvents";
 import type { FtcTeam } from "@/lib/ftcEvents";
 import { TeamsClient } from "./TeamsClient";
-import Link from "next/link";
-import SiteHeader from "../components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,7 @@ export default async function FtcTeamsPage() {
     const rawTeams = await getAllFtcTeamsForSeason(SEASON);
     teams = sortTeams(filterRealTeams(rawTeams));
   } catch (err) {
+    console.error("Error loading FTC teams", err);
     loadError =
       err instanceof Error ? err.message : "Unknown error loading FTC data";
   }
@@ -52,9 +53,8 @@ export default async function FtcTeamsPage() {
     <main className="site">
       {/* Shared header nav (same component as the rest of the site) */}
       <SiteHeader
-        // For now we’re not wiring FTC page into auth;
-        // this still gives you the same nav + Donate button.
-        authReady={false}
+        // We’re not wiring FTC page into Firebase auth; just show the nav.
+        authReady={true}
         user={null}
         userLabel={null}
         onOpenAuth={() => {}}
@@ -63,9 +63,7 @@ export default async function FtcTeamsPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold">
-            FTC Teams – Season {SEASON}
-          </h1>
+          <h1 className="text-3xl font-bold">FTC Teams – Season {SEASON}</h1>
           <p className="text-sm text-gray-400">
             Data from the{" "}
             <a
@@ -112,7 +110,7 @@ export default async function FtcTeamsPage() {
           <TeamsClient season={SEASON} teams={teams} />
         )}
 
-        {/* Footer nav – same links as your other pages, no leaderboard text */}
+        {/* Shared footer (same markup as home page, styles are global) */}
         <footer className="site-footer">
           <span>© {currentYear} AsiantheJason</span>
 
