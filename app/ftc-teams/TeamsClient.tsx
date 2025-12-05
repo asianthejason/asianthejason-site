@@ -1337,23 +1337,11 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                           )}
 
                                         {events.map((ev) => {
-                                          const stateKey =
-                                            getEventKeyForState(
-                                              seasonYear,
-                                              ev
-                                            );
-                                          const matches =
-                                            d.matchesByEventKey[stateKey];
-                                          const matchesLoading =
-                                            d.loadingMatchesByEventKey[
-                                              stateKey
-                                            ];
-                                          const matchesError =
-                                            d.matchesErrorByEventKey[
-                                              stateKey
-                                            ];
-                                          const eventOpen =
-                                            d.openEvents[stateKey] ?? false;
+                                          const stateKey = getEventKeyForState(seasonYear, ev);
+                                          const matches = d.matchesByEventKey[stateKey];
+                                          const matchesLoading = d.loadingMatchesByEventKey[stateKey];
+                                          const matchesError = d.matchesErrorByEventKey[stateKey];
+                                          const eventOpen = d.openEvents[stateKey] ?? false;
 
                                           return (
                                             <div key={stateKey}>
@@ -1368,7 +1356,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       ev
                                                     );
                                                   }}
-                                                  className="flex-1 flex justify-between items-center text-left text-[14px] bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded"
+                                                  className="flex-1 text-left text-[14px] bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded"
                                                 >
                                                   <span className="text-gray-100">
                                                     {ev.eventName}{" "}
@@ -1386,9 +1374,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                         {ev.stateProv}
                                                       </span>
                                                     )}
-                                                    <span>
-                                                      {eventOpen ? "−" : "+"}
-                                                    </span>
+                                                    <span>{eventOpen ? "−" : "+"}</span>
                                                   </span>
                                                 </button>
 
@@ -1416,25 +1402,27 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       Loading matches…
                                                     </div>
                                                   )}
+
                                                   {matchesError && (
                                                     <div className="text-[14px] text-red-400">
                                                       {matchesError}
                                                     </div>
                                                   )}
+
                                                   {!matchesLoading &&
                                                     !matchesError &&
                                                     matches &&
                                                     matches.length === 0 && (
                                                       <div className="text-[14px] text-gray-500">
-                                                        No matches found for
-                                                        this event.
+                                                        No matches found for this event.
                                                       </div>
                                                     )}
 
                                                   {!matchesLoading &&
                                                     !matchesError &&
                                                     matches &&
-                                                    matches.length > 0 && (() => {
+                                                    matches.length > 0 &&
+                                                    (() => {
                                                       const allMatches = matches as any[];
                                                       const filteredMatches = allMatches.filter((m) =>
                                                         matchIncludesTeam(m, t.teamNumber!)
@@ -1450,74 +1438,38 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
                                                       return (
                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                          {filteredMatches.map(
-                                                            (m: any) => {
-                                                            const tl =
-                                                              m.tournamentLevel ||
-                                                              m.TournamentLevel ||
-                                                              "qual";
+                                                          {filteredMatches.map((m: any, index: number) => {
+                                                            const tl = getTournamentLevel(m);
                                                             const mn =
-                                                              m.matchNumber ||
-                                                              m.MatchNumber ||
-                                                              0;
-                                                            const mKey =
-                                                              matchKey(
-                                                                seasonYear,
-                                                                ev.eventCode ??
-                                                                  "",
-                                                                tl,
-                                                                mn
-                                                              );
+                                                              (m.matchNumber ??
+                                                                m.MatchNumber ??
+                                                                index + 1) as number;
 
-                                                            const score =
-                                                              d
-                                                                .scoresByMatchKey[
-                                                                mKey
-                                                              ];
+                                                            const mKey = matchKey(
+                                                              seasonYear,
+                                                              ev.eventCode ?? "",
+                                                              tl,
+                                                              mn
+                                                            );
+
+                                                            const score = d.scoresByMatchKey[mKey];
                                                             const scoreLoading =
-                                                              d
-                                                                .loadingScoresByMatchKey[
-                                                                mKey
-                                                              ] || false;
+                                                              d.loadingScoresByMatchKey[mKey];
                                                             const scoreError =
-                                                              d
-                                                                .scoresErrorByMatchKey[
-                                                                mKey
-                                                              ] ?? null;
+                                                              d.scoresErrorByMatchKey[mKey];
 
                                                             return (
                                                               <MatchCard
                                                                 key={mKey}
-                                                                teamNumber={
-                                                                  t.teamNumber!
-                                                                }
-                                                                seasonYear={
-                                                                  seasonYear
-                                                                }
-                                                                eventCode={
-                                                                  ev.eventCode ??
-                                                                  ""
-                                                                }
-                                                                tournamentLevel={
-                                                                  tl
-                                                                }
-                                                                matchNumber={
-                                                                  mn
-                                                                }
                                                                 match={m}
+                                                                seasonYear={seasonYear}
+                                                                eventCode={ev.eventCode ?? ""}
+                                                                teamNumber={t.teamNumber!}
                                                                 score={score}
-                                                                scoreLoading={
-                                                                  scoreLoading
-                                                                }
-                                                                scoreError={
-                                                                  scoreError
-                                                                }
-                                                                ensureScoreLoaded={
-                                                                  ensureScoreLoaded
-                                                                }
-                                                                onTeamClick={(
-                                                                  teamNumberInEvent
-                                                                ) => {
+                                                                scoreLoading={scoreLoading}
+                                                                scoreError={scoreError}
+                                                                ensureScoreLoaded={ensureScoreLoaded}
+                                                                onTeamClick={(teamNumberInEvent) => {
                                                                   void handleOpenTeamEventDetailsFromDrilldown(
                                                                     teamNumberInEvent,
                                                                     seasonYear,
@@ -1527,15 +1479,16 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                                 }}
                                                               />
                                                             );
-                                                          }
-                                                        )}
-                                                      </div>
-                                                    )())}
+                                                          })}
+                                                        </div>
+                                                      );
+                                                    })()}
                                                 </div>
                                               )}
                                             </div>
                                           );
                                         })}
+
                                       </div>
                                     )}
                                   </div>
