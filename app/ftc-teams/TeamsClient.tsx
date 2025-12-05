@@ -292,6 +292,20 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     });
   }, [teams, search, stateFilter, countryFilter]);
 
+
+  const teamNameMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const t of teams) {
+      const num = t.teamNumber;
+      if (num == null) continue;
+      const name = getDisplayName(t);
+      if (name) {
+        map.set(num, name);
+      }
+    }
+    return map;
+  }, [teams]);
+
   // === Drilldown state (per-team) ===
   const [expandedTeamNumber, setExpandedTeamNumber] =
     useState<number | null>(null);
@@ -328,6 +342,83 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
       error: null,
       items: [],
     });
+
+
+  const eventPerformance = useMemo(
+    () => {
+      const result: {
+        teamNumber: number;
+        wins: number;
+        losses: number;
+        name: string;
+      }[] = [];
+
+      if (!eventInfo.matches || eventInfo.matches.length === 0) {
+        return result;
+      }
+
+      const perf: Record<number, { wins: number; losses: number }> = {};
+
+      const qualMatches = eventInfo.matches.filter((m: any) => {
+        const lvl = (
+          m.tournamentLevel ||
+          m.TournamentLevel ||
+          m.matchLevel ||
+          m.MatchLevel ||
+          ""
+        )
+          .toString()
+          .toLowerCase();
+        return lvl.startsWith("qual");
+      });
+
+      for (const m of qualMatches as any[]) {
+        const { redTeams, blueTeams } = getAllianceTeamsFromMatch(m);
+        const { red, blue } = getListingScores(m);
+
+        if (red == null || blue == null) continue;
+
+        let winner: "red" | "blue" | "tie" = "tie";
+        if (red > blue) winner = "red";
+        else if (blue > red) winner = "blue";
+
+        if (winner === "tie") continue;
+
+        const addResult = (tn: number, didWin: boolean) => {
+          if (!tn || Number.isNaN(tn)) return;
+          if (!perf[tn]) perf[tn] = { wins: 0, losses: 0 };
+          if (didWin) perf[tn].wins += 1;
+          else perf[tn].losses += 1;
+        };
+
+        for (const tn of redTeams) {
+          addResult(tn, winner === "red");
+        }
+        for (const tn of blueTeams) {
+          addResult(tn, winner === "blue");
+        }
+      }
+
+      for (const [numStr, wl] of Object.entries(perf)) {
+        const num = Number(numStr);
+        result.push({
+          teamNumber: num,
+          wins: wl.wins,
+          losses: wl.losses,
+          name: teamNameMap.get(num) ?? "",
+        });
+      }
+
+      result.sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        if (a.losses !== b.losses) return a.losses - b.losses;
+        return a.teamNumber - b.teamNumber;
+      });
+
+      return result;
+    },
+    [eventInfo.matches, teamNameMap]
+  );
 
   // For reading in render and in handlers
   function getDrilldown(teamNumber: number): DrilldownState {
@@ -1330,95 +1421,100 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
               {/* Qualification matches table */}
               {!eventInfo.loading && !eventInfo.error && (
                 <>
-                  <div>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
-                      Qualification matches
-                    </h3>
-                    {eventInfo.matches.length === 0 ? (
-                      <div className="text-gray-500">
-                        No match data available for this event.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-lg border border-white/10">
-                        <table className="min-w-full text-[11px]">
-                          <thead className="bg-white/5">
-                            <tr>
-                              <th className="px-2 py-1 text-left font-semibold">
-                                Match
-                              </th>
-                              <th className="px-2 py-1 text-left font-semibold">
-                                Red teams
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Red score
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Blue score
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Blue teams
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5">
-                            {eventInfo.matches
-                              .filter((m: any) => {
-                                const lvl =
-                                  (m.tournamentLevel ||
-                                    m.TournamentLevel ||
-                                    m.matchLevel ||
-                                    m.MatchLevel ||
-                                    "")
-                                    .toString()
-                                    .toLowerCase();
-                                return lvl.startsWith("qual");
-                              })
-                              .map((m: any, idx: number) => {
-                                const lvlRaw =
-                                  (m.tournamentLevel ||
-                                    m.TournamentLevel ||
-                                    m.matchLevel ||
-                                    m.MatchLevel ||
-                                    "")
-                                    .toString()
-                                    .toUpperCase();
-                                const prettyLevel =
-                                  lvlRaw === "QUAL" ||
-                                  lvlRaw === "QUALIFICATION"
-                                    ? "QUAL"
-                                    : lvlRaw || "MATCH";
+                  <div className="flex flex-col md:flex-row gap-4">
+                    {/* Left: qualification matches */}
+                    <div className="md:w-1/2 w-full">
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
+                        Qualification matches
+                      </h3>
+                      {eventInfo.matches.length === 0 ? (
+                        <div className="text-gray-500">
+                          No match data available for this event.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-white/10">
+                          <table className="min-w-full text-[11px]">
+                            <thead className="bg-white/5">
+                              <tr>
+                                <th className="px-2 py-1 text-left font-semibold">
+                                  Match
+                                </th>
+                                <th className="px-2 py-1 text-left font-semibold">
+                                  Red teams
+                                </th>
+                                <th className="px-2 py-1 text-left font-semibold">
+                                  Blue teams
+                                </th>
+                                <th className="px-2 py-1 text-right font-semibold">
+                                  Red score
+                                </th>
+                                <th className="px-2 py-1 text-right font-semibold">
+                                  Blue score
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {eventInfo.matches
+                                .filter((m: any) => {
+                                  const lvl =
+                                    (m.tournamentLevel ||
+                                      m.TournamentLevel ||
+                                      m.matchLevel ||
+                                      m.MatchLevel ||
+                                      "")
+                                      .toString()
+                                      .toLowerCase();
+                                  return lvl.startsWith("qual");
+                                })
+                                .map((m: any, idx: number) => {
+                                  const lvlRaw =
+                                    (m.tournamentLevel ||
+                                      m.TournamentLevel ||
+                                      m.matchLevel ||
+                                      m.MatchLevel ||
+                                      "")
+                                      .toString()
+                                      .toUpperCase();
+                                  const prettyLevel =
+                                    lvlRaw === "QUAL" ||
+                                    lvlRaw === "QUALIFICATION"
+                                      ? "QUAL"
+                                      : lvlRaw || "MATCH";
 
-                                const matchNum =
-                                  m.matchNumber || m.MatchNumber || idx + 1;
+                                  const matchNum =
+                                    m.matchNumber || m.MatchNumber || idx + 1;
 
-                                const { redTeams, blueTeams } =
-                                  getAllianceTeamsFromMatch(m);
-                                const { red, blue } = getListingScores(m);
+                                  const { redTeams, blueTeams } =
+                                    getAllianceTeamsFromMatch(m);
+                                  const { red, blue } = getListingScores(m);
 
-                                const renderTeams = (teams: number[]) => (
-                                  <div className="flex flex-wrap gap-x-1 justify-start">
-                                    {teams.map((tn, i) => {
-                                      if (!tn || Number.isNaN(tn)) {
-                                        return (
-                                          <span
-                                            key={`team-empty-${idx}-${i}`}
-                                            className="text-gray-500"
-                                          >
-                                            —
-                                          </span>
-                                        );
-                                      }
-                                      const isFirst = i === 0;
-                                      return (
-                                        <Fragment key={`team-${tn}-${idx}-${i}`}>
-                                          {!isFirst && (
-                                            <span className="text-gray-500">
-                                              ,
+                                  const renderAllianceTeams = (
+                                    teams: number[],
+                                    alliance: "red" | "blue"
+                                  ) => (
+                                    <div className="flex flex-col gap-0.5">
+                                      {teams.map((tn, i) => {
+                                        if (!tn || Number.isNaN(tn)) {
+                                          return (
+                                            <span
+                                              key={`team-empty-${idx}-${alliance}-${i}`}
+                                              className="text-gray-500"
+                                            >
+                                              —
                                             </span>
-                                          )}
+                                          );
+                                        }
+                                        const name =
+                                          teamNameMap.get(tn) ?? "";
+                                        const numberColor =
+                                          alliance === "red"
+                                            ? "text-red-200"
+                                            : "text-blue-200";
+                                        return (
                                           <button
                                             type="button"
-                                            className="underline hover:text-white"
+                                            key={`team-${tn}-${idx}-${alliance}-${i}`}
+                                            className="text-left hover:text-white"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               void handleOpenTeamEventDetails(
@@ -1426,143 +1522,108 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                               );
                                             }}
                                           >
-                                            {tn}
+                                            <div className={numberColor}>
+                                              {tn}
+                                            </div>
+                                            {name && (
+                                              <div className="text-[10px] text-gray-400">
+                                                {name}
+                                              </div>
+                                            )}
                                           </button>
-                                        </Fragment>
-                                      );
-                                    })}
-                                  </div>
-                                );
+                                        );
+                                      })}
+                                    </div>
+                                  );
 
-                                return (
-                                  <tr key={`qual-${idx}`}>
-                                    <td className="px-2 py-1 whitespace-nowrap text-gray-100">
-                                      {prettyLevel} #{matchNum}
-                                    </td>
-                                    <td className="px-2 py-1 text-red-200">
-                                      {renderTeams(redTeams)}
-                                    </td>
-                                    <td className="px-2 py-1 text-right text-red-200">
-                                      {red ?? "—"}
-                                    </td>
-                                    <td className="px-2 py-1 text-right text-blue-200">
-                                      {blue ?? "—"}
-                                    </td>
-                                    <td className="px-2 py-1 text-right text-blue-200">
-                                      {renderTeams(blueTeams)}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                                  return (
+                                    <tr key={`qual-${idx}`}>
+                                      <td className="px-2 py-1 whitespace-nowrap text-gray-100">
+                                        {prettyLevel} #{matchNum}
+                                      </td>
+                                      <td className="px-2 py-1 align-top">
+                                        {renderAllianceTeams(
+                                          redTeams,
+                                          "red"
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1 align-top">
+                                        {renderAllianceTeams(
+                                          blueTeams,
+                                          "blue"
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1 text-right text-red-200">
+                                        {red ?? "—"}
+                                      </td>
+                                      <td className="px-2 py-1 text-right text-blue-200">
+                                        {blue ?? "—"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Rankings table */}
-                  <div>
-                    <h3 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
-                      Event rankings
-                    </h3>
-                    {eventInfo.rankings.length === 0 ? (
-                      <div className="text-gray-500">
-                        No rankings data available for this event.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-lg border border-white/10">
-                        <table className="min-w-full text-[11px]">
-                          <thead className="bg-white/5">
-                            <tr>
-                              <th className="px-2 py-1 text-left font-semibold">
-                                Rank
-                              </th>
-                              <th className="px-2 py-1 text-left font-semibold">
-                                Team
-                              </th>
-                              <th className="px-2 py-1 text-center font-semibold">
-                                W-L-T
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                RP
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                TBP
-                              </th>
-                              <th className="px-2 py-1 text-right font-semibold">
-                                Played
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5">
-                            {eventInfo.rankings.map((r: any, idx: number) => {
-                              const rank =
-                                r.rank ??
-                                r.Rank ??
-                                r.rankPosition ??
-                                r.RankPosition ??
-                                idx + 1;
-                              const teamNumber =
-                                r.teamNumber ??
-                                r.TeamNumber ??
-                                r.team?.teamNumber ??
-                                r.Team?.TeamNumber ??
-                                "—";
-
-                              const wins =
-                                r.wins ?? r.Wins ?? r.win ?? r.Win ?? 0;
-                              const losses =
-                                r.losses ?? r.Losses ?? r.loss ?? r.Loss ?? 0;
-                              const ties =
-                                r.ties ?? r.Ties ?? r.tie ?? r.Tie ?? 0;
-
-                              const rp =
-                                r.rankingPoints ??
-                                r.RankingPoints ??
-                                r.rp ??
-                                r.RP ??
-                                null;
-                              const tbp =
-                                r.tieBreakerPoints ??
-                                r.TieBreakerPoints ??
-                                r.tbp ??
-                                r.TBP ??
-                                null;
-                              const played =
-                                r.played ??
-                                r.Played ??
-                                r.matchesPlayed ??
-                                r.MatchesPlayed ??
-                                wins + losses + ties;
-
-                              return (
-                                <tr key={`rank-${idx}`}>
-                                  <td className="px-2 py-1 text-gray-100">
-                                    {rank}
+                    {/* Right: team performances */}
+                    <div className="md:w-1/2 w-full">
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
+                        Team performances
+                      </h3>
+                      {eventPerformance.length === 0 ? (
+                        <div className="text-gray-500">
+                          No completed qualification matches with scores yet.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-white/10">
+                          <table className="min-w-full text-[11px]">
+                            <thead className="bg-white/5">
+                              <tr>
+                                <th className="px-2 py-1 text-left font-semibold">
+                                  Team
+                                </th>
+                                <th className="px-2 py-1 text-center font-semibold">
+                                  Record
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {eventPerformance.map((entry) => (
+                                <tr key={entry.teamNumber}>
+                                  <td className="px-2 py-1">
+                                    <button
+                                      type="button"
+                                      className="text-left hover:text-white"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void handleOpenTeamEventDetails(
+                                          entry.teamNumber
+                                        );
+                                      }}
+                                    >
+                                      <div className="text-gray-100">
+                                        {entry.teamNumber}
+                                      </div>
+                                      {entry.name && (
+                                        <div className="text-[10px] text-gray-400">
+                                          {entry.name}
+                                        </div>
+                                      )}
+                                    </button>
                                   </td>
-                                  <td className="px-2 py-1 text-gray-100">
-                                    {teamNumber}
-                                  </td>
-                                  <td className="px-2 py-1 text-center text-gray-200">
-                                    {wins}-{losses}
-                                    {ties ? `-${ties}` : ""}
-                                  </td>
-                                  <td className="px-2 py-1 text-right text-gray-200">
-                                    {rp ?? "—"}
-                                  </td>
-                                  <td className="px-2 py-1 text-right text-gray-200">
-                                    {tbp ?? "—"}
-                                  </td>
-                                  <td className="px-2 py-1 text-right text-gray-200">
-                                    {played ?? "—"}
+                                  <td className="px-2 py-1 text-center text-gray-100">
+                                    {entry.wins}-{entry.losses}
                                   </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
