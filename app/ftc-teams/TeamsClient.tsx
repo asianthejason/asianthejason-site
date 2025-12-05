@@ -1559,15 +1559,16 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                 <div className="text-red-400">{eventInfo.error}</div>
               )}
 
-              {/* Qualification matches table */}
+
+              {/* Event matches table */}
               {!eventInfo.loading && !eventInfo.error && (
                 <div className="w-full">
                   <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
-                    Qualification matches
+                    Event matches
                   </h3>
                   {eventInfo.matches.length === 0 ? (
                     <p className="text-sm text-gray-400">
-                      No qualification matches found for this event.
+                      No matches found for this event.
                     </p>
                   ) : (
                     <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
@@ -1589,12 +1590,8 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800">
-                          {eventInfo.matches.map((m) => {
-                            const isQual = [1, 2, 3, 11, 12, 13].includes(
-                              Number(m.tournamentLevel || m.TournamentLevel || 0)
-                            );
-                            if (!isQual) return null;
-                            const levelRaw = (m.tournamentLevel || m.TournamentLevel || "").toString().toUpperCase();
+                          {eventInfo.matches.map((m, idx) => {
+                            const levelRaw = getTournamentLevel(m).toUpperCase();
                             let level = "QUAL";
                             if (levelRaw.startsWith("PLAYOFF") || levelRaw.startsWith("EL")) {
                               level = "ELIM";
@@ -1612,60 +1609,51 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                               level = "F";
                             }
 
-                            const redScore =
-                              Number(
-                                m.redScoreFinal ??
-                                  m.ScoreRedFinal ??
-                                  m.redTotalPoints
-                              ) || 0;
-                            const blueScore =
-                              Number(
-                                m.blueScoreFinal ??
-                                  m.ScoreBlueFinal ??
-                                  m.blueTotalPoints
-                              ) || 0;
-
                             const matchLevel = level;
                             const matchNumber =
-                              m.matchNumber || m.MatchNumber || "–";
+                              (m.matchNumber ?? m.MatchNumber ?? idx + 1) as number;
 
-                            const { redTeams, blueTeams } =
-                              getAllianceTeamsFromMatch(m);
+                            const { red: redScoreRaw, blue: blueScoreRaw } = getListingScores(m);
+                            const redScore = redScoreRaw ?? 0;
+                            const blueScore = blueScoreRaw ?? 0;
 
-                            const renderTeamNumber = (tn: number) => (
-                              <button
-                                key={tn}
-                                className="inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium text-blue-300 hover:border-blue-400 hover:bg-blue-900/30"
-                                onClick={() =>
-                                  handleOpenTeamEventDetails(tn)
-                                }
-                              >
-                                {tn}
-                              </button>
-                            );
+                            const { redTeams, blueTeams } = getAllianceTeamsFromMatch(m);
+
+                            const renderTeamNumber = (tn: number) => {
+                              if (!tn || Number.isNaN(tn)) return null;
+                              return (
+                                <button
+                                  key={tn}
+                                  className="inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium text-blue-300 hover:border-blue-400 hover:bg-blue-900/30"
+                                  onClick={() => handleOpenTeamEventDetails(tn)}
+                                >
+                                  {tn}
+                                </button>
+                              );
+                            };
 
                             return (
-                              <tr key={`${m.tournamentLevel}-${m.matchNumber}`}>
+                              <tr key={`${levelRaw}-${matchNumber}-${idx}`}>
                                 <td className="whitespace-nowrap px-3 py-2 text-gray-200">
                                   {matchLevel} {matchNumber}
                                 </td>
                                 <td className="whitespace-nowrap px-3 py-1.5 text-xs text-red-200">
-                                  {redTeams.length ? (
+                                  {redTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
                                     <div className="flex flex-wrap gap-1">
-                                      {redTeams.map((tn) =>
-                                        renderTeamNumber(tn)
-                                      )}
+                                      {redTeams
+                                        .filter((tn) => !Number.isNaN(tn) && tn)
+                                        .map((tn) => renderTeamNumber(tn))}
                                     </div>
                                   ) : (
                                     "—"
                                   )}
                                 </td>
                                 <td className="whitespace-nowrap px-3 py-1.5 text-xs text-blue-200">
-                                  {blueTeams.length ? (
+                                  {blueTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
                                     <div className="flex flex-wrap gap-1">
-                                      {blueTeams.map((tn) =>
-                                        renderTeamNumber(tn)
-                                      )}
+                                      {blueTeams
+                                        .filter((tn) => !Number.isNaN(tn) && tn)
+                                        .map((tn) => renderTeamNumber(tn))}
                                     </div>
                                   ) : (
                                     "—"
@@ -1693,11 +1681,61 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                   )}
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
 
+              {/* Team win/loss summary (qualification matches only) */}
+              {!eventInfo.loading &&
+                !eventInfo.error &&
+                eventPerformance.length > 0 && (
+                  <div className="w-full">
+                    <h3 className="mt-4 mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
+                      Team win / loss summary
+                    </h3>
+                    <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-800/80">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                              Team #
+                            </th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                              Team name
+                            </th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                              Wins
+                            </th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                              Losses
+                            </th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                              Record
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800">
+                          {eventPerformance.map((row) => (
+                            <tr key={row.teamNumber}>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-200">
+                                {row.teamNumber}
+                              </td>
+                              <td className="px-3 py-2 text-gray-200">
+                                {row.name || "—"}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
+                                {row.wins}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
+                                {row.losses}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right text-gray-300">
+                                {row.wins}-{row.losses}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
       {/* MATCH DETAILS MODAL */}
       {matchDetails.open && (
         <div className="fixed inset-0 z-55 flex items-center justify-center bg-black/80">
