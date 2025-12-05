@@ -298,9 +298,9 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
 
         {/* FTC content */}
         <section className="home-hero">
-          <div className="home-hero-text">
+          {/* <div className="home-hero-text">
             <h1>FTC Teams – Season {season}</h1>
-          </div>
+          </div> */}
         </section>
 
         <section className="panel-section">
@@ -309,19 +309,6 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
               <span className="home-section-pill">FTC</span>
               <div>
                 <h2>Teams Directory</h2>
-                <p>
-                  Data from the{" "}
-                  <a
-                    href="https://ftc-events.firstinspires.org/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    FTC Events
-                  </a>{" "}
-                  official API. Event data is © FIRST and used under their
-                  Events Data Terms of Use (non-commercial, educational use
-                  only).
-                </p>
               </div>
             </header>
 
