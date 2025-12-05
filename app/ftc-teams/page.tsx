@@ -39,41 +39,113 @@ export default async function FtcTeamsPage() {
   let initialCountryFilter: string | null = null;
 
   try {
-    const headersList = await headers();
-    const countryCodeHeader =
-      headersList.get("x-vercel-ip-country") ||
-      headersList.get("x-country-code") ||
-      headersList.get("cf-ipcountry") ||
-      null;
+const headersList = await headers();
+const countryCodeHeader =
+  headersList.get("x-vercel-ip-country") ||
+  headersList.get("x-country-code") ||
+  headersList.get("cf-ipcountry") ||
+  null;
 
-    const rawTeams = await getAllFtcTeamsForSeason(SEASON, {
-      countryCode: countryCodeHeader,
-    });
+const rawTeams = await getAllFtcTeamsForSeason(SEASON, {
+  countryCode: countryCodeHeader,
+});
 
-    const cleanedTeams = sortTeams(filterRealTeams(rawTeams));
-    teams = cleanedTeams;
+console.log("[ftc-teams] Loaded raw teams from FTC API", {
+  season: SEASON,
+  countryCodeHeader,
+  count: rawTeams.length,
+});
 
-    if (countryCodeHeader) {
-      const codeLower = countryCodeHeader.toLowerCase();
-      const variants: string[] = [codeLower];
+// Basic cleanup (remove phantom entries, empty names, etc.)
+let cleanedTeams = filterRealTeams(rawTeams);
 
-      if (codeLower === "us") {
-        variants.push("usa", "united states", "united states of america");
-      } else if (codeLower === "ca") {
-        variants.push("canada", "can");
-      } else if (codeLower === "gb" || codeLower === "uk") {
-        variants.push("united kingdom", "great britain", "gb", "uk");
-      }
+// Server-side country filter as a fallback, in case the FTC API
+// does not support country filtering natively.
+if (countryCodeHeader) {
+  const codeLower = countryCodeHeader.toLowerCase();
 
-      const match = cleanedTeams.find((t) => {
-        const c = (t.country ?? "").toString().trim().toLowerCase();
-        return c !== "" && variants.includes(c);
-      });
+  const normalize = (value: string | null | undefined) =>
+    (value ?? "").toString().trim().toLowerCase();
 
-      if (match?.country) {
-        initialCountryFilter = match.country.toString().trim();
-      }
+  const matchesCountryCode = (teamCountry: string | null | undefined) => {
+    const c = normalize(teamCountry);
+    if (!c) return false;
+
+    // direct match on 2-letter code (e.g. "ca", "us")
+    if (c === codeLower) return true;
+
+    // handle common spellings / names
+    if (codeLower === "us" || codeLower === "usa") {
+      return (
+        c === "usa" ||
+        c === "united states" ||
+        c === "united states of america"
+      );
     }
+    if (codeLower === "ca") {
+      return c === "canada" || c === "ca";
+    }
+    if (codeLower === "gb" || codeLower === "uk") {
+      return (
+        c === "united kingdom" ||
+        c === "great britain" ||
+        c === "gb" ||
+        c === "uk"
+      );
+    }
+
+    // also allow values like "CA - Canada" etc.
+    return (
+      c.startsWith(codeLower + " ") ||
+      c.endsWith(" " + codeLower) ||
+      c.includes("(" + codeLower + ")")
+    );
+  };
+
+  const countryFiltered = cleanedTeams.filter((t) =>
+    matchesCountryCode(t.country)
+  );
+
+  if (countryFiltered.length > 0) {
+    console.log("[ftc-teams] Applied server-side country filter", {
+      season: SEASON,
+      countryCodeHeader,
+      before: cleanedTeams.length,
+      after: countryFiltered.length,
+    });
+    cleanedTeams = countryFiltered;
+  } else {
+    console.log(
+      "[ftc-teams] Country filter produced 0 teams; keeping global list",
+      { season: SEASON, countryCodeHeader }
+    );
+  }
+}
+
+const sorted = sortTeams(cleanedTeams);
+teams = sorted;
+
+if (countryCodeHeader) {
+  const codeLower = countryCodeHeader.toLowerCase();
+  const variants: string[] = [codeLower];
+
+  if (codeLower === "us") {
+    variants.push("usa", "united states", "united states of america");
+  } else if (codeLower === "ca") {
+    variants.push("canada", "can");
+  } else if (codeLower === "gb" || codeLower === "uk") {
+    variants.push("united kingdom", "great britain", "gb", "uk");
+  }
+
+  const match = teams.find((t) => {
+    const c = (t.country ?? "").toString().trim().toLowerCase();
+    return c !== "" && variants.includes(c);
+  });
+
+  if (match?.country) {
+    initialCountryFilter = match.country.toString().trim();
+  }
+}
   } catch (err) {
     loadError =
       err instanceof Error ? err.message : "Unknown error loading FTC data";

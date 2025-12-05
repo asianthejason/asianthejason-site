@@ -109,24 +109,38 @@ export async function getAllFtcTeamsForSeason(
     return all;
   }
 
-  let all: FtcTeam[] = [];
+let all: FtcTeam[] = [];
 
-  if (countryCode) {
-    try {
-      // Prefer asking the FTC Events API for just this country if supported.
-      all = await loadAll({ countryCode: countryCode });
-    } catch (err) {
-      console.warn(
-        `[ftcEvents] Failed to load teams with country filter "${countryCode}". Falling back to all teams.`,
-        err
-      );
-      all = await loadAll();
-    }
-  } else {
+if (countryCode) {
+  try {
+    console.log("[ftcEvents] Requesting teams with country filter", {
+      season,
+      countryCode,
+    });
+    // Prefer asking the FTC Events API for just this country if supported.
+    all = await loadAll({ countryCode: countryCode });
+  } catch (err) {
+    console.warn(
+      `[ftcEvents] Failed to load teams with country filter "${countryCode}". Falling back to all teams.`,
+      err
+    );
     all = await loadAll();
   }
+} else {
+  console.log("[ftcEvents] Requesting teams with NO country filter", {
+    season,
+  });
+  all = await loadAll();
+}
 
-  // Filter out phantom 999xx entries that are blank
+console.log("[ftcEvents] Loaded teams from FTC API", {
+  season,
+  countryCode,
+  count: all.length,
+});
+
+// Filter out phantom 999xx entries that are blank
+
   return all.filter((t) => t.teamNumber && t.teamNumber < 99900);
 }/* ===================== Drilldown types ===================== */
 
