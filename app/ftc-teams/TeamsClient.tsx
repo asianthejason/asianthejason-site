@@ -1393,19 +1393,19 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                 </button>
 
                                                 <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleOpenEventInfo(
-                                                      t.teamNumber!,
-                                                      seasonYear,
-                                                      ev
-                                                    );
-                                                  }}
-                                                  className="text-[14px] px-2 py-1 rounded border border-white/15 bg-black/40 hover:bg-white/10 text-gray-200"
-                                                >
-                                                  Event info
-                                                </button>
+  type="button"
+  onClick={(e) => {
+    e.stopPropagation();
+    handleOpenEventInfo(t.teamNumber!, seasonYear, ev);
+  }}
+  className="text-[14px] px-3 py-1 rounded-md border border-emerald-500/80 bg-emerald-600 text-slate-950 font-medium
+             shadow-sm hover:bg-emerald-500 hover:border-emerald-400 hover:shadow-md
+             focus:outline-none focus:ring-2 focus:ring-emerald-400/80 focus:ring-offset-2 focus:ring-offset-neutral-950
+             transition-colors transition-shadow"
+>
+  Event info
+</button>
+
                                               </div>
 
                                               {/* Match cards (this team only) */}
