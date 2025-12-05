@@ -2061,8 +2061,8 @@ function MatchCard(props: MatchCardProps) {
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-2 text-[13px] md:grid-cols-[1fr,auto]">
-        <div>
+      <div className="mb-3 flex flex-col gap-2 text-[13px] md:flex-row md:items-start md:justify-between">
+        <div className="md:flex-1">
           <div className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-red-300">
             Red alliance
           </div>
@@ -2074,12 +2074,12 @@ function MatchCard(props: MatchCardProps) {
             <div className="text-[12px] text-gray-500">No red teams</div>
           )}
         </div>
-        <div>
+        <div className="md:flex-1 md:text-right">
           <div className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-blue-300">
             Blue alliance
           </div>
           {blueTeams.length ? (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap justify-start md:justify-end gap-1.5">
               {blueTeams.map((tn) => renderTeamNumber(tn, "blue"))}
             </div>
           ) : (
