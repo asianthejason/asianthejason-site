@@ -527,7 +527,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         fetch(
           `/api/ftc/events/${seasonYear}/${encodeURIComponent(
             eventCode
-          )}/matches?teamNumber=${teamNumber}`
+          )}/matches`
         ),
         fetch(
           `/api/ftc/events/${seasonYear}/${encodeURIComponent(
@@ -1620,7 +1620,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
               {!teamEventDetails.loading &&
                 !teamEventDetails.error &&
                 teamEventDetails.items.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {teamEventDetails.items.map((item, idx) => {
                       const m: any = item.match;
                       const lvlRaw = getTournamentLevel(m).toUpperCase();
@@ -1642,7 +1642,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                       return (
                         <div
                           key={item.key}
-                          className="rounded-lg border border-white/10 bg-black/60 px-3 py-2"
+                          className="rounded-lg border border-white/10 bg-black/60 px-3 py-2 h-full"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                             <div className="text-xs font-semibold text-gray-100">
