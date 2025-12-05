@@ -580,7 +580,7 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
 
         .tabs-shell {
           width: 100%;
-          max-width: 1100px;
+          max-width: 1250px;
           background: rgba(9, 12, 25, 0.9);
           border-radius: 24px;
           padding: 18px 18px 20px;
