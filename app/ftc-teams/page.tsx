@@ -39,7 +39,7 @@ export default async function FtcTeamsPage() {
   let initialCountryFilter: string | null = null;
 
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const countryCodeHeader =
       headersList.get("x-vercel-ip-country") ||
       headersList.get("x-country-code") ||
