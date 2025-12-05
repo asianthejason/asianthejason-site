@@ -1,9 +1,7 @@
 // app/ftc-teams/page.tsx
-import Link from "next/link";
-import SiteHeader from "../components/SiteHeader";
 import { getAllFtcTeamsForSeason } from "@/lib/ftcEvents";
 import type { FtcTeam } from "@/lib/ftcEvents";
-import { TeamsClient } from "./TeamsClient";
+import { FtcTeamsShell } from "./FtcTeamsShell";
 
 export const dynamic = "force-dynamic";
 
@@ -47,89 +45,7 @@ export default async function FtcTeamsPage() {
       err instanceof Error ? err.message : "Unknown error loading FTC data";
   }
 
-  const currentYear = new Date().getFullYear();
-
   return (
-    <main className="site">
-      {/* Shared header nav (same component as the rest of the site) */}
-      <SiteHeader
-        // We’re not wiring FTC page into Firebase auth; just show the nav.
-        authReady={true}
-        user={null}
-        userLabel={null}
-        onOpenAuth={() => {}}
-        onSignOut={() => {}}
-      />
-
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-bold">FTC Teams – Season {SEASON}</h1>
-          <p className="text-sm text-gray-400">
-            Data from the{" "}
-            <a
-              href="https://ftc-events.firstinspires.org/"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              FTC Events
-            </a>{" "}
-            official API. Event data is © FIRST and used under their Events
-            Data Terms of Use (non-commercial, educational use only).
-          </p>
-          <p className="text-xs text-gray-500">
-            Event Data provided by FIRST – see{" "}
-            <a
-              href="https://ftc-events.firstinspires.org/services/API"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              FTC Event Data API
-            </a>
-            .
-          </p>
-        </header>
-
-        {loadError && (
-          <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            <p className="font-semibold mb-1">Error loading FTC data</p>
-            <p className="whitespace-pre-wrap">{loadError}</p>
-          </div>
-        )}
-
-        {!loadError && teams.length === 0 && (
-          <p className="text-sm text-gray-300">
-            No teams returned after filtering. The season might be incorrect,
-            you may not have access yet, or the response shape may have
-            changed and the helper needs a tweak.
-          </p>
-        )}
-
-        {!loadError && teams.length > 0 && (
-          <TeamsClient season={SEASON} teams={teams} />
-        )}
-
-        {/* Shared footer (same markup as home page, styles are global) */}
-        <footer className="site-footer">
-          <span>© {currentYear} AsiantheJason</span>
-
-          <nav className="site-footer-links">
-            <Link href="/about" className="site-footer-link">
-              About
-            </Link>
-            <Link href="/privacy-policy" className="site-footer-link">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="site-footer-link">
-              Terms
-            </Link>
-            <Link href="/contact" className="site-footer-link">
-              Contact
-            </Link>
-          </nav>
-        </footer>
-      </div>
-    </main>
+    <FtcTeamsShell season={SEASON} teams={teams} loadError={loadError} />
   );
 }
