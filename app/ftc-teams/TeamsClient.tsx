@@ -56,6 +56,25 @@ type EventInfoState = {
   rankings: any[];
 };
 
+type TeamEventDetailsItem = {
+  key: string;
+  match: FtcMatch | any;
+  score?: FtcMatchScores | null;
+};
+
+type TeamEventDetailsState = {
+  open: boolean;
+  seasonYear: number | null;
+  eventCode: string | null;
+  eventName: string | null;
+  city: string | null;
+  teamNumber: number | null;
+  teamName: string | null;
+  loading: boolean;
+  error?: string | null;
+  items: TeamEventDetailsItem[];
+};
+
 function getDisplayName(t: FtcTeam): string {
   const shortName = (t.nameShort ?? "").toString().trim();
   const fullName = (t.nameFull ?? "").toString().trim();
@@ -174,6 +193,25 @@ function getAllianceTeamsFromMatch(match: any): {
   };
 }
 
+
+function matchIncludesTeam(match: any, teamNumber: number): boolean {
+  const { redTeams, blueTeams } = getAllianceTeamsFromMatch(match);
+  return [...redTeams, ...blueTeams].some(
+    (tn) => !Number.isNaN(tn) && tn === teamNumber
+  );
+}
+
+// Helper: normalize tournament level / match level from a match row
+function getTournamentLevel(match: any): string {
+  return (
+    match.tournamentLevel ||
+    match.TournamentLevel ||
+    match.matchLevel ||
+    match.MatchLevel ||
+    "qual"
+  ).toString();
+}
+
 // Helper: get basic red/blue scores from the match listing
 function getListingScores(match: any): { red: number | null; blue: number | null } {
   const redScore: number | null =
@@ -275,6 +313,20 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     matches: [],
     rankings: [],
   });
+
+  const [teamEventDetails, setTeamEventDetails] =
+    useState<TeamEventDetailsState>({
+      open: false,
+      seasonYear: null,
+      eventCode: null,
+      eventName: null,
+      city: null,
+      teamNumber: null,
+      teamName: null,
+      loading: false,
+      error: null,
+      items: [],
+    });
 
   // For reading in render and in handlers
   function getDrilldown(teamNumber: number): DrilldownState {
@@ -528,6 +580,108 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   function handleCloseEventInfo() {
     setEventInfo((prev) => ({ ...prev, open: false }));
+
+  async function handleOpenTeamEventDetails(teamNumberInEvent: number) {
+    if (!eventInfo.seasonYear || !eventInfo.eventCode) {
+      return;
+    }
+
+    const seasonYear = eventInfo.seasonYear;
+    const eventCode = eventInfo.eventCode;
+
+    const matchesWithTeam = (eventInfo.matches ?? []).filter((m) =>
+      matchIncludesTeam(m, teamNumberInEvent)
+    );
+
+    const team = teams.find((t) => t.teamNumber === teamNumberInEvent);
+    const teamName = team ? getDisplayName(team) : "";
+
+    const items: TeamEventDetailsItem[] = matchesWithTeam.map((m, idx) => {
+      const tl = getTournamentLevel(m);
+      const mn = (m.matchNumber ?? m.MatchNumber ?? idx + 1) as number;
+      const key = matchKey(seasonYear, eventCode, tl, mn);
+      return { key, match: m, score: undefined };
+    });
+
+    setTeamEventDetails({
+      open: true,
+      seasonYear,
+      eventCode,
+      eventName: eventInfo.eventName,
+      city: eventInfo.city,
+      teamNumber: teamNumberInEvent,
+      teamName: teamName || null,
+      loading: true,
+      error: null,
+      items,
+    });
+
+    if (items.length === 0) {
+      setTeamEventDetails((prev) => ({
+        ...prev,
+        loading: false,
+      }));
+      return;
+    }
+
+    try {
+      const scores = await Promise.all(
+        items.map(async (item, idx) => {
+          const m = item.match as any;
+          const tl = getTournamentLevel(m);
+          const mn = (m.matchNumber ?? m.MatchNumber ?? idx + 1) as number;
+
+          const res = await fetch(
+            `/api/ftc/events/${seasonYear}/${encodeURIComponent(
+              eventCode
+            )}/matches/${tl}/${mn}`
+          );
+
+          if (!res.ok) {
+            return null;
+          }
+
+          const json = (await res.json()) as {
+            ok: boolean;
+            match?: FtcMatchScores | null;
+            error?: string;
+          };
+
+          if (!json.ok) {
+            return null;
+          }
+
+          return json.match ?? null;
+        })
+      );
+
+      setTeamEventDetails((prev) => {
+        if (!prev.open) return prev;
+        const updatedItems = prev.items.map((item, idx) => ({
+          ...item,
+          score: scores[idx],
+        }));
+        return {
+          ...prev,
+          loading: false,
+          items: updatedItems,
+        };
+      });
+    } catch (err: any) {
+      setTeamEventDetails((prev) => ({
+        ...prev,
+        loading: false,
+        error:
+          err?.message ??
+          "Failed to load detailed scores for this team at this event.",
+      }));
+    }
+  }
+
+  function handleCloseTeamEventDetails() {
+    setTeamEventDetails((prev) => ({ ...prev, open: false }));
+  }
+
   }
 
   // === CLICK HANDLERS ===
@@ -1240,12 +1394,44 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                   getAllianceTeamsFromMatch(m);
                                 const { red, blue } = getListingScores(m);
 
-                                const renderTeams = (teams: number[]) =>
-                                  teams
-                                    .map((tn) =>
-                                      !tn || Number.isNaN(tn) ? "—" : tn
-                                    )
-                                    .join(", ");
+                                const renderTeams = (teams: number[]) => (
+                                  <div className="flex flex-wrap gap-x-1 justify-start">
+                                    {teams.map((tn, i) => {
+                                      if (!tn || Number.isNaN(tn)) {
+                                        return (
+                                          <span
+                                            key={`team-empty-${idx}-${i}`}
+                                            className="text-gray-500"
+                                          >
+                                            —
+                                          </span>
+                                        );
+                                      }
+                                      const isFirst = i === 0;
+                                      return (
+                                        <Fragment key={`team-${tn}-${idx}-${i}`}>
+                                          {!isFirst && (
+                                            <span className="text-gray-500">
+                                              ,
+                                            </span>
+                                          )}
+                                          <button
+                                            type="button"
+                                            className="underline hover:text-white"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void handleOpenTeamEventDetails(
+                                                tn
+                                              );
+                                            }}
+                                          >
+                                            {tn}
+                                          </button>
+                                        </Fragment>
+                                      );
+                                    })}
+                                  </div>
+                                );
 
                                 return (
                                   <tr key={`qual-${idx}`}>
@@ -1278,6 +1464,118 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
             </div>
           </div>
         </div>
+
+      {/* TEAM-IN-EVENT DETAILS MODAL */}
+      {teamEventDetails.open && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80">
+          <div className="relative max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-neutral-950 shadow-xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div className="space-y-0.5">
+                <div className="text-sm font-semibold text-gray-100">
+                  Team {teamEventDetails.teamNumber ?? ""}{" "}
+                  {teamEventDetails.teamName
+                    ? `– ${teamEventDetails.teamName}`
+                    : ""}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {teamEventDetails.eventName || "Unknown event"}
+                  {teamEventDetails.city && ` • ${teamEventDetails.city}`}
+                  {teamEventDetails.seasonYear &&
+                    ` • ${teamEventDetails.seasonYear}`}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseTeamEventDetails}
+                className="rounded-md px-2 py-1 text-xs text-gray-300 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-xs">
+              {teamEventDetails.loading && (
+                <div className="text-gray-300">
+                  Loading detailed scores for this team…
+                </div>
+              )}
+
+              {!teamEventDetails.loading && teamEventDetails.error && (
+                <div className="text-red-400">{teamEventDetails.error}</div>
+              )}
+
+              {!teamEventDetails.loading &&
+                !teamEventDetails.error &&
+                teamEventDetails.items.length === 0 && (
+                  <div className="text-gray-500">
+                    This team has no recorded matches for this event.
+                  </div>
+                )}
+
+              {!teamEventDetails.loading &&
+                !teamEventDetails.error &&
+                teamEventDetails.items.length > 0 && (
+                  <div className="space-y-4">
+                    {teamEventDetails.items.map((item, idx) => {
+                      const m: any = item.match;
+                      const lvlRaw = getTournamentLevel(m).toUpperCase();
+                      const prettyLevel =
+                        lvlRaw === "QUAL" || lvlRaw === "QUALIFICATION"
+                          ? "QUALIFICATION"
+                          : lvlRaw || "MATCH";
+                      const matchNum =
+                        (m.matchNumber ?? m.MatchNumber ?? idx + 1) as number;
+
+                      const { redTeams, blueTeams } =
+                        getAllianceTeamsFromMatch(m);
+
+                      const renderTeamList = (teams: number[]) =>
+                        teams
+                          .filter((tn) => !Number.isNaN(tn) && tn)
+                          .join(", ");
+
+                      return (
+                        <div
+                          key={item.key}
+                          className="rounded-lg border border-white/10 bg-black/60 px-3 py-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <div className="text-xs font-semibold text-gray-100">
+                              {prettyLevel} #{matchNum}
+                            </div>
+                            <div className="text-[11px] text-gray-300">
+                              <span className="text-red-300">
+                                Red: {renderTeamList(redTeams)}
+                              </span>
+                              <span className="mx-2 text-gray-500">vs</span>
+                              <span className="text-blue-300">
+                                Blue: {renderTeamList(blueTeams)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {item.score === undefined && (
+                            <div className="text-[10px] text-gray-400">
+                              Loading score breakdown…
+                            </div>
+                          )}
+
+                          {item.score === null && (
+                            <div className="text-[10px] text-gray-500">
+                              No score details available for this match yet.
+                            </div>
+                          )}
+
+                          {item.score && <MatchScoreTable score={item.score} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
       )}
     </>
   );
