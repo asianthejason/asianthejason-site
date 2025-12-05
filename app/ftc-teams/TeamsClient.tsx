@@ -1565,188 +1565,205 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
               {/* Only render tables when we have data and no error */}
               {!eventInfo.loading && !eventInfo.error && (
                 <>
-                  {/* Event matches table */}
-                  <div className="w-full">
-                    <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
-                      Event matches
-                    </h3>
-                    {eventInfo.matches.length === 0 ? (
-                      <p className="text-sm text-gray-400">
-                        No matches found for this event.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
-                        <table className="min-w-full text-sm">
-                          <thead className="bg-gray-800/80">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-300">
-                                Match
-                              </th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-300">
-                                Red teams
-                              </th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-300">
-                                Blue teams
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-300">
-                                Final score
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-800">
-                            {eventInfo.matches.map((m, idx) => {
-                              const levelRaw = getTournamentLevel(m).toUpperCase();
-                              let level = "QUAL";
-                              if (
-                                levelRaw.startsWith("PLAYOFF") ||
-                                levelRaw.startsWith("EL")
-                              ) {
-                                level = "ELIM";
-                              } else if (
-                                levelRaw.startsWith("SF") ||
-                                levelRaw.includes("SEMIFINAL")
-                              ) {
-                                level = "SF";
-                              } else if (
-                                levelRaw.startsWith("QF") ||
-                                levelRaw.includes("QUARTERFINAL")
-                              ) {
-                                level = "QF";
-                              } else if (levelRaw.startsWith("F")) {
-                                level = "F";
-                              }
+                  <div className="flex flex-col gap-4 lg:flex-row">
+                    {/* Event matches table - 65% width */}
+                    <div className="w-full lg:w-[65%]">
+                      <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
+                        Event matches
+                      </h3>
+                      {eventInfo.matches.length === 0 ? (
+                        <p className="text-sm text-gray-400">
+                          No matches found for this event.
+                        </p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-gray-800/80">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                                  Match
+                                </th>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                                  Red teams
+                                </th>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                                  Blue teams
+                                </th>
+                                <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                                  Final score
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                              {eventInfo.matches.map((m, idx) => {
+                                const levelRaw = getTournamentLevel(m).toUpperCase();
+                                let level = "QUAL";
+                                if (
+                                  levelRaw.startsWith("PLAYOFF") ||
+                                  levelRaw.startsWith("EL")
+                                ) {
+                                  level = "ELIM";
+                                } else if (
+                                  levelRaw.startsWith("SF") ||
+                                  levelRaw.includes("SEMIFINAL")
+                                ) {
+                                  level = "SF";
+                                } else if (
+                                  levelRaw.startsWith("QF") ||
+                                  levelRaw.includes("QUARTERFINAL")
+                                ) {
+                                  level = "QF";
+                                } else if (levelRaw.startsWith("F")) {
+                                  level = "F";
+                                }
 
-                              const matchLevel = level;
-                              const matchNumber =
-                                (m.matchNumber ?? m.MatchNumber ?? idx + 1) as number;
+                                const matchLevel = level;
+                                const matchNumber =
+                                  (m.matchNumber ?? m.MatchNumber ?? idx + 1) as number;
 
-                              const { red: redScoreRaw, blue: blueScoreRaw } =
-                                getListingScores(m);
-                              const redScore = redScoreRaw ?? 0;
-                              const blueScore = blueScoreRaw ?? 0;
+                                const { red: redScoreRaw, blue: blueScoreRaw } =
+                                  getListingScores(m);
+                                const redScore = redScoreRaw ?? 0;
+                                const blueScore = blueScoreRaw ?? 0;
 
-                              const { redTeams, blueTeams } = getAllianceTeamsFromMatch(m);
+                                const { redTeams, blueTeams } = getAllianceTeamsFromMatch(m);
 
-                              const renderTeamNumber = (tn: number) => {
-                                if (!tn || Number.isNaN(tn)) return null;
+                                const renderTeamBadge = (tn: number) => {
+                                  if (!tn || Number.isNaN(tn)) return null;
+                                  const name = teamNameMap.get(tn) ?? "";
+                                  return (
+                                    <div key={tn} className="flex flex-col items-start">
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium text-blue-300 hover:border-blue-400 hover:bg-blue-900/30"
+                                        onClick={() => handleOpenTeamEventDetails(tn)}
+                                      >
+                                        {tn}
+                                      </button>
+                                      {name && (
+                                        <div className="mt-0.5 text-[11px] leading-tight text-gray-400">
+                                          {name}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                };
+
                                 return (
-                                  <button
-                                    key={tn}
-                                    className="inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium text-blue-300 hover:border-blue-400 hover:bg-blue-900/30"
-                                    onClick={() => handleOpenTeamEventDetails(tn)}
+                                  <tr
+                                    key={`${levelRaw}-${matchNumber}-${idx}`}
+                                    className="hover:bg-gray-800/60 cursor-pointer"
+                                    onClick={() => handleOpenMatchDetails(m, idx)}
                                   >
-                                    {tn}
-                                  </button>
+                                    <td className="whitespace-nowrap px-3 py-2 text-gray-200">
+                                      {matchLevel} {matchNumber}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-1.5 text-xs text-red-200">
+                                      {redTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
+                                        <div className="flex flex-wrap gap-2">
+                                          {redTeams
+                                            .filter((tn) => !Number.isNaN(tn) && tn)
+                                            .map((tn) => renderTeamBadge(tn))}
+                                        </div>
+                                      ) : (
+                                        "—"
+                                      )}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-1.5 text-xs text-blue-200">
+                                      {blueTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
+                                        <div className="flex flex-wrap gap-2">
+                                          {blueTeams
+                                            .filter((tn) => !Number.isNaN(tn) && tn)
+                                            .map((tn) => renderTeamBadge(tn))}
+                                        </div>
+                                      ) : (
+                                        "—"
+                                      )}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-right text-sm font-semibold">
+                                      <span
+                                        className={
+                                          redScore > blueScore
+                                            ? "text-red-300"
+                                            : redScore < blueScore
+                                            ? "text-blue-300"
+                                            : "text-gray-300"
+                                        }
+                                      >
+                                        {redScore}-{blueScore}
+                                      </span>
+                                    </td>
+                                  </tr>
                                 );
-                              };
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
 
-                              return (
-                                <tr
-                                  key={`${levelRaw}-${matchNumber}-${idx}`}
-                                  className="hover:bg-gray-800/60 cursor-pointer"
-                                  onClick={() => handleOpenMatchDetails(m, idx)}
-                                >
+                    {/* Team win/loss summary (qualification matches only) - 35% width */}
+                    {eventPerformance.length > 0 && (
+                      <div className="w-full lg:w-[35%]">
+                        <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
+                          Team win / loss summary
+                        </h3>
+                        <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-gray-800/80">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                                  Team #
+                                </th>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-300">
+                                  Team name
+                                </th>
+                                <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                                  Wins
+                                </th>
+                                <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                                  Losses
+                                </th>
+                                <th className="px-3 py-2 text-right font-semibold text-gray-300">
+                                  Record
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800">
+                              {eventPerformance.map((row) => (
+                                <tr key={row.teamNumber}>
                                   <td className="whitespace-nowrap px-3 py-2 text-gray-200">
-                                    {matchLevel} {matchNumber}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-1.5 text-xs text-red-200">
-                                    {redTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
-                                      <div className="flex flex-wrap gap-1">
-                                        {redTeams
-                                          .filter((tn) => !Number.isNaN(tn) && tn)
-                                          .map((tn) => renderTeamNumber(tn))}
-                                      </div>
-                                    ) : (
-                                      "—"
-                                    )}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-1.5 text-xs text-blue-200">
-                                    {blueTeams.some((tn) => !Number.isNaN(tn) && tn) ? (
-                                      <div className="flex flex-wrap gap-1">
-                                        {blueTeams
-                                          .filter((tn) => !Number.isNaN(tn) && tn)
-                                          .map((tn) => renderTeamNumber(tn))}
-                                      </div>
-                                    ) : (
-                                      "—"
-                                    )}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-2 text-right text-sm font-semibold">
-                                    <span
-                                      className={
-                                        redScore > blueScore
-                                          ? "text-red-300"
-                                          : redScore < blueScore
-                                          ? "text-blue-300"
-                                          : "text-gray-300"
-                                      }
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium text-blue-300 hover:border-blue-400 hover:bg-blue-900/30"
+                                      onClick={() => handleOpenTeamEventDetails(row.teamNumber)}
                                     >
-                                      {redScore}-{blueScore}
-                                    </span>
+                                      {row.teamNumber}
+                                    </button>
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-200">
+                                    {row.name || "—"}
+                                  </td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
+                                    {row.wins}
+                                  </td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
+                                    {row.losses}
+                                  </td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-right text-gray-300">
+                                    {row.wins}-{row.losses}
                                   </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Team win/loss summary (qualification matches only) */}
-                  {eventPerformance.length > 0 && (
-                    <div className="w-full">
-                      <h3 className="mt-4 mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
-                        Team win / loss summary
-                      </h3>
-                      <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
-                        <table className="min-w-full text-sm">
-                          <thead className="bg-gray-800/80">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-300">
-                                Team #
-                              </th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-300">
-                                Team name
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-300">
-                                Wins
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-300">
-                                Losses
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-300">
-                                Record
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-800">
-                            {eventPerformance.map((row) => (
-                              <tr key={row.teamNumber}>
-                                <td className="whitespace-nowrap px-3 py-2 text-gray-200">
-                                  {row.teamNumber}
-                                </td>
-                                <td className="px-3 py-2 text-gray-200">
-                                  {row.name || "—"}
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
-                                  {row.wins}
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
-                                  {row.losses}
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-2 text-right text-gray-300">
-                                  {row.wins}-{row.losses}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
+
             </div>
           </div>
         </div>
