@@ -10,12 +10,13 @@ async function fetchEventQualificationMatches(
   season: number,
   eventCode: string
 ): Promise<any[]> {
-  const username = process.env.FTC_API_USER;
-  const apiKey = process.env.FTC_API_KEY;
+  // Use the same env vars as lib/ftcEvents.ts
+  const username = process.env.FTC_API_USERNAME;
+  const apiKey = process.env.FTC_API_TOKEN;
 
   if (!username || !apiKey) {
     throw new Error(
-      "FTC API credentials (FTC_API_USER / FTC_API_KEY) are not set"
+      "FTC API credentials (FTC_API_USERNAME / FTC_API_TOKEN) are not set"
     );
   }
 
@@ -28,6 +29,7 @@ async function fetchEventQualificationMatches(
       Authorization:
         "Basic " + Buffer.from(`${username}:${apiKey}`).toString("base64"),
     },
+    // allow some caching on the server
     next: { revalidate: 60 },
   });
 
@@ -37,8 +39,8 @@ async function fetchEventQualificationMatches(
     );
   }
 
-  const data = (await res.json()) as { matches?: any[] };
-  return data.matches ?? [];
+  const data = (await res.json()) as { matches?: any[]; Matches?: any[] };
+  return data.matches ?? data.Matches ?? [];
 }
 
 export async function GET(
