@@ -79,70 +79,31 @@ export interface FtcTeamApiResponse {
  * Uses: GET /v2.0/{season}/teams with paging.
  */
 export async function getAllFtcTeamsForSeason(
-  season: number,
-  opts?: { countryCode?: string | null }
+  season: number
 ): Promise<FtcTeam[]> {
   const pageSize = 250;
-  const countryCode = opts?.countryCode ?? null;
+  let page = 1;
+  const all: FtcTeam[] = [];
 
-  async function loadAll(
-    extraQuery: Record<string, string | number | undefined> = {}
-  ): Promise<FtcTeam[]> {
-    let page = 1;
-    const all: FtcTeam[] = [];
-
-    // The /teams endpoint pages; we loop until less than pageSize is returned
-    while (true) {
-      const data = await ftcFetch<FtcTeamApiResponse>(`/${season}/teams`, {
-        page,
-        size: pageSize,
-        ...extraQuery,
-      });
-
-      if (!data.teams?.length) break;
-
-      all.push(...data.teams);
-      if (data.teams.length < pageSize) break;
-      page += 1;
-    }
-
-    return all;
-  }
-
-let all: FtcTeam[] = [];
-
-if (countryCode) {
-  try {
-    console.log("[ftcEvents] Requesting teams with country filter", {
-      season,
-      countryCode,
+  // The /teams endpoint pages; we loop until less than pageSize is returned
+  while (true) {
+    const data = await ftcFetch<FtcTeamApiResponse>(`/${season}/teams`, {
+      page,
+      size: pageSize,
     });
-    // Prefer asking the FTC Events API for just this country if supported.
-    all = await loadAll({ countryCode: countryCode });
-  } catch (err) {
-    console.warn(
-      `[ftcEvents] Failed to load teams with country filter "${countryCode}". Falling back to all teams.`,
-      err
-    );
-    all = await loadAll();
+
+    if (!data.teams?.length) break;
+
+    all.push(...data.teams);
+    if (data.teams.length < pageSize) break;
+    page += 1;
   }
-} else {
-  console.log("[ftcEvents] Requesting teams with NO country filter", {
-    season,
-  });
-  all = await loadAll();
+
+  // Filter out phantom 999xx entries that are blank
+  return all.filter((t) => t.teamNumber && t.teamNumber < 99900);
 }
 
-console.log("[ftcEvents] Loaded teams from FTC API", {
-  season,
-  countryCode,
-  count: all.length,
-});
-
-// Filter out phantom 999xx entries that are blank
-
-  return all.filter((t) => t.teamNumber && t.teamNumber < 99900);
-}/* ===================== Drilldown types ===================== */
+/* ===================== Drilldown types ===================== */
 
 /**
  * A single event that a team attends in a given season.
