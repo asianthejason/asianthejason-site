@@ -328,7 +328,12 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
             )}
 
             {!loadError && teams.length > 0 && (
-              <TeamsClient season={season} teams={teams} />
+              <TeamsClient
+                season={season}
+                teams={teams}
+                authReady={authReady}
+                currentUser={currentUser}
+              />
             )}
 
             <p className="text-xs text-gray-500" style={{ marginTop: "8px" }}>

@@ -9,9 +9,17 @@ import type {
   FtcMatchScores,
 } from "@/lib/ftcEvents";
 
+type AuthUserLite = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+};
+
 type TeamsClientProps = {
   season: number; // current season
   teams: FtcTeam[];
+  authReady?: boolean;
+  currentUser?: AuthUserLite | null;
 };
 
 type DrilldownState = {
@@ -246,7 +254,12 @@ function getListingScores(match: any): { red: number | null; blue: number | null
 }
 
 
-export function TeamsClient({ season, teams }: TeamsClientProps) {
+export function TeamsClient({
+  season,
+  teams,
+  authReady = false,
+  currentUser = null,
+}: TeamsClientProps) {
   // === Filters / search ===
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "" = All
@@ -317,6 +330,138 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
     return map;
   }, [teams]);
+
+
+  // === Watch list state (per user, persisted in Firestore) ===
+  const [activeTab, setActiveTab] = useState<"directory" | "watchlist">(
+    "directory"
+  );
+
+  const [watchlist, setWatchlist] = useState<number[]>([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+
+  const isLoggedIn = !!currentUser;
+
+  // Load watch list from Firestore when auth is ready / user changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!authReady || !currentUser) {
+      setWatchlist([]);
+      setWatchlistLoading(false);
+      setWatchlistError(null);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        const w = window as any;
+        const db = w.db;
+        const firebase = w.firebase;
+
+        if (!db || !firebase) {
+          console.warn("Firestore not available on window for watch list");
+          return;
+        }
+
+        setWatchlistLoading(true);
+        setWatchlistError(null);
+
+        const docRef = db.collection("ftcTeamWatchlists").doc(currentUser.uid);
+        const snap = await docRef.get();
+
+        if (snap.exists) {
+          const data = snap.data() || {};
+          const raw = Array.isArray(data.teamNumbers) ? data.teamNumbers : [];
+          const cleaned = raw
+            .map((n: any) => Number(n))
+            .filter((n: number) => Number.isFinite(n) && n > 0);
+          setWatchlist(cleaned);
+        } else {
+          setWatchlist([]);
+        }
+      } catch (err: any) {
+        console.error("Error loading watch list", err);
+        setWatchlistError(
+          err?.message ?? "Failed to load your watch list. Try again later."
+        );
+      } finally {
+        setWatchlistLoading(false);
+      }
+    };
+
+    load();
+  }, [authReady, currentUser?.uid]);
+
+  const persistWatchlist = useCallback(
+    async (teamNumbers: number[]) => {
+      if (!currentUser) return;
+
+      try {
+        const w = window as any;
+        const db = w.db;
+        const firebase = w.firebase;
+        if (!db || !firebase) {
+          console.warn("Firestore not available on window for watch list save");
+          return;
+        }
+
+        const docRef = db.collection("ftcTeamWatchlists").doc(currentUser.uid);
+        await docRef.set(
+          {
+            teamNumbers,
+            updatedAt: firebase.firestore.FieldValue?.serverTimestamp?.(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("Error saving watch list", err);
+      }
+    },
+    [currentUser]
+  );
+
+  const handleToggleWatchlist = useCallback(
+    (teamNumber: number) => {
+      if (!currentUser) return;
+
+      setWatchlist((prev) => {
+        const exists = prev.includes(teamNumber);
+        const next = exists
+          ? prev.filter((n) => n !== teamNumber)
+          : [...prev, teamNumber];
+
+        void persistWatchlist(next);
+        return next;
+      });
+    },
+    [currentUser, persistWatchlist]
+  );
+
+  const filteredWatchlistTeams = useMemo(() => {
+    if (!watchlist || watchlist.length === 0) return [];
+    const set = new Set(watchlist);
+    return filteredTeams.filter((t) => {
+      const num = t.teamNumber;
+      return num != null && set.has(num);
+    });
+  }, [filteredTeams, watchlist]);
+
+  const visibleTeams =
+    activeTab === "directory" ? filteredTeams : filteredWatchlistTeams;
+
+  const directorySummary = `Showing ${filteredTeams.length} of ${teams.length} teams`;
+
+  const watchlistSummary = !isLoggedIn
+    ? "You must log in to use the watch list feature. Your selected teams are saved to your account."
+    : watchlistLoading
+    ? "Loading your watch list…"
+    : watchlistError
+    ? watchlistError
+    : watchlist.length === 0
+    ? "Your watch list is empty. Go to the Team directory tab and add some teams."
+    : `Showing ${visibleTeams.length} of ${watchlist.length} teams in your watch list`;
 
   // === Drilldown state (per-team) ===
   const [expandedTeamNumber, setExpandedTeamNumber] =
@@ -1150,6 +1295,32 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   return (
     <>
       <section className="space-y-3 text-[14px]">
+        {/* Tabs: directory vs watch list */}
+        <div className="flex items-center gap-2 border-b border-white/10 pb-2 mb-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("directory")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+              activeTab === "directory"
+                ? "bg-white text-black"
+                : "text-gray-300 hover:bg-white/10"
+            }`}
+          >
+            Team directory
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("watchlist")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+              activeTab === "watchlist"
+                ? "bg-white text-black"
+                : "text-gray-300 hover:bg-white/10"
+            }`}
+          >
+            Watch list
+          </button>
+        </div>
+
         {/* Controls */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
@@ -1203,36 +1374,48 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         </div>
 
         <p className="text-[14px] text-gray-400">
-          Showing {filteredTeams.length} of {teams.length} teams
+          {activeTab === "directory" ? directorySummary : watchlistSummary}
         </p>
 
+        {activeTab === "watchlist" && !isLoggedIn && (
+          <div className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-100">
+            You must log in to use the watch list feature. Once you are signed
+            in, your selected teams will be saved to your account.
+          </div>
+        )}
+
         {/* Table with accordion */}
-        <div className="rounded-xl border border-white/10 overflow-x-auto">
-          <table className="min-w-full text-[14px]">
-            <thead className="bg-white/5">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Team #
-                </th>
-                <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
-                  Team Name
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  City
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  State / Prov
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Country
-                </th>
-                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                  Rookie Year
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {filteredTeams.map((t, idx) => {
+        {(activeTab === "directory" ||
+          (activeTab === "watchlist" && isLoggedIn)) && (
+          <div className="rounded-xl border border-white/10 overflow-x-auto">
+            <table className="min-w-full text-[14px]">
+              <thead className="bg-white/5">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                    Team #
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
+                    Team Name
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                    City
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                    State / Prov
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                    Country
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                    Rookie Year
+                  </th>
+                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                    Watch list
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {visibleTeams.map((t, idx) => {
                 const isOpen = expandedTeamNumber === t.teamNumber;
                 const d = t.teamNumber ? getDrilldown(t.teamNumber) : undefined;
 
@@ -1261,12 +1444,42 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         {t.rookieYear ?? ""}
                       </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          title={
+                            !isLoggedIn || !t.teamNumber
+                              ? "You must log in to use the watch list feature."
+                              : watchlist.includes(t.teamNumber)
+                              ? "Remove this team from your watch list."
+                              : "Add this team to your watch list."
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!t.teamNumber || !isLoggedIn) return;
+                            handleToggleWatchlist(t.teamNumber);
+                          }}
+                          className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium transition ${
+                            !isLoggedIn || !t.teamNumber
+                              ? "border-gray-600 text-gray-500 bg-gray-800 cursor-not-allowed"
+                              : watchlist.includes(t.teamNumber)
+                              ? "border-emerald-500/70 text-emerald-200 bg-emerald-900/30 hover:bg-emerald-900/50"
+                              : "border-emerald-500/80 text-emerald-200 bg-emerald-700/40 hover:bg-emerald-600/50 hover:border-emerald-400"
+                          }`}
+                        >
+                          {!isLoggedIn || !t.teamNumber
+                            ? "Add to watch list"
+                            : watchlist.includes(t.teamNumber)
+                            ? "Remove"
+                            : "Add to watch list"}
+                        </button>
+                      </td>
                     </tr>
 
                     {/* Drilldown row */}
                     {isOpen && t.teamNumber && d && (
                       <tr className="bg-black/40">
-                        <td colSpan={6} className="px-4 py-3">
+                        <td colSpan={7} className="px-4 py-3">
                           {/* Seasons / events / matches accordion */}
                           {d.loadingSeasons && (
                             <div className="text-[14px] text-gray-400">
@@ -1524,6 +1737,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       
