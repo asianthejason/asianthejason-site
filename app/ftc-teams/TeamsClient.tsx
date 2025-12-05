@@ -12,6 +12,7 @@ import type {
 type TeamsClientProps = {
   season: number; // current season
   teams: FtcTeam[];
+  initialCountryFilter?: string;
 };
 
 type DrilldownState = {
@@ -246,11 +247,11 @@ function getListingScores(match: any): { red: number | null; blue: number | null
 }
 
 
-export function TeamsClient({ season, teams }: TeamsClientProps) {
+export function TeamsClient({ season, teams, initialCountryFilter }: TeamsClientProps) {
   // === Filters / search ===
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "" = All
-  const [countryFilter, setCountryFilter] = useState(""); // "" = All
+  const [countryFilter, setCountryFilter] = useState(initialCountryFilter ?? ""); // "" = All
 
   const stateOptions = useMemo(
     () =>
@@ -1857,7 +1858,7 @@ type MatchCardProps = {
   match: any;
   score: FtcMatchScores | null | undefined;
   scoreLoading: boolean;
-  scoreError: string | null;
+  scoreError: string | null | undefined;
   ensureScoreLoaded: (
     teamNumber: number,
     seasonYear: number,
