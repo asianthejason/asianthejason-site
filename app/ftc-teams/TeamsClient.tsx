@@ -700,15 +700,16 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
   }
 
 
-  async function handleOpenTeamEventDetails(teamNumberInEvent: number) {
-    if (!eventInfo.seasonYear || !eventInfo.eventCode) {
-      return;
-    }
 
-    const seasonYear = eventInfo.seasonYear;
-    const eventCode = eventInfo.eventCode;
-
-    const matchesWithTeam = (eventInfo.matches ?? []).filter((m) =>
+  async function openTeamEventDetailsFor(
+    teamNumberInEvent: number,
+    seasonYear: number,
+    eventCode: string,
+    eventName: string | null,
+    city: string | null,
+    matchesSource: FtcMatch[] | undefined | null
+  ) {
+    const matchesWithTeam = (matchesSource ?? []).filter((m) =>
       matchIncludesTeam(m, teamNumberInEvent)
     );
 
@@ -726,8 +727,8 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
       open: true,
       seasonYear,
       eventCode,
-      eventName: eventInfo.eventName,
-      city: eventInfo.city,
+      eventName,
+      city,
       teamNumber: teamNumberInEvent,
       teamName: teamName || null,
       loading: true,
@@ -797,8 +798,44 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     }
   }
 
+  async function handleOpenTeamEventDetails(teamNumberInEvent: number) {
+    if (!eventInfo.seasonYear || !eventInfo.eventCode) {
+      return;
+    }
+
+    await openTeamEventDetailsFor(
+      teamNumberInEvent,
+      eventInfo.seasonYear,
+      eventInfo.eventCode,
+      eventInfo.eventName,
+      eventInfo.city,
+      eventInfo.matches
+    );
+  }
+
   function handleCloseTeamEventDetails() {
     setTeamEventDetails((prev) => ({ ...prev, open: false }));
+  }
+
+  async function handleOpenTeamEventDetailsFromDrilldown(
+    teamNumberInEvent: number,
+    seasonYear: number,
+    event: FtcTeamEvent,
+    matchesForEvent: FtcMatch[] | undefined
+  ) {
+    const eventCode = (event.eventCode ?? "").toString().trim();
+    if (!eventCode) {
+      return;
+    }
+
+    await openTeamEventDetailsFor(
+      teamNumberInEvent,
+      seasonYear,
+      eventCode,
+      (event.eventName ?? "").toString() || null,
+      (event.city ?? "").toString() || null,
+      matchesForEvent ?? []
+    );
   }
 
 
@@ -1112,11 +1149,11 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   return (
     <>
-      <section className="space-y-3 text-[12px]">
+      <section className="space-y-3 text-[14px]">
         {/* Controls */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-[12px] text-gray-400 mb-1">
+            <label className="block text-[14px] text-gray-400 mb-1">
               Search by team # or name
             </label>
             <input
@@ -1129,7 +1166,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
           </div>
 
           <div className="min-w-[140px]">
-            <label className="block text-[12px] text-gray-400 mb-1">
+            <label className="block text-[14px] text-gray-400 mb-1">
               State / Prov
             </label>
             <select
@@ -1147,7 +1184,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
           </div>
 
           <div className="min-w-[140px]">
-            <label className="block text-[12px] text-gray-400 mb-1">
+            <label className="block text-[14px] text-gray-400 mb-1">
               Country
             </label>
             <select
@@ -1165,13 +1202,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
           </div>
         </div>
 
-        <p className="text-[12px] text-gray-400">
+        <p className="text-[14px] text-gray-400">
           Showing {filteredTeams.length} of {teams.length} teams
         </p>
 
         {/* Table with accordion */}
         <div className="rounded-xl border border-white/10 overflow-x-auto">
-          <table className="min-w-full text-[12px]">
+          <table className="min-w-full text-[14px]">
             <thead className="bg-white/5">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
@@ -1232,17 +1269,17 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                         <td colSpan={6} className="px-4 py-3">
                           {/* Seasons / events / matches accordion */}
                           {d.loadingSeasons && (
-                            <div className="text-[12px] text-gray-400">
+                            <div className="text-[14px] text-gray-400">
                               Loading seasons…
                             </div>
                           )}
                           {d.seasonsError && (
-                            <div className="text-[12px] text-red-400">
+                            <div className="text-[14px] text-red-400">
                               {d.seasonsError}
                             </div>
                           )}
                           {d.seasons && d.seasons.length === 0 && (
-                            <div className="text-[12px] text-gray-400">
+                            <div className="text-[14px] text-gray-400">
                               No seasons found for this team.
                             </div>
                           )}
@@ -1268,7 +1305,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                         e.stopPropagation();
                                         handleToggleSeason(t, seasonYear);
                                       }}
-                                      className="w-full flex justify-between items-center text-left text-[12px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
+                                      className="w-full flex justify-between items-center text-left text-[14px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
                                     >
                                       <span className="font-semibold text-gray-100">
                                         Season {seasonYear}
@@ -1282,19 +1319,19 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                     {seasonOpen && (
                                       <div className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1">
                                         {eventsLoading && (
-                                          <div className="text-[12px] text-gray-400">
+                                          <div className="text-[14px] text-gray-400">
                                             Loading events…
                                           </div>
                                         )}
                                         {eventsError && (
-                                          <div className="text-[12px] text-red-400">
+                                          <div className="text-[14px] text-red-400">
                                             {eventsError}
                                           </div>
                                         )}
                                         {!eventsLoading &&
                                           !eventsError &&
                                           events.length === 0 && (
-                                            <div className="text-[12px] text-gray-500">
+                                            <div className="text-[14px] text-gray-500">
                                               No events recorded.
                                             </div>
                                           )}
@@ -1331,7 +1368,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       ev
                                                     );
                                                   }}
-                                                  className="flex-1 flex justify-between items-center text-left text-[12px] bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded"
+                                                  className="flex-1 flex justify-between items-center text-left text-[14px] bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded"
                                                 >
                                                   <span className="text-gray-100">
                                                     {ev.eventName}{" "}
@@ -1341,7 +1378,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       </span>
                                                     )}
                                                   </span>
-                                                  <span className="flex items-center gap-2 text-gray-400 text-[12px]">
+                                                  <span className="flex items-center gap-2 text-gray-400 text-[14px]">
                                                     {ev.city && (
                                                       <span>
                                                         {ev.city}
@@ -1365,7 +1402,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                       ev
                                                     );
                                                   }}
-                                                  className="text-[12px] px-2 py-1 rounded border border-white/15 bg-black/40 hover:bg-white/10 text-gray-200"
+                                                  className="text-[14px] px-2 py-1 rounded border border-white/15 bg-black/40 hover:bg-white/10 text-gray-200"
                                                 >
                                                   Event info
                                                 </button>
@@ -1375,12 +1412,12 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                               {eventOpen && (
                                                 <div className="mt-2 ml-4 border-l border-white/10 pl-3">
                                                   {matchesLoading && (
-                                                    <div className="text-[12px] text-gray-400">
+                                                    <div className="text-[14px] text-gray-400">
                                                       Loading matches…
                                                     </div>
                                                   )}
                                                   {matchesError && (
-                                                    <div className="text-[12px] text-red-400">
+                                                    <div className="text-[14px] text-red-400">
                                                       {matchesError}
                                                     </div>
                                                   )}
@@ -1388,7 +1425,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                     !matchesError &&
                                                     matches &&
                                                     matches.length === 0 && (
-                                                      <div className="text-[12px] text-gray-500">
+                                                      <div className="text-[14px] text-gray-500">
                                                         No matches found for
                                                         this event.
                                                       </div>
@@ -1462,6 +1499,16 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                                                 ensureScoreLoaded={
                                                                   ensureScoreLoaded
                                                                 }
+                                                                onTeamClick={(
+                                                                  teamNumberInEvent
+                                                                ) => {
+                                                                  void handleOpenTeamEventDetailsFromDrilldown(
+                                                                    teamNumberInEvent,
+                                                                    seasonYear,
+                                                                    ev,
+                                                                    matches
+                                                                  );
+                                                                }}
                                                               />
                                                             );
                                                           }
@@ -1500,7 +1547,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                 <div className="text-sm font-semibold text-gray-100">
                   Event info
                 </div>
-                <div className="text-[12px] text-gray-400">
+                <div className="text-[14px] text-gray-400">
                   {eventInfo.eventName || "Unknown event"}
                   {eventInfo.city && ` • ${eventInfo.city}`}
                   {eventInfo.seasonYear && ` • ${eventInfo.seasonYear}`}
@@ -1509,13 +1556,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
               <button
                 type="button"
                 onClick={handleCloseEventInfo}
-                className="rounded-md px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10"
+                className="rounded-md px-2 py-1 text-[14px] text-gray-300 hover:bg-white/10"
               >
                 Close
               </button>
             </div>
 
-            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-[12px]">
+            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-[14px]">
               {eventInfo.loading && (
                 <div className="text-gray-300">Loading event details…</div>
               )}
@@ -1530,7 +1577,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                   <div className="flex flex-col md:flex-row gap-4">
                     {/* Left: qualification matches */}
                     <div className="md:w-[65%] w-full">
-                      <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-gray-300">
+                      <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
                         Qualification matches
                       </h3>
                       {eventInfo.matches.length === 0 ? (
@@ -1539,7 +1586,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                         </div>
                       ) : (
                         <div className="overflow-x-auto rounded-lg border border-white/10">
-                          <table className="min-w-full text-[12px]">
+                          <table className="min-w-full text-[14px]">
                             <thead className="bg-white/5">
                               <tr>
                                 <th className="px-2 py-1 text-left font-semibold">
@@ -1632,7 +1679,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                               {tn}
                                             </div>
                                             {name && (
-                                              <div className="text-[12px] text-gray-400">
+                                              <div className="text-[14px] text-gray-400">
                                                 {name}
                                               </div>
                                             )}
@@ -1685,7 +1732,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
                     {/* Right: team performances */}
                     <div className="md:w-[35%] w-full">
-                      <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-gray-300">
+                      <h3 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-300">
                         Team performances
                       </h3>
                       {eventPerformance.length === 0 ? (
@@ -1694,7 +1741,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                         </div>
                       ) : (
                         <div className="overflow-x-auto rounded-lg border border-white/10">
-                          <table className="min-w-full text-[12px]">
+                          <table className="min-w-full text-[14px]">
                             <thead className="bg-white/5">
                               <tr>
                                 <th className="px-2 py-1 text-left font-semibold">
@@ -1723,7 +1770,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                         {entry.teamNumber}
                                       </div>
                                       {entry.name && (
-                                        <div className="text-[12px] text-gray-400">
+                                        <div className="text-[14px] text-gray-400">
                                           {entry.name}
                                         </div>
                                       )}
@@ -1756,7 +1803,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                 <div className="text-sm font-semibold text-gray-100">
                   {matchDetails.matchLabel ?? "Match details"}
                 </div>
-                <div className="text-[12px] text-gray-400">
+                <div className="text-[14px] text-gray-400">
                   {matchDetails.eventName || "Unknown event"}
                   {matchDetails.city && ` • ${matchDetails.city}`}
                   {matchDetails.seasonYear && ` • ${matchDetails.seasonYear}`}
@@ -1765,13 +1812,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
               <button
                 type="button"
                 onClick={handleCloseMatchDetails}
-                className="rounded-md px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10"
+                className="rounded-md px-2 py-1 text-[14px] text-gray-300 hover:bg-white/10"
               >
                 Close
               </button>
             </div>
 
-            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-[12px]">
+            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-[14px]">
               {matchDetails.loading && (
                 <div className="text-gray-300">
                   Loading match score breakdown…
@@ -1811,7 +1858,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                     ? `– ${teamEventDetails.teamName}`
                     : ""}
                 </div>
-                <div className="text-[12px] text-gray-400">
+                <div className="text-[14px] text-gray-400">
                   {teamEventDetails.eventName || "Unknown event"}
                   {teamEventDetails.city && ` • ${teamEventDetails.city}`}
                   {teamEventDetails.seasonYear &&
@@ -1821,13 +1868,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
               <button
                 type="button"
                 onClick={handleCloseTeamEventDetails}
-                className="rounded-md px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10"
+                className="rounded-md px-2 py-1 text-[14px] text-gray-300 hover:bg-white/10"
               >
                 Close
               </button>
             </div>
 
-            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-[12px]">
+            <div className="max-h-[80vh] overflow-y-auto px-4 py-3 space-y-4 text-[14px]">
               {teamEventDetails.loading && (
                 <div className="text-gray-300">
                   Loading detailed scores for this team…
@@ -1874,10 +1921,10 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                           className="rounded-lg border border-white/10 bg-black/60 px-3 py-2 h-full"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                            <div className="text-[12px] font-semibold text-gray-100">
+                            <div className="text-[14px] font-semibold text-gray-100">
                               {prettyLevel} #{matchNum}
                             </div>
-                            <div className="text-[12px] text-gray-300">
+                            <div className="text-[14px] text-gray-300">
                               <span className="text-red-300">
                                 Red: {renderTeamList(redTeams)}
                               </span>
@@ -1889,13 +1936,13 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                           </div>
 
                           {item.score === undefined && (
-                            <div className="text-[12px] text-gray-400">
+                            <div className="text-[14px] text-gray-400">
                               Loading score breakdown…
                             </div>
                           )}
 
                           {item.score === null && (
-                            <div className="text-[12px] text-gray-500">
+                            <div className="text-[14px] text-gray-500">
                               No score details available for this match yet.
                             </div>
                           )}
@@ -1933,9 +1980,23 @@ type MatchCardProps = {
     tournamentLevel: string,
     matchNumber: number
   ) => Promise<void>;
+  onTeamClick: (teamNumberInEvent: number) => void;
 };
 
 function MatchCard(props: MatchCardProps) {
+  const {
+    teamNumber,
+    seasonYear,
+    eventCode,
+    tournamentLevel,
+    matchNumber,
+    match,
+    score,
+    scoreLoading,
+    scoreError,
+    ensureScoreLoaded,
+    onTeamClick,
+  } = props;
   const {
     teamNumber,
     seasonYear,
@@ -2018,19 +2079,28 @@ function MatchCard(props: MatchCardProps) {
     }
     const isSelected = tn === teamNumber;
     return (
-      <span className={isSelected ? "font-semibold text-white" : ""}>
+      <button
+        type="button"
+        className={isSelected ? "font-semibold text-white underline" : "underline hover:font-semibold"}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTeamClick(tn);
+        }}
+      >
         {tn}
-      </span>
+      </button>
     );
   };
 
+  };
+
   return (
-    <div className="bg-black/60 border border-white/10 rounded-lg px-4 py-3 text-[12px] w-full">
+    <div className="bg-black/60 border border-white/10 rounded-lg px-4 py-3 text-[14px] w-full">
       <div className="flex justify-between gap-3 mb-2">
         <div className="font-semibold text-gray-100">
           {prettyLevel} #{mn}
         </div>
-        <div className="text-right text-[12px]">
+        <div className="text-right text-[14px]">
           <div className="font-semibold">
             <span
               className={
@@ -2048,7 +2118,7 @@ function MatchCard(props: MatchCardProps) {
               Blue {blueTotal ?? "?"}
             </span>
           </div>
-          <div className="mt-1 flex justify-end gap-8 text-[12px] text-gray-300">
+          <div className="mt-1 flex justify-end gap-8 text-[14px] text-gray-300">
             <div className="flex flex-col items-end leading-tight">
               {renderTeamNumber(redTeams[0])}
               {renderTeamNumber(redTeams[1])}
@@ -2062,16 +2132,16 @@ function MatchCard(props: MatchCardProps) {
       </div>
 
       {scoreLoading && (
-        <div className="text-[12px] text-gray-400">Loading breakdown…</div>
+        <div className="text-[14px] text-gray-400">Loading breakdown…</div>
       )}
       {scoreError && (
-        <div className="text-[12px] text-red-400">{scoreError}</div>
+        <div className="text-[14px] text-red-400">{scoreError}</div>
       )}
       {!scoreLoading && !scoreError && score && (
         <MatchScoreTable score={score as any} />
       )}
       {!scoreLoading && !scoreError && score === null && (
-        <div className="text-[12px] text-gray-500">
+        <div className="text-[14px] text-gray-500">
           No score details available for this match yet.
         </div>
       )}
@@ -2222,7 +2292,7 @@ function MatchScoreTable({ score }: { score: any }) {
   };
 
   return (
-    <div className="text-[12px] text-gray-100 bg-black/50 rounded px-2 py-2 mt-1">
+    <div className="text-[14px] text-gray-100 bg-black/50 rounded px-2 py-2 mt-1">
       <div className="flex items-center justify-between mb-1">
         <span className="uppercase tracking-wide text-[9px] text-gray-400">
           Score breakdown
