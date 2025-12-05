@@ -75,6 +75,7 @@ type TeamEventDetailsState = {
   items: TeamEventDetailsItem[];
 };
 
+
 function getDisplayName(t: FtcTeam): string {
   const shortName = (t.nameShort ?? "").toString().trim();
   const fullName = (t.nameFull ?? "").toString().trim();
@@ -192,7 +193,6 @@ function getAllianceTeamsFromMatch(match: any): {
     blueTeams: blueTeams.slice(0, 2),
   };
 }
-
 
 function matchIncludesTeam(match: any, teamNumber: number): boolean {
   const { redTeams, blueTeams } = getAllianceTeamsFromMatch(match);
@@ -313,6 +313,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
     matches: [],
     rankings: [],
   });
+
 
   const [teamEventDetails, setTeamEventDetails] =
     useState<TeamEventDetailsState>({
@@ -526,7 +527,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
         fetch(
           `/api/ftc/events/${seasonYear}/${encodeURIComponent(
             eventCode
-          )}/matches`
+          )}/matches?teamNumber=${teamNumber}`
         ),
         fetch(
           `/api/ftc/events/${seasonYear}/${encodeURIComponent(
@@ -580,6 +581,8 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   function handleCloseEventInfo() {
     setEventInfo((prev) => ({ ...prev, open: false }));
+  }
+
 
   async function handleOpenTeamEventDetails(teamNumberInEvent: number) {
     if (!eventInfo.seasonYear || !eventInfo.eventCode) {
@@ -680,8 +683,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
   function handleCloseTeamEventDetails() {
     setTeamEventDetails((prev) => ({ ...prev, open: false }));
-  }
-
   }
 
   // === CLICK HANDLERS ===
@@ -1459,12 +1460,116 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                     )}
                   </div>
 
+                  {/* Rankings table */}
+                  <div>
+                    <h3 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-gray-300">
+                      Event rankings
+                    </h3>
+                    {eventInfo.rankings.length === 0 ? (
+                      <div className="text-gray-500">
+                        No rankings data available for this event.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <table className="min-w-full text-[11px]">
+                          <thead className="bg-white/5">
+                            <tr>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Rank
+                              </th>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                Team
+                              </th>
+                              <th className="px-2 py-1 text-center font-semibold">
+                                W-L-T
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                RP
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                TBP
+                              </th>
+                              <th className="px-2 py-1 text-right font-semibold">
+                                Played
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {eventInfo.rankings.map((r: any, idx: number) => {
+                              const rank =
+                                r.rank ??
+                                r.Rank ??
+                                r.rankPosition ??
+                                r.RankPosition ??
+                                idx + 1;
+                              const teamNumber =
+                                r.teamNumber ??
+                                r.TeamNumber ??
+                                r.team?.teamNumber ??
+                                r.Team?.TeamNumber ??
+                                "—";
+
+                              const wins =
+                                r.wins ?? r.Wins ?? r.win ?? r.Win ?? 0;
+                              const losses =
+                                r.losses ?? r.Losses ?? r.loss ?? r.Loss ?? 0;
+                              const ties =
+                                r.ties ?? r.Ties ?? r.tie ?? r.Tie ?? 0;
+
+                              const rp =
+                                r.rankingPoints ??
+                                r.RankingPoints ??
+                                r.rp ??
+                                r.RP ??
+                                null;
+                              const tbp =
+                                r.tieBreakerPoints ??
+                                r.TieBreakerPoints ??
+                                r.tbp ??
+                                r.TBP ??
+                                null;
+                              const played =
+                                r.played ??
+                                r.Played ??
+                                r.matchesPlayed ??
+                                r.MatchesPlayed ??
+                                wins + losses + ties;
+
+                              return (
+                                <tr key={`rank-${idx}`}>
+                                  <td className="px-2 py-1 text-gray-100">
+                                    {rank}
+                                  </td>
+                                  <td className="px-2 py-1 text-gray-100">
+                                    {teamNumber}
+                                  </td>
+                                  <td className="px-2 py-1 text-center text-gray-200">
+                                    {wins}-{losses}
+                                    {ties ? `-${ties}` : ""}
+                                  </td>
+                                  <td className="px-2 py-1 text-right text-gray-200">
+                                    {rp ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right text-gray-200">
+                                    {tbp ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right text-gray-200">
+                                    {played ?? "—"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
           </div>
         </div>
-
+      )}
       {/* TEAM-IN-EVENT DETAILS MODAL */}
       {teamEventDetails.open && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80">
@@ -1575,7 +1680,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
             </div>
           </div>
         </div>
-      )}
       )}
     </>
   );
