@@ -34,8 +34,10 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
 }
 
 export default async function FtcTeamsPage() {
-let teams: FtcTeam[] = [];
+  const hdrs = headers();
+  let teams: FtcTeam[] = [];
   let loadError: string | null = null;
+  let initialCountryFilter: string | null = null;
 
   try {
     const rawTeams = await getAllFtcTeamsForSeason(SEASON);
@@ -93,6 +95,7 @@ let teams: FtcTeam[] = [];
   }
 
   return (
+return (
     <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold">FTC Teams – Season {SEASON}</h1>
@@ -139,11 +142,7 @@ let teams: FtcTeam[] = [];
       )}
 
       {!loadError && teams.length > 0 && (
-        <TeamsClient
-          season={SEASON}
-          teams={teams}
-          initialCountryFilter={initialCountryFilter ?? undefined}
-        />
+        <TeamsClient season={SEASON} teams={teams} initialCountryFilter={initialCountryFilter ?? undefined} />
       )}
     </main>
   );
