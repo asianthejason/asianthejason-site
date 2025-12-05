@@ -114,7 +114,7 @@ export async function getAllFtcTeamsForSeason(
   if (countryCode) {
     try {
       // Prefer asking the FTC Events API for just this country if supported.
-      all = await loadAll({ country: countryCode });
+      all = await loadAll({ countryCode: countryCode });
     } catch (err) {
       console.warn(
         `[ftcEvents] Failed to load teams with country filter "${countryCode}". Falling back to all teams.`,
