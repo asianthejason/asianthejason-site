@@ -12,6 +12,11 @@ import type {
 type TeamsClientProps = {
   season: number; // current season
   teams: FtcTeam[];
+  /**
+   * If provided, this country name (as it appears in team.country) will be
+   * used to pre-select the Country filter when the table first loads.
+   */
+  initialCountryFilter?: string | null;
 };
 
 type DrilldownState = {
@@ -246,11 +251,13 @@ function getListingScores(match: any): { red: number | null; blue: number | null
 }
 
 
-export function TeamsClient({ season, teams }: TeamsClientProps) {
+export function TeamsClient({ season, teams, initialCountryFilter }: TeamsClientProps) {
   // === Filters / search ===
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "" = All
-  const [countryFilter, setCountryFilter] = useState(""); // "" = All
+  const [countryFilter, setCountryFilter] = useState(
+    initialCountryFilter ?? ""
+  ); // "" = All
 
   const stateOptions = useMemo(
     () =>

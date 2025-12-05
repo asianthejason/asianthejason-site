@@ -2,6 +2,7 @@
 import { getAllFtcTeamsForSeason } from "@/lib/ftcEvents";
 import type { FtcTeam } from "@/lib/ftcEvents";
 import { TeamsClient } from "./TeamsClient";
+import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -35,10 +36,44 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
 export default async function FtcTeamsPage() {
   let teams: FtcTeam[] = [];
   let loadError: string | null = null;
+  let initialCountryFilter: string | null = null;
 
   try {
-    const rawTeams = await getAllFtcTeamsForSeason(SEASON);
-    teams = sortTeams(filterRealTeams(rawTeams));
+    const headersList = headers();
+    const countryCodeHeader =
+      headersList.get("x-vercel-ip-country") ||
+      headersList.get("x-country-code") ||
+      headersList.get("cf-ipcountry") ||
+      null;
+
+    const rawTeams = await getAllFtcTeamsForSeason(SEASON, {
+      countryCode: countryCodeHeader,
+    });
+
+    const cleanedTeams = sortTeams(filterRealTeams(rawTeams));
+    teams = cleanedTeams;
+
+    if (countryCodeHeader) {
+      const codeLower = countryCodeHeader.toLowerCase();
+      const variants: string[] = [codeLower];
+
+      if (codeLower === "us") {
+        variants.push("usa", "united states", "united states of america");
+      } else if (codeLower === "ca") {
+        variants.push("canada", "can");
+      } else if (codeLower === "gb" || codeLower === "uk") {
+        variants.push("united kingdom", "great britain", "gb", "uk");
+      }
+
+      const match = cleanedTeams.find((t) => {
+        const c = (t.country ?? "").toString().trim().toLowerCase();
+        return c !== "" && variants.includes(c);
+      });
+
+      if (match?.country) {
+        initialCountryFilter = match.country.toString().trim();
+      }
+    }
   } catch (err) {
     loadError =
       err instanceof Error ? err.message : "Unknown error loading FTC data";
@@ -91,7 +126,21 @@ export default async function FtcTeamsPage() {
       )}
 
       {!loadError && teams.length > 0 && (
-        <TeamsClient season={SEASON} teams={teams} />
+        <>
+          {initialCountryFilter && (
+            <p className="text-xs text-gray-400">
+              Showing teams in{" "}
+              <span className="font-semibold">{initialCountryFilter}</span>{" "}
+              based on your approximate location. You can change this using the
+              Country filter in the table below.
+            </p>
+          )}
+          <TeamsClient
+            season={SEASON}
+            teams={teams}
+            initialCountryFilter={initialCountryFilter ?? undefined}
+          />
+        </>
       )}
     </main>
   );
