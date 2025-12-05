@@ -1,6 +1,7 @@
 // app/ftc-teams/page.tsx
 import { getAllFtcTeamsForSeason } from "@/lib/ftcEvents";
 import type { FtcTeam } from "@/lib/ftcEvents";
+import { headers } from "next/headers";
 import { TeamsClient } from "./TeamsClient";
 
 export const dynamic = "force-dynamic";
@@ -33,12 +34,59 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
 }
 
 export default async function FtcTeamsPage() {
-  let teams: FtcTeam[] = [];
+let teams: FtcTeam[] = [];
   let loadError: string | null = null;
 
   try {
     const rawTeams = await getAllFtcTeamsForSeason(SEASON);
     teams = sortTeams(filterRealTeams(rawTeams));
+
+    // Infer an initial country filter from Accept-Language header
+    const acceptLang =
+      hdrs.get("accept-language") || hdrs.get("Accept-Language") || "";
+    const firstToken = acceptLang.split(",")[0]?.trim() ?? "";
+    const regionMatch = firstToken.match(/-([A-Z]{2})$/i);
+    const regionCode = regionMatch?.[1]?.toUpperCase();
+
+    if (regionCode) {
+      const regionToCountry: Record<string, string> = {
+        US: "USA",
+        CA: "Canada",
+        MX: "Mexico",
+        AU: "Australia",
+        NZ: "New Zealand",
+        GB: "United Kingdom",
+        UK: "United Kingdom",
+        IE: "Ireland",
+        DE: "Germany",
+        FR: "France",
+        ES: "Spain",
+        IT: "Italy",
+        PT: "Portugal",
+        NL: "Netherlands",
+        BE: "Belgium",
+        SE: "Sweden",
+        NO: "Norway",
+        FI: "Finland",
+        DK: "Denmark",
+        CH: "Switzerland",
+        AT: "Austria",
+        CN: "China",
+        JP: "Japan",
+        KR: "South Korea",
+        IN: "India",
+      };
+
+      const guess = regionToCountry[regionCode];
+      if (guess) {
+        const hasTeamsInCountry = teams.some(
+          (t) => (t.country ?? "").toString().trim() === guess
+        );
+        if (hasTeamsInCountry) {
+          initialCountryFilter = guess;
+        }
+      }
+    }
   } catch (err) {
     loadError =
       err instanceof Error ? err.message : "Unknown error loading FTC data";
@@ -91,7 +139,11 @@ export default async function FtcTeamsPage() {
       )}
 
       {!loadError && teams.length > 0 && (
-        <TeamsClient season={SEASON} teams={teams} />
+        <TeamsClient
+          season={SEASON}
+          teams={teams}
+          initialCountryFilter={initialCountryFilter ?? undefined}
+        />
       )}
     </main>
   );
