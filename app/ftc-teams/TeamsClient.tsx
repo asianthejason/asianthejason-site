@@ -1628,14 +1628,20 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
 
                                 const { redTeams, blueTeams } = getAllianceTeamsFromMatch(m);
 
-                                const renderTeamBadge = (tn: number) => {
+                                const renderTeamBadge = (tn: number, alliance: "red" | "blue") => {
                                   if (!tn || Number.isNaN(tn)) return null;
                                   const name = teamNameMap.get(tn) ?? "";
+                                  const baseClasses =
+                                    "inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium";
+                                  const allianceClasses =
+                                    alliance === "red"
+                                      ? "text-red-200 hover:border-red-400 hover:bg-red-900/30"
+                                      : "text-blue-200 hover:border-blue-400 hover:bg-blue-900/30";
                                   return (
                                     <div key={tn} className="flex flex-col items-start">
                                       <button
                                         type="button"
-                                        className="inline-flex items-center rounded border border-transparent px-1.5 py-0.5 text-xs font-medium text-blue-300 hover:border-blue-400 hover:bg-blue-900/30"
+                                        className={baseClasses + " " + allianceClasses}
                                         onClick={() => handleOpenTeamEventDetails(tn)}
                                       >
                                         {tn}
@@ -1663,7 +1669,7 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                         <div className="flex flex-wrap gap-2">
                                           {redTeams
                                             .filter((tn) => !Number.isNaN(tn) && tn)
-                                            .map((tn) => renderTeamBadge(tn))}
+                                            .map((tn) => renderTeamBadge(tn, "red"))}
                                         </div>
                                       ) : (
                                         "—"
@@ -1674,24 +1680,34 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                         <div className="flex flex-wrap gap-2">
                                           {blueTeams
                                             .filter((tn) => !Number.isNaN(tn) && tn)
-                                            .map((tn) => renderTeamBadge(tn))}
+                                            .map((tn) => renderTeamBadge(tn, "blue"))}
                                         </div>
                                       ) : (
                                         "—"
                                       )}
                                     </td>
                                     <td className="whitespace-nowrap px-3 py-2 text-right text-sm font-semibold">
-                                      <span
-                                        className={
-                                          redScore > blueScore
-                                            ? "text-red-300"
-                                            : redScore < blueScore
-                                            ? "text-blue-300"
-                                            : "text-gray-300"
+                                      {(() => {
+                                        let redClass = "text-gray-300";
+                                        let blueClass = "text-gray-300";
+                                        if (redScore > blueScore) {
+                                          redClass = "text-red-300";
+                                          blueClass = "text-gray-400";
+                                        } else if (blueScore > redScore) {
+                                          redClass = "text-gray-400";
+                                          blueClass = "text-blue-300";
+                                        } else {
+                                          redClass = "text-gray-300";
+                                          blueClass = "text-gray-300";
                                         }
-                                      >
-                                        {redScore}-{blueScore}
-                                      </span>
+                                        return (
+                                          <span>
+                                            <span className={redClass}>{redScore}</span>
+                                            <span className="text-gray-400">-</span>
+                                            <span className={blueClass}>{blueScore}</span>
+                                          </span>
+                                        );
+                                      })()}
                                     </td>
                                   </tr>
                                 );
@@ -1719,12 +1735,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                   Team name
                                 </th>
                                 <th className="px-3 py-2 text-right font-semibold text-gray-300">
-                                  Wins
-                                </th>
-                                <th className="px-3 py-2 text-right font-semibold text-gray-300">
-                                  Losses
-                                </th>
-                                <th className="px-3 py-2 text-right font-semibold text-gray-300">
                                   Record
                                 </th>
                               </tr>
@@ -1743,12 +1753,6 @@ export function TeamsClient({ season, teams }: TeamsClientProps) {
                                   </td>
                                   <td className="px-3 py-2 text-gray-200">
                                     {row.name || "—"}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
-                                    {row.wins}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-2 text-right text-gray-200">
-                                    {row.losses}
                                   </td>
                                   <td className="whitespace-nowrap px-3 py-2 text-right text-gray-300">
                                     {row.wins}-{row.losses}
