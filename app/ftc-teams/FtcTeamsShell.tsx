@@ -10,8 +10,6 @@ import type { FtcTeam } from "@/lib/ftcEvents";
 
 type FtcTeamsShellProps = {
   season: number;
-  teams: FtcTeam[];
-  loadError: string | null;
 };
 
 interface AuthUser {
@@ -22,8 +20,61 @@ interface AuthUser {
 
 type AuthMode = "login" | "signup";
 
-export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) {
+export function FtcTeamsShell({ season }: FtcTeamsShellProps) {
   const currentYear = new Date().getFullYear();
+
+  // ---------- Teams data (client-side) ----------
+  const [teams, setTeams] = useState<FtcTeam[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTeams() {
+      setTeamsLoading(true);
+      setTeamsError(null);
+
+      try {
+        const res = await fetch(`/api/ftc/teams/${season}`);
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const json = (await res.json()) as {
+          ok: boolean;
+          teams?: FtcTeam[];
+          error?: string;
+        };
+
+        if (!json.ok) {
+          throw new Error(json.error ?? "Failed to load teams.");
+        }
+
+        if (!cancelled) {
+          setTeams(json.teams ?? []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error("Error loading FTC teams", err);
+          setTeamsError(
+            err?.message ?? "Unknown error loading FTC data."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setTeamsLoading(false);
+        }
+      }
+    }
+
+    loadTeams();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [season]);
 
   // ---------- Auth state (copied from HomePage) ----------
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -312,14 +363,27 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
               </div>
             </header> */}
 
-            {loadError && (
+            {teamsError && (
               <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 <p className="font-semibold mb-1">Error loading FTC data</p>
-                <p className="whitespace-pre-wrap">{loadError}</p>
+                <p className="whitespace-pre-wrap">{teamsError}</p>
               </div>
             )}
 
-            {!loadError && teams.length === 0 && (
+            {!teamsError && teamsLoading && (
+              <div className="mt-2 rounded-xl border border-white/10 bg-black/40 px-6 py-10 flex flex-col items-center justify-center">
+                <div className="h-6 w-6 rounded-full border-2 border-white/20 border-t-white animate-spin mb-3" />
+                <p className="text-sm text-gray-200">
+                  Loading season {season} team directory…
+                </p>
+                <p className="mt-1 text-xs text-gray-400 text-center">
+                  Fetching 15,000+ teams from the FTC API. You can stay on this
+                  page while the data loads.
+                </p>
+              </div>
+            )}
+
+            {!teamsError && !teamsLoading && teams.length === 0 && (
               <p className="text-sm text-gray-300">
                 No teams returned after filtering. The season might be
                 incorrect, you may not have access yet, or the response shape
@@ -327,7 +391,7 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
               </p>
             )}
 
-            {!loadError && teams.length > 0 && (
+            {!teamsError && !teamsLoading && teams.length > 0 && (
               <TeamsClient
                 season={season}
                 teams={teams}
