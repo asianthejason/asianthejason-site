@@ -164,7 +164,7 @@ async function fetchAesoInterchangeSnapshot(): Promise<IntertieSnapshotResult> {
 
 /**
  * Load net tielines for a specific historical date
- * from lib/data/nn-history.csv.
+ * from app/power-trader/lib/data/nn-history.csv.
  *
  * Expected header includes:
  *   date,he,actual_pool_price,actual_ail,hour_ahead_pool_price_forecast,
@@ -182,15 +182,34 @@ async function loadNnTielinesForDate(
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
 
-  const filePath = path.join(process.cwd(), "lib", "data", "nn-history.csv");
-  const raw = await fs.readFile(filePath, "utf8");
+  // Match where nn-history.csv actually lives in the repo
+  const filePath = path.join(
+    process.cwd(),
+    "app",
+    "power-trader",
+    "lib",
+    "data",
+    "nn-history.csv"
+  );
+
+  const map = new Map<number, number | null>();
+
+  let raw: string;
+  try {
+    raw = await fs.readFile(filePath, "utf8");
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      console.error("nn-history.csv not found at", filePath);
+      return map;
+    }
+    throw err;
+  }
 
   const lines = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
-  const map = new Map<number, number | null>();
   if (lines.length <= 1) return map;
 
   const headers = lines[0].split(",").map((h) => h.trim());
