@@ -14,6 +14,7 @@ interface AuthUser {
 }
 
 type AuthMode = "login" | "signup";
+type HomeTab = "games" | "dev";
 
 const GAMES = [
   {
@@ -30,8 +31,23 @@ const GAMES = [
   // Add more games here later.
 ];
 
+const DEV_PROJECTS = [
+  {
+    id: "ftc-teams",
+    title: "FTC Teams Directory & Watch List",
+    status: "Live",
+    description:
+      "Browse every FTC team, filter by region, and build a personal watch list synced to your account.",
+    href: "/ftc-teams",
+    tags: ["FTC", "Teams", "Scouting"],
+    thumbnail: null,
+  },
+  // Add more dev projects here later.
+];
+
 export default function HomePage() {
   const currentYear = new Date().getFullYear();
+  const [homeTab, setHomeTab] = useState<HomeTab>("games");
 
   // ---------- Auth state ----------
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -335,72 +351,163 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Games list */}
+        {/* Games / Dev Projects tabs */}
         <section className="panel-section">
           <div className="tabs-shell">
+            {/* Tab bar */}
+            <div className="home-tabs-row" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={homeTab === "games"}
+                className={
+                  "home-tab" + (homeTab === "games" ? " home-tab-active" : "")
+                }
+                onClick={() => setHomeTab("games")}
+              >
+                Games
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={homeTab === "dev"}
+                className={
+                  "home-tab" + (homeTab === "dev" ? " home-tab-active" : "")
+                }
+                onClick={() => setHomeTab("dev")}
+              >
+                Dev projects
+              </button>
+            </div>
+
             <header className="home-section-header">
-              <span className="home-section-pill">Games</span>
+              <span className="home-section-pill">
+                {homeTab === "games" ? "Games" : "Dev projects"}
+              </span>
               <div>
-                <h2>More Games Coming Soon</h2>
+                <h2>
+                  {homeTab === "games"
+                    ? "More Games Coming Soon"
+                    : "Developer tools & projects"}
+                </h2>
               </div>
             </header>
 
-            <div className="games-grid">
-              {GAMES.map((game) => (
-                <article key={game.id} className="game-card">
-                  <div className="game-card-layout">
-                    {game.thumbnail && (
-                      <div className="game-card-media">
-                        <div className="game-card-image-wrapper">
-                          <Image
-                            src={game.thumbnail}
-                            alt={game.title}
-                            fill
-                            className="game-card-image"
-                            sizes="(max-width: 800px) 100vw, 320px"
-                          />
+            {homeTab === "games" ? (
+              <div className="games-grid">
+                {GAMES.map((game) => (
+                  <article key={game.id} className="game-card">
+                    <div className="game-card-layout">
+                      {game.thumbnail && (
+                        <div className="game-card-media">
+                          <div className="game-card-image-wrapper">
+                            <Image
+                              src={game.thumbnail}
+                              alt={game.title}
+                              fill
+                              className="game-card-image"
+                              sizes="(max-width: 800px) 100vw, 320px"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="game-card-main">
+                        <div className="game-card-top">
+                          <h3 className="game-card-title">{game.title}</h3>
+                          <span className="game-card-status">
+                            {game.status === "Live"
+                              ? "● Live"
+                              : "○ In development"}
+                          </span>
+                        </div>
+                        <p className="game-card-body">{game.description}</p>
+                        {game.tags && game.tags.length > 0 && (
+                          <ul className="game-card-tags">
+                            {game.tags.map((tag) => (
+                              <li key={tag} className="game-card-tag">
+                                {tag}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="game-card-actions">
+                          <Link
+                            href={game.href}
+                            className={
+                              game.status === "Live"
+                                ? "game-card-primary"
+                                : "game-card-secondary"
+                            }
+                          >
+                            {game.status === "Live"
+                              ? "Play now"
+                              : "View details"}
+                          </Link>
                         </div>
                       </div>
-                    )}
-
-                    <div className="game-card-main">
-                      <div className="game-card-top">
-                        <h3 className="game-card-title">{game.title}</h3>
-                        <span className="game-card-status">
-                          {game.status === "Live"
-                            ? "● Live"
-                            : "○ In development"}
-                        </span>
-                      </div>
-                      <p className="game-card-body">{game.description}</p>
-                      {game.tags && game.tags.length > 0 && (
-                        <ul className="game-card-tags">
-                          {game.tags.map((tag) => (
-                            <li key={tag} className="game-card-tag">
-                              {tag}
-                            </li>
-                          ))}
-                        </ul>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="games-grid">
+                {DEV_PROJECTS.map((project) => (
+                  <article key={project.id} className="game-card">
+                    <div className="game-card-layout">
+                      {project.thumbnail && (
+                        <div className="game-card-media">
+                          <div className="game-card-image-wrapper">
+                            <Image
+                              src={project.thumbnail}
+                              alt={project.title}
+                              fill
+                              className="game-card-image"
+                              sizes="(max-width: 800px) 100vw, 320px"
+                            />
+                          </div>
+                        </div>
                       )}
-                      <div className="game-card-actions">
-                        <Link
-                          href={game.href}
-                          className={
-                            game.status === "Live"
-                              ? "game-card-primary"
-                              : "game-card-secondary"
-                          }
-                        >
-                          {game.status === "Live"
-                            ? "Play now"
-                            : "View details"}
-                        </Link>
+
+                      <div className="game-card-main">
+                        <div className="game-card-top">
+                          <h3 className="game-card-title">{project.title}</h3>
+                          <span className="game-card-status">
+                            {project.status === "Live"
+                              ? "● Live"
+                              : "○ In development"}
+                          </span>
+                        </div>
+                        <p className="game-card-body">{project.description}</p>
+                        {project.tags && project.tags.length > 0 && (
+                          <ul className="game-card-tags">
+                            {project.tags.map((tag) => (
+                              <li key={tag} className="game-card-tag">
+                                {tag}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="game-card-actions">
+                          <Link
+                            href={project.href}
+                            className={
+                              project.status === "Live"
+                                ? "game-card-primary"
+                                : "game-card-secondary"
+                            }
+                          >
+                            {project.status === "Live"
+                              ? "Open project"
+                              : "View details"}
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -676,7 +783,7 @@ export default function HomePage() {
           box-shadow: 0 24px 60px rgba(249, 115, 22, 0.5);
         }
 
-        /* Games list panel */
+        /* Games / Dev projects panel */
         .panel-section {
           display: flex;
           justify-content: center;
@@ -692,6 +799,39 @@ export default function HomePage() {
           padding: 18px 18px 20px;
           border: 1px solid rgba(255, 255, 255, 0.12);
           box-shadow: 0 26px 70px rgba(0, 0, 0, 0.85);
+        }
+
+        .home-tabs-row {
+          display: flex;
+          gap: 20px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+          margin-bottom: 14px;
+        }
+
+        .home-tab {
+          position: relative;
+          padding: 4px 0 8px;
+          background: transparent;
+          border: none;
+          color: #9ca3af;
+          font-size: 14px;
+          cursor: pointer;
+        }
+
+        .home-tab-active {
+          color: #f9fafb;
+          font-weight: 500;
+        }
+
+        .home-tab-active::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          bottom: -1px;
+          height: 2px;
+          width: 100%;
+          border-radius: 999px;
+          background: rgba(129, 140, 248, 0.9);
         }
 
         .home-section-header {
