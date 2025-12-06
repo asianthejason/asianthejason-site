@@ -40,7 +40,7 @@ const DEV_PROJECTS = [
       "Browse every FTC team, filter by region, and build a personal watch list synced to your account.",
     href: "/ftc-teams",
     tags: ["FTC", "Teams", "Scouting"],
-    thumbnail: null,
+    thumbnail: "/ftc-logo.png",
   },
   // Add more dev projects here later.
 ];
