@@ -20,7 +20,6 @@ type TeamsClientProps = {
   teams: FtcTeam[];
   authReady?: boolean;
   currentUser?: AuthUserLite | null;
-  activeTab: "directory" | "watchlist";
 };
 
 type DrilldownState = {
@@ -260,7 +259,6 @@ export function TeamsClient({
   teams,
   authReady = false,
   currentUser = null,
-  activeTab,
 }: TeamsClientProps) {
   // === Filters / search ===
   const [search, setSearch] = useState("");
@@ -333,6 +331,10 @@ export function TeamsClient({
     return map;
   }, [teams]);
   // === Watch list state (per user, persisted in Firestore) ===
+  const [activeTab, setActiveTab] = useState<"directory" | "watchlist">(
+    "directory"
+  );
+
   const [watchlist, setWatchlist] = useState<number[]>([]);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistError, setWatchlistError] = useState<string | null>(null);
@@ -1292,6 +1294,47 @@ export function TeamsClient({
 
   return (
     <>
+      {/* Tabs: directory vs watch list (prominent bar above main section) */}
+      <div className="mb-4">
+        <div
+          className="flex border-b border-white/15 text-sm font-medium"
+          role="tablist"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "directory"}
+            onClick={() => setActiveTab("directory")}
+            className={`relative -mb-px pb-2 mr-8 transition-colors ${
+              activeTab === "directory"
+                ? "text-white"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            Team directory
+            {activeTab === "directory" && (
+              <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "watchlist"}
+            onClick={() => setActiveTab("watchlist")}
+            className={`relative -mb-px pb-2 mr-8 transition-colors ${
+              activeTab === "watchlist"
+                ? "text-white"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            Watch list
+            {activeTab === "watchlist" && (
+              <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
+            )}
+          </button>
+        </div>
+      </div>
+
       <section className="space-y-3 text-[14px]">
         {/* Controls */}
         <div className="flex flex-wrap gap-3 items-end">
