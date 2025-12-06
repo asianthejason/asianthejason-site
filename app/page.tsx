@@ -803,6 +803,7 @@ export default function HomePage() {
 
         .home-tabs-row {
           display: flex;
+          justify-content: center;
           gap: 20px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.12);
           margin-bottom: 14px;
