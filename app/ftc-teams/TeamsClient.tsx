@@ -330,8 +330,6 @@ export function TeamsClient({
     }
     return map;
   }, [teams]);
-
-
   // === Watch list state (per user, persisted in Firestore) ===
   const [activeTab, setActiveTab] = useState<"directory" | "watchlist">(
     "directory"
@@ -462,6 +460,8 @@ export function TeamsClient({
     : watchlist.length === 0
     ? "Your watch list is empty. Go to the Team directory tab and add some teams."
     : `Showing ${visibleTeams.length} of ${watchlist.length} teams in your watch list`;
+
+
 
   // === Drilldown state (per-team) ===
   const [expandedTeamNumber, setExpandedTeamNumber] =
@@ -1294,33 +1294,48 @@ export function TeamsClient({
 
   return (
     <>
-      <section className="space-y-3 text-[14px]">
-        {/* Tabs: directory vs watch list */}
-        <div className="flex items-center gap-2 border-b border-white/10 pb-2 mb-2">
+      {/* Tabs: directory vs watch list (prominent bar above main section) */}
+      <div className="mb-4">
+        <div
+          className="flex border-b border-white/15 text-lg md:text-xl font-medium"
+          role="tablist"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "directory"}
             onClick={() => setActiveTab("directory")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+            className={`relative -mb-px pb-2 mr-8 transition-colors ${
               activeTab === "directory"
-                ? "bg-white text-black"
-                : "text-gray-300 hover:bg-white/10"
+                ? "text-white"
+                : "text-gray-400 hover:text-gray-200"
             }`}
           >
             Team directory
+            {activeTab === "directory" && (
+              <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
+            )}
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "watchlist"}
             onClick={() => setActiveTab("watchlist")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+            className={`relative -mb-px pb-2 mr-8 transition-colors ${
               activeTab === "watchlist"
-                ? "bg-white text-black"
-                : "text-gray-300 hover:bg-white/10"
+                ? "text-white"
+                : "text-gray-400 hover:text-gray-200"
             }`}
           >
             Watch list
+            {activeTab === "watchlist" && (
+              <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
+            )}
           </button>
         </div>
+      </div>
 
+      <section className="space-y-3 text-[14px]">
         {/* Controls */}
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
@@ -1388,34 +1403,31 @@ export function TeamsClient({
         {(activeTab === "directory" ||
           (activeTab === "watchlist" && isLoggedIn)) && (
           <div className="rounded-xl border border-white/10 overflow-x-auto">
-            <table className="min-w-full text-[14px]">
-              <thead className="bg-white/5">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                    Team #
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
-                    Team Name
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                    City
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                    State / Prov
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                    Country
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                    Rookie Year
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
-                    Watch list
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {visibleTeams.map((t, idx) => {
+          <table className="min-w-full text-[14px]">
+            <thead className="bg-white/5">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Team #
+                </th>
+                <th className="px-3 py-2 text-left font-semibold max-w-xs w-64">
+                  Team Name
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  City
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  State / Prov
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Country
+                </th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  Rookie Year
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {visibleTeams.map((t, idx) => {
                 const isOpen = expandedTeamNumber === t.teamNumber;
                 const d = t.teamNumber ? getDrilldown(t.teamNumber) : undefined;
 
@@ -1444,42 +1456,12 @@ export function TeamsClient({
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         {t.rookieYear ?? ""}
                       </td>
-                      <td className="px-3 py-1.5 whitespace-nowrap">
-                        <button
-                          type="button"
-                          title={
-                            !isLoggedIn || !t.teamNumber
-                              ? "You must log in to use the watch list feature."
-                              : watchlist.includes(t.teamNumber)
-                              ? "Remove this team from your watch list."
-                              : "Add this team to your watch list."
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!t.teamNumber || !isLoggedIn) return;
-                            handleToggleWatchlist(t.teamNumber);
-                          }}
-                          className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium transition ${
-                            !isLoggedIn || !t.teamNumber
-                              ? "border-gray-600 text-gray-500 bg-gray-800 cursor-not-allowed"
-                              : watchlist.includes(t.teamNumber)
-                              ? "border-emerald-500/70 text-emerald-200 bg-emerald-900/30 hover:bg-emerald-900/50"
-                              : "border-emerald-500/80 text-emerald-200 bg-emerald-700/40 hover:bg-emerald-600/50 hover:border-emerald-400"
-                          }`}
-                        >
-                          {!isLoggedIn || !t.teamNumber
-                            ? "Add to watch list"
-                            : watchlist.includes(t.teamNumber)
-                            ? "Remove"
-                            : "Add to watch list"}
-                        </button>
-                      </td>
                     </tr>
 
                     {/* Drilldown row */}
                     {isOpen && t.teamNumber && d && (
                       <tr className="bg-black/40">
-                        <td colSpan={7} className="px-4 py-3">
+                        <td colSpan={6} className="px-4 py-3">
                           {/* Seasons / events / matches accordion */}
                           {d.loadingSeasons && (
                             <div className="text-[14px] text-gray-400">
