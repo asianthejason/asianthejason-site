@@ -1346,7 +1346,7 @@ export function TeamsClient({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="e.g. 12345 or Techno Chix"
+              placeholder="e.g. 16932 or Webber Wildcats"
               className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
             />
           </div>
