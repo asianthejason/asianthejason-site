@@ -531,6 +531,9 @@ async function loadHistoricalNnDays(): Promise<NnDay[]> {
 
   const filePath = path.join(
     process.cwd(),
+    process.cwd(),
+    "app",
+    "power-trader",
     "lib",
     "data",
     "nn-history.csv"
