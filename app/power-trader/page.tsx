@@ -7,7 +7,7 @@ import {
   fetchAesoActualForecastRows,
   type HourlyState,
   type AesoActualForecastRow,
-} from "../lib/marketData";
+} from "./lib/marketData";
 
 export const revalidate = 60; // regenerate at most once per minute
 
