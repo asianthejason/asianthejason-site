@@ -6,7 +6,7 @@ import {
   summarizeDay,
   fetchAesoActualForecastRows,
   type HourlyState,
-} from "../../lib/marketData";
+} from "./../lib/marketData";
 
 export const revalidate = 60;
 

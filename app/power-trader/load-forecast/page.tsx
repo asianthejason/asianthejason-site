@@ -5,7 +5,7 @@ import {
   fetchAesoActualForecastRows,
   type AesoActualForecastRow,
   type AesoForecastDebug,
-} from "../../lib/marketData";
+} from "./../lib/marketData";
 
 export const revalidate = 60;
 
