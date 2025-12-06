@@ -2,12 +2,12 @@
 import Link from "next/link";
 
 const tabs = [
-  { href: "../", label: "Supply Cushion" },
-  { href: "../nearest-neighbour", label: "Nearest Neighbour" },
-  { href: "../renewables", label: "Renewables" },
-  { href: "../interties", label: "Interties" },
-  { href: "../capability", label: "Market Capability" },
-  { href: "../load-forecast", label: "Load & Price Forecast" },
+  { href: "../power-trader", label: "Supply Cushion" },
+  { href: "../power-trader/nearest-neighbour", label: "Nearest Neighbour" },
+  { href: "../power-trader/renewables", label: "Renewables" },
+  { href: "../power-trader/interties", label: "Interties" },
+  { href: "../power-trader/capability", label: "Market Capability" },
+  { href: "../power-trader/load-forecast", label: "Load & Price Forecast" },
 ];
 
 export default function NavTabs() {
