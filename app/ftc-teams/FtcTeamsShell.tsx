@@ -297,11 +297,11 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
         />
 
         {/* FTC content */}
-        <section className="home-hero">
-          {/* <div className="home-hero-text">
+        {/* <section className="home-hero">
+          <div className="home-hero-text">
             <h1>FTC Teams – Season {season}</h1>
-          </div> */}
-        </section>
+          </div>
+        </section> */}
 
         <section className="panel-section">
           <div className="tabs-shell">
@@ -335,18 +335,6 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
                 currentUser={currentUser}
               />
             )}
-
-            <p className="text-xs text-gray-500" style={{ marginTop: "8px" }}>
-              Event Data provided by FIRST – see{" "}
-              <a
-                href="https://ftc-events.firstinspires.org/services/API"
-                target="_blank"
-                rel="noreferrer"
-              >
-                FTC Event Data API
-              </a>
-              .
-            </p>
           </div>
         </section>
 
