@@ -305,12 +305,12 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
 
         <section className="panel-section">
           <div className="tabs-shell">
-            <header className="home-section-header">
+            {/* <header className="home-section-header">
               <span className="home-section-pill">FTC</span>
               <div>
                 <h2>Teams Directory</h2>
               </div>
-            </header>
+            </header> */}
 
             {loadError && (
               <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
