@@ -1,7 +1,6 @@
 // app/api/ftc/teams/[season]/route.ts
-import { NextResponse } from "next/server";
-import { getAllFtcTeamsForSeason } from "@/lib/ftcEvents";
-import type { FtcTeam } from "@/lib/ftcEvents";
+import { NextRequest, NextResponse } from "next/server";
+import { getAllFtcTeamsForSeason, type FtcTeam } from "@/lib/ftcEvents";
 
 function sortTeams(teams: FtcTeam[]): FtcTeam[] {
   return [...teams].sort((a, b) => {
@@ -29,30 +28,31 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
 }
 
 export async function GET(
-  _req: Request,
-  { params }: { params: { season: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ season: string }> }
 ) {
-  const seasonNum = Number(params.season);
+  // In Next 16 with typed routes, params is a Promise
+  const { season } = await context.params;
 
-  if (!Number.isFinite(seasonNum)) {
+  const seasonNumber = Number(season);
+  if (!Number.isFinite(seasonNumber)) {
     return NextResponse.json(
-      { ok: false, error: "Invalid season." },
+      { ok: false, error: "Invalid season value" },
       { status: 400 }
     );
   }
 
   try {
-    const rawTeams = await getAllFtcTeamsForSeason(seasonNum);
+    const rawTeams = await getAllFtcTeamsForSeason(seasonNumber);
     const teams = sortTeams(filterRealTeams(rawTeams));
 
     return NextResponse.json({ ok: true, teams });
-  } catch (err: any) {
-    console.error("Error loading FTC teams in API", err);
+  } catch (error: any) {
+    console.error("Error in /api/ftc/teams/[season]", error);
     return NextResponse.json(
       {
         ok: false,
-        error:
-          err?.message ?? "Unknown error loading FTC data.",
+        error: error?.message ?? "Failed to load FTC teams",
       },
       { status: 500 }
     );
