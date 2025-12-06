@@ -237,6 +237,10 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
   const userLabel =
     headerUser?.displayName || headerUser?.email || "Unknown soldier";
 
+  const [activeTab, setActiveTab] = useState<"directory" | "watchlist">(
+    "directory"
+  );
+
   // helper to stop key events from reaching the page in the modal inputs
   const stopKeyEvent = (e: any) => {
     e.stopPropagation();
@@ -297,13 +301,54 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
         />
 
         {/* FTC content */}
-        {/* <section className="home-hero">
-          <div className="home-hero-text">
+        <section className="home-hero">
+          {/* <div className="home-hero-text">
             <h1>FTC Teams – Season {season}</h1>
-          </div>
-        </section> */}
+          </div> */}
+        </section>
 
         <section className="panel-section">
+          {/* Main tabs above card */}
+          <div className="mb-4 flex justify-start">
+            <div
+              className="flex border-b border-white/15 text-sm font-medium"
+              role="tablist"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "directory"}
+                onClick={() => setActiveTab("directory")}
+                className={`relative -mb-px pb-2 mr-8 transition-colors ${
+                  activeTab === "directory"
+                    ? "text-white"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                Team directory
+                {activeTab === "directory" && (
+                  <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "watchlist"}
+                onClick={() => setActiveTab("watchlist")}
+                className={`relative -mb-px pb-2 mr-8 transition-colors ${
+                  activeTab === "watchlist"
+                    ? "text-white"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                Watch list
+                {activeTab === "watchlist" && (
+                  <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
+                )}
+              </button>
+            </div>
+          </div>
+
           <div className="tabs-shell">
             <header className="home-section-header">
               <span className="home-section-pill">FTC</span>
@@ -333,8 +378,21 @@ export function FtcTeamsShell({ season, teams, loadError }: FtcTeamsShellProps) 
                 teams={teams}
                 authReady={authReady}
                 currentUser={currentUser}
+                activeTab={activeTab}
               />
             )}
+
+            <p className="text-xs text-gray-500" style={{ marginTop: "8px" }}>
+              Event Data provided by FIRST – see{" "}
+              <a
+                href="https://ftc-events.firstinspires.org/services/API"
+                target="_blank"
+                rel="noreferrer"
+              >
+                FTC Event Data API
+              </a>
+              .
+            </p>
           </div>
         </section>
 
