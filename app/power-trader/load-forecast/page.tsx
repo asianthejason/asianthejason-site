@@ -1,0 +1,275 @@
+// app/load-forecast/page.tsx
+
+import NavTabs from "../components/NavTabs";
+import {
+  fetchAesoActualForecastRows,
+  type AesoActualForecastRow,
+  type AesoForecastDebug,
+} from "../../lib/marketData";
+
+export const revalidate = 60;
+
+/* ---------- small helpers ---------- */
+
+function formatNumber(
+  n: number | null | undefined,
+  decimals = 0
+): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function formatPrice(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "$—";
+  return `$${formatNumber(n, 2)}`;
+}
+
+function formatDelta(
+  actual: number | null | undefined,
+  forecast: number | null | undefined,
+  decimals = 0
+): string {
+  if (
+    actual == null ||
+    forecast == null ||
+    Number.isNaN(actual) ||
+    Number.isNaN(forecast)
+  ) {
+    return "—";
+  }
+  const diff = actual - forecast;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${diff.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })}`;
+}
+
+function formatPriceDelta(
+  actual: number | null | undefined,
+  forecast: number | null | undefined
+): string {
+  if (
+    actual == null ||
+    forecast == null ||
+    Number.isNaN(actual) ||
+    Number.isNaN(forecast)
+  ) {
+    return "$—";
+  }
+  const diff = actual - forecast;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${Math.abs(diff).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function approxAlbertaNow() {
+  const nowUtc = new Date();
+  const nowAb = new Date(nowUtc.getTime() - 7 * 60 * 60 * 1000); // UTC-7
+  const isoDate = nowAb.toISOString().slice(0, 10);
+  // HE 01 is 00:00–01:00; approximate from hour.
+  const he = ((nowAb.getHours() + 23) % 24) + 1;
+  return { nowAb, isoDate, he };
+}
+
+function groupByDate(
+  rows: AesoActualForecastRow[]
+): Map<string, AesoActualForecastRow[]> {
+  const map = new Map<string, AesoActualForecastRow[]>();
+  for (const r of rows) {
+    if (!map.has(r.date)) map.set(r.date, []);
+    map.get(r.date)!.push(r);
+  }
+  for (const [, list] of map) {
+    list.sort((a, b) => a.he - b.he);
+  }
+  return map;
+}
+
+/* ---------- page ---------- */
+
+export default async function LoadForecastPage() {
+  const { rows, debug } = await fetchAesoActualForecastRows();
+  const byDate = groupByDate(rows);
+  const reportDates = Array.from(byDate.keys()).sort();
+
+  const { isoDate: todayAbIso } = approxAlbertaNow();
+  const hasData = rows.length > 0;
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Header with download button */}
+        <header className="mb-4 space-y-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                Load &amp; Price Forecast
+              </h1>
+              <p className="max-w-2xl text-sm text-slate-400">
+                Pure AESO data from the Actual/Forecast WMRQH report. All
+                dates present in the CSV are shown below, one section per
+                report date. Where AESO has published actuals, you&apos;ll
+                see both the forecast and actual values plus a delta column
+                showing Actual − Forecast. No synthetic modelling is used on
+                this page.
+              </p>
+            </div>
+
+            <a
+              href="/api/aeso/actual-forecast-csv"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-full border border-emerald-500/70 bg-emerald-900/40 px-3 py-1.5 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-800/60"
+            >
+              Download raw AESO CSV
+            </a>
+          </div>
+        </header>
+
+        <NavTabs />
+
+        {/* No data / error state */}
+        {!hasData && (
+          <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
+            <p className="font-medium text-slate-200">
+              Unable to load AESO Actual/Forecast data right now.
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Debug: HTTP {debug.httpStatus || 0}, parsed rows{" "}
+              {debug.parsedRowCount}, dates{" "}
+              {debug.reportDates.length
+                ? debug.reportDates.join(", ")
+                : "none"}
+              {debug.errorMessage
+                ? ` · error: ${debug.errorMessage}`
+                : null}
+            </p>
+          </section>
+        )}
+
+        {/* One section per report date */}
+        {reportDates.map((date) => {
+          const rowsForDate = byDate.get(date)!;
+          const isToday = date === todayAbIso;
+
+          return (
+            <section
+              key={date}
+              className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/80 p-4"
+            >
+              <header className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-100">
+                    Report date:{" "}
+                    <span className="font-mono text-slate-50">{date}</span>
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Rows below are taken directly from the AESO
+                    Actual/Forecast WMRQH CSV for this date. If a cell shows
+                    &quot;—&quot;, AESO has not published a value yet for
+                    that field (for example, future actuals).
+                  </p>
+                </div>
+                {isToday && (
+                  <span className="inline-flex items-center rounded-full bg-emerald-900/60 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                    today (Alberta)
+                  </span>
+                )}
+              </header>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-slate-900/80 text-[11px] uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2">HE</th>
+                      <th className="px-3 py-2">Forecast AIL</th>
+                      <th className="px-3 py-2">Actual AIL</th>
+                      <th className="px-3 py-2">Δ AIL (Act − Fcst)</th>
+                      <th className="px-3 py-2">Forecast Pool Price</th>
+                      <th className="px-3 py-2">Actual Pool Price</th>
+                      <th className="px-3 py-2">Δ Price (Act − Fcst)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rowsForDate.map((r) => {
+                      const deltaAil =
+                        r.actualAil != null && r.forecastAil != null
+                          ? r.actualAil - r.forecastAil
+                          : null;
+
+                      const deltaPrice =
+                        r.actualPoolPrice != null &&
+                        r.forecastPoolPrice != null
+                          ? r.actualPoolPrice - r.forecastPoolPrice
+                          : null;
+
+                      const deltaAilClass =
+                        deltaAil == null || deltaAil === 0
+                          ? "text-slate-300"
+                          : deltaAil > 0
+                          ? "text-emerald-400"
+                          : "text-red-400";
+
+                      const deltaPriceClass =
+                        deltaPrice == null || deltaPrice === 0
+                          ? "text-slate-300"
+                          : deltaPrice > 0
+                          ? "text-emerald-400"
+                          : "text-red-400";
+
+                      return (
+                        <tr
+                          key={`${date}-he-${r.he}`}
+                          className="border-t border-slate-800/60 hover:bg-slate-900/50"
+                        >
+                          <td className="px-3 py-2 text-[11px] font-medium text-slate-200">
+                            HE {r.he.toString().padStart(2, "0")}
+                          </td>
+                          <td className="px-3 py-2 text-[11px] text-slate-300">
+                            {formatNumber(r.forecastAil, 0)}
+                          </td>
+                          <td className="px-3 py-2 text-[11px] text-slate-300">
+                            {formatNumber(r.actualAil, 0)}
+                          </td>
+                          <td
+                            className={
+                              "px-3 py-2 text-[11px] " + deltaAilClass
+                            }
+                          >
+                            {formatDelta(r.actualAil, r.forecastAil, 0)}
+                          </td>
+                          <td className="px-3 py-2 text-[11px] text-slate-300">
+                            {formatPrice(r.forecastPoolPrice)}
+                          </td>
+                          <td className="px-3 py-2 text-[11px] text-slate-300">
+                            {formatPrice(r.actualPoolPrice)}
+                          </td>
+                          <td
+                            className={
+                              "px-3 py-2 text-[11px] " + deltaPriceClass
+                            }
+                          >
+                            {formatPriceDelta(
+                              r.actualPoolPrice,
+                              r.forecastPoolPrice
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
