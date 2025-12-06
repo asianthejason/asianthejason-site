@@ -346,7 +346,7 @@ export default function HomePage() {
 
             {/* Now links to the new /support page */}
             <Link href="/support" className="home-support-btn">
-              ⛽ Fuel the project
+              ⛽ Fuel the projects
             </Link>
           </div>
         </section>
@@ -376,7 +376,7 @@ export default function HomePage() {
                 }
                 onClick={() => setHomeTab("dev")}
               >
-                Dev projects
+                Dev Projects
               </button>
             </div>
 
