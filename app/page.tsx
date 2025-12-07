@@ -42,6 +42,16 @@ const DEV_PROJECTS = [
     tags: ["FTC", "Teams", "Scouting"],
     thumbnail: "/ftc-logo.png",
   },
+  {
+    id: "power-trader",
+    title: "Alberta Power Trader Tool",
+    status: "Live",
+    description:
+      "Alberta energy trading tool for power traders",
+    href: "/power-trader",
+    tags: ["Power Trading", "Tool", "Alberta"],
+    thumbnail: "/power.jpg",
+  },
   // Add more dev projects here later.
 ];
 
