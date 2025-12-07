@@ -973,7 +973,7 @@ function create() {
     500,
     () => { moneyMultiplier *= 2; },
     upgradeTabButtons,
-    4
+    15
   );
   upgradeY += upgradeSpacing;
 
