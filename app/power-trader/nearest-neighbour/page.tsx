@@ -3,7 +3,7 @@
 import Link from "next/link";
 import NavTabs from "../components/NavTabs";
 import { getTodayVsNearestNeighbourFromHistory } from "./../lib/marketData";
-
+import SiteHeader from "../../components/SiteHeader";
 export const revalidate = 60;
 
 /* ---------- small helpers ---------- */

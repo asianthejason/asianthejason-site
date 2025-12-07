@@ -6,7 +6,7 @@ import {
   type AesoActualForecastRow,
   type AesoForecastDebug,
 } from "./../lib/marketData";
-
+import SiteHeader from "../../components/SiteHeader";
 export const revalidate = 60;
 
 /* ---------- small helpers ---------- */

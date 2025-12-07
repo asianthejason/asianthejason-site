@@ -42,16 +42,6 @@ const DEV_PROJECTS = [
     tags: ["FTC", "Teams", "Scouting"],
     thumbnail: "/ftc-logo.png",
   },
-  {
-    id: "power-trader",
-    title: "Alberta Power Trader Tool",
-    status: "Live",
-    description:
-      "In Alberta, the province purchases electricity from various suppliers to combine into a pool. The government predicts the demand of electricity every hour and companies will bid the lowest price they are willing to supply every hour. The price will fluctuate base on supply and demand. The people who make the bids are called power traders and this is a tool to help them better predict the cost of electricity. Every day individuals can use this tool to understand how the cost of electricity fluctuates and the different sources of electricities the province relies on.",
-    href: "/power-trader",
-    tags: ["Alberta", "Power Trader", "Tool"],
-    thumbnail: "/power.jpg",
-  },
   // Add more dev projects here later.
 ];
 
@@ -461,7 +451,7 @@ export default function HomePage() {
                 ))}
               </div>
             ) : (
-              <div className="games-grid">
+              <div className="games-grid games-grid-dev">
                 {DEV_PROJECTS.map((project) => (
                   <article key={project.id} className="game-card">
                     <div className="game-card-layout">
@@ -884,6 +874,10 @@ export default function HomePage() {
           gap: 14px;
           margin-top: 10px;
         }
+        .games-grid-dev {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
 
         .game-card {
           border-radius: 18px;

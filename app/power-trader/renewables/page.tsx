@@ -1,7 +1,7 @@
 // app/renewables/page.tsx
 
 import NavTabs from "../components/NavTabs";
-
+import SiteHeader from "../../components/SiteHeader";
 export const revalidate = 60;
 
 // AESO sources used on this page (all real data, no synthetic):

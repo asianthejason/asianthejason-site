@@ -518,7 +518,7 @@ async function buildTodayCurveFromWmrqh(): Promise<NnDay | null> {
 }
 
 /**
- * Load historical AESO curves from app/power-trader/lib/data/nn-history.csv.
+ * Load historical AESO curves from lib/data/nn-history.csv.
  * Expected header:
  *   date,he,actual_pool_price,actual_ail,hour_ahead_pool_price_forecast,
  *   export_bc,export_mt,export_sk,import_bc,import_mt,import_sk
@@ -529,7 +529,6 @@ async function loadHistoricalNnDays(): Promise<NnDay[]> {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
 
-  // ✅ Correct path – relative to the project root in both dev and Vercel
   const filePath = path.join(
     process.cwd(),
     "app",
@@ -539,17 +538,7 @@ async function loadHistoricalNnDays(): Promise<NnDay[]> {
     "nn-history.csv"
   );
 
-  let raw: string;
-  try {
-    raw = await fs.readFile(filePath, "utf8");
-  } catch (err: any) {
-    if (err?.code === "ENOENT") {
-      console.error("nn-history.csv not found at", filePath);
-      return [];
-    }
-    throw err;
-  }
-
+  const raw = await fs.readFile(filePath, "utf8");
   const lines = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -684,7 +673,7 @@ function combinedDistance(today: NnDay, hist: NnDay): number {
 /**
  * Nearest-neighbour selection using:
  *  - "today" from live AESO WMRQH (best-known price/load)
- *  - history from app/power-trader/lib/data/nn-history.csv (actual pool price + AIL)
+ *  - history from lib/data/nn-history.csv (actual pool price + AIL)
  *
  * Returns data in the shape the /nearest-neighbour page expects.
  */
