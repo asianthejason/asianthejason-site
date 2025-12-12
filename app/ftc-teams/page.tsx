@@ -24,8 +24,9 @@ function mapCountryCodeToName(code: string | null): string | undefined {
   }
 }
 
-export default function FtcTeamsPage() {
-  const h = headers();
+// Make the page component async so we can await headers()
+export default async function FtcTeamsPage() {
+  const h = await headers();
   const vercelCountryCode = h.get("x-vercel-ip-country");
   const initialCountry = mapCountryCodeToName(vercelCountryCode);
 
