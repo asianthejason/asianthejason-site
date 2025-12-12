@@ -49,7 +49,8 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
         }
 
         const query = params.toString();
-        const url = `/api/ftc/teams/${season}` + (query ? `?${query}` : "");
+        const url =
+          `/api/ftc/teams/${season}` + (query ? `?${query}` : "");
 
         const res = await fetch(url);
 
@@ -91,7 +92,7 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
     };
   }, [season, selectedCountryForFetch]);
 
-  // ---------- Auth state (copied from HomePage) ----------
+// ---------- Auth state (copied from HomePage) ----------
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
@@ -362,8 +363,22 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
           onSignOut={handleSignOut}
         />
 
+        {/* FTC content */}
+        {/* <section className="home-hero">
+          <div className="home-hero-text">
+            <h1>FTC Teams – Season {season}</h1>
+          </div>
+        </section> */}
+
         <section className="panel-section">
           <div className="tabs-shell">
+            {/* <header className="home-section-header">
+              <span className="home-section-pill">FTC</span>
+              <div>
+                <h2>Teams Directory</h2>
+              </div>
+            </header> */}
+
             {teamsError && (
               <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 <p className="font-semibold mb-1">Error loading FTC data</p>
@@ -378,7 +393,7 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
                   Loading season {season} team directory…
                 </p>
                 <p className="mt-1 text-xs text-gray-400 text-center">
-                  Fetching teams from the FTC API. You can stay on this
+                  Fetching 15,000+ teams from the FTC API. You can stay on this
                   page while the data loads.
                 </p>
               </div>
@@ -407,6 +422,7 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
           </div>
         </section>
 
+        {/* Footer (identical markup to HomePage) */}
         <footer className="site-footer">
           <span>© {currentYear} AsiantheJason</span>
 
@@ -427,7 +443,7 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
         </footer>
       </main>
 
-      {/* Auth modal overlay */}
+      {/* Auth modal overlay (same as HomePage) */}
       {authReady && showAuthForm && (
         <div className="auth-overlay">
           <div className="auth-modal">
@@ -547,6 +563,302 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
           </div>
         </div>
       )}
+
+      {/* Global styles (copied from HomePage so header/footer + background match) */}
+      <style jsx global>{`
+        body {
+          margin: 0;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont,
+            "SF Pro Text", sans-serif;
+          background: radial-gradient(circle at top, #0b1020 0, #02040a 60%);
+          color: #f5f5f5;
+        }
+
+        .site {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          padding: 16px 0 32px;
+        }
+
+        .account-btn {
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          padding: 6px 12px;
+          font-size: 12px;
+          background: transparent;
+          color: #f5f5f5;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s, opacity 0.15s,
+            color 0.15s;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .account-btn.subtle {
+          border-color: rgba(255, 255, 255, 0.18);
+          opacity: 0.85;
+        }
+
+        .account-btn.primary {
+          border-color: #ff834a;
+          background: linear-gradient(135deg, #ff784a, #ffb347);
+          color: #120b06;
+          font-weight: 600;
+        }
+
+        .account-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.06);
+          color: #ffffff;
+        }
+
+        .account-btn.primary:hover:not(:disabled) {
+          filter: brightness(1.05);
+        }
+
+        .account-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .home-hero {
+          max-width: 1400px;
+          margin: 28px auto 0;
+          padding: 0 24px;
+        }
+
+        .home-hero-text h1 {
+          font-size: clamp(28px, 4vw, 40px);
+          line-height: 1.1;
+          margin: 10px 0 0;
+        }
+
+        .panel-section {
+          display: flex;
+          justify-content: center;
+          margin-top: 32px;
+          padding: 0 24px;
+        }
+
+        .tabs-shell {
+          width: 100%;
+          max-width: 1400px;
+          background: rgba(9, 12, 25, 0.9);
+          border-radius: 24px;
+          padding: 18px 18px 20px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 26px 70px rgba(0, 0, 0, 0.85);
+        }
+
+        .home-section-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+          margin-bottom: 16px;
+        }
+
+        .home-section-header h2 {
+          margin: 0;
+          font-size: 20px;
+        }
+
+        .home-section-header p {
+          margin-top: 4px;
+          font-size: 14px;
+          opacity: 0.9;
+        }
+
+        .home-section-pill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 6px 11px;
+          border-radius: 999px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.16em;
+          background: rgba(79, 70, 229, 0.18);
+          color: #e5e7eb;
+          border: 1px solid rgba(129, 140, 248, 0.5);
+          white-space: nowrap;
+        }
+
+        .site-footer {
+          margin-top: auto;
+          padding: 16px 24px 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          font-size: 12px;
+          opacity: 0.7;
+          flex-wrap: wrap;
+        }
+
+        .site-footer-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .site-footer-link {
+          text-decoration: none;
+          color: inherit;
+          opacity: 0.85;
+        }
+
+        .site-footer-link:hover {
+          opacity: 1;
+          text-decoration: underline;
+        }
+
+        .auth-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.65);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 9999;
+        }
+
+        .auth-modal {
+          width: 420px;
+          max-width: 90vw;
+          background: radial-gradient(circle at top, #11172a, #050712);
+          border-radius: 24px;
+          padding: 18px 20px 20px;
+          box-shadow: 0 22px 60px rgba(0, 0, 0, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+
+        .auth-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 10px;
+        }
+
+        .auth-modal-title {
+          font-size: 18px;
+          font-weight: 600;
+        }
+
+        .auth-modal-subtitle {
+          font-size: 13px;
+          opacity: 0.75;
+          margin-top: 4px;
+        }
+
+        .auth-close-btn {
+          border: none;
+          background: transparent;
+          color: #9ca3af;
+          font-size: 20px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .auth-toggle {
+          display: inline-flex;
+          padding: 2px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 10px;
+        }
+
+        .auth-toggle-btn {
+          border: none;
+          background: transparent;
+          color: #b7c1ff;
+          font-size: 12px;
+          padding: 4px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+        }
+
+        .auth-toggle-btn-active {
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
+          font-weight: 600;
+        }
+
+        .auth-fields {
+          display: grid;
+          gap: 8px;
+          margin-top: 4px;
+        }
+
+        .auth-field {
+          display: grid;
+          gap: 4px;
+        }
+
+        .auth-field label {
+          font-size: 12px;
+          opacity: 0.85;
+        }
+
+        .auth-field input {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          padding: 6px 10px;
+          font-size: 13px;
+          background: rgba(5, 8, 20, 0.95);
+          color: #f5f5f5;
+        }
+
+        .auth-field input:focus {
+          outline: none;
+          border-color: #ff834a;
+          box-shadow: 0 0 0 1px rgba(255, 131, 74, 0.6);
+        }
+
+        .auth-message {
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 8px;
+        }
+
+        .auth-error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.6);
+          color: #fecaca;
+        }
+
+        .auth-status {
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.6);
+          color: #bbf7d0;
+        }
+
+        .auth-submit-btn {
+          margin-top: 4px;
+          width: 100%;
+          justify-content: center;
+        }
+
+        @media (max-width: 700px) {
+          .home-hero {
+            margin-top: 20px;
+          }
+
+          .tabs-shell {
+            padding: 14px 14px 16px;
+          }
+
+          .site-footer {
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+            text-align: center;
+          }
+        }
+      `}</style>
     </>
   );
 }

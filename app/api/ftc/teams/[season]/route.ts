@@ -42,6 +42,7 @@ export async function GET(
     );
   }
 
+  // Inspect optional ?country=... query param
   const url = new URL(request.url);
   const countryParam = url.searchParams.get("country");
   const countryFilter = countryParam?.toString().trim() || "";
