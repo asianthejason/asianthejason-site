@@ -28,7 +28,7 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ season: string }> }
 ) {
   // In Next 16 with typed routes, params is a Promise
@@ -42,11 +42,24 @@ export async function GET(
     );
   }
 
+  const url = new URL(request.url);
+  const countryParam = url.searchParams.get("country");
+  const countryFilter = countryParam?.toString().trim() || "";
+
   try {
     const rawTeams = await getAllFtcTeamsForSeason(seasonNumber);
-    const teams = sortTeams(filterRealTeams(rawTeams));
+    let teams = filterRealTeams(rawTeams);
 
-    return NextResponse.json({ ok: true, teams });
+    if (countryFilter) {
+      teams = teams.filter((t) => {
+        const c = (t.country ?? "").toString().trim();
+        return c === countryFilter;
+      });
+    }
+
+    const sorted = sortTeams(teams);
+
+    return NextResponse.json({ ok: true, teams: sorted });
   } catch (error: any) {
     console.error("Error in /api/ftc/teams/[season]", error);
     return NextResponse.json(
