@@ -355,7 +355,12 @@ function normalizeScoutEvents(raw: any, season: number): ScoutEventLite[] {
       ? raw.events
       : Array.isArray(raw?.data?.events)
       ? raw.data.events
+      : Array.isArray(raw?.data?.eventsSearch)
+      ? raw.data.eventsSearch
+      : Array.isArray(raw?.data?.searchEvents)
+      ? raw.data.searchEvents
       : [];
+
 
   return arr
     .map((e) => {
@@ -397,8 +402,15 @@ function normalizeScoutTeamStats(raw: any): ScoutTeamStatLite[] {
       ? raw.teamStats
       : Array.isArray(raw?.data?.teams)
       ? raw.data.teams
+      : Array.isArray(raw?.data?.teamStats)
+      ? raw.data.teamStats
+      : Array.isArray(raw?.data?.event?.teams)
+      ? raw.data.event.teams
+      : Array.isArray(raw?.data?.event?.teamEventParticipations)
+      ? raw.data.event.teamEventParticipations
+      : Array.isArray(raw?.data?.eventTeams)
+      ? raw.data.eventTeams
       : [];
-
   return arr
     .map((t) => {
       const teamObj = t?.team ?? t?.teamInfo ?? t?.team_data ?? null;
@@ -462,7 +474,7 @@ function normalizeScoutTeamStats(raw: any): ScoutTeamStatLite[] {
 
 
 function ScoutTab({ season }: { season: number }) {
-  const BASE = "/api/ftcscout/rest/v1";
+  const GQL = "/api/ftcscout/graphql";
 
   const [events, setEvents] = useState<ScoutEventLite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -476,37 +488,92 @@ function ScoutTab({ season }: { season: number }) {
   const [teamStats, setTeamStats] = useState<ScoutTeamStatLite[]>([]);
   const [detailsError, setDetailsError] = useState<string | null>(null);
 
+  async function gqlRequest<T = any>(query: string, variables?: Record<string, any>): Promise<T> {
+    const res = await fetch(GQL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ query, variables }),
+      cache: "no-store",
+    });
+
+    const raw = await res.text();
+    let json: any = null;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      // ignore
+    }
+
+    if (!res.ok) {
+      const msg =
+        json?.errors?.[0]?.message ??
+        json?.error ??
+        `FTCScout GraphQL request failed (HTTP ${res.status}).`;
+      throw new Error(msg);
+    }
+
+    if (json?.errors?.length) {
+      throw new Error(json.errors[0]?.message ?? "FTCScout GraphQL error.");
+    }
+
+    return json as T;
+  }
+
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       setError(null);
-
       const { start, end } = seasonDateRange(season);
 
-// REST docs: /events/search is the correct endpoint to list events.
-const urls = [
-  `${BASE}/events/search?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=2000`,
-];
+      // Use FTCScout GraphQL (REST has been unreliable).
+      const EVENTS_QUERY = `
+        query ScoutEvents($start: Date, $end: Date, $region: RegionOption, $limit: Int, $searchText: String) {
+          events(start: $start, end: $end, region: $region, limit: $limit, searchText: $searchText) {
+            season
+            code
+            name
+            region
+            start
+            end
+            startDate
+            endDate
+            location
+            venue
+            city
+            stateProv
+            country
+          }
+        }
+      `;
 
-
-      const found = await fetchFirstJson(urls);
-      if (cancelled) return;
-
-      if (!found) {
+      let payload: any;
+      try {
+        payload = await gqlRequest<any>(EVENTS_QUERY, {
+          start,
+          end,
+          region: region || null,
+          limit: 2000,
+          searchText: search || null,
+        });
+      } catch (err: any) {
         setEvents([]);
-        setError(
-          "Couldn’t load FTCScout events. If this is your first time trying it, you may need to proxy it through a Next.js route to avoid CORS."
-        );
+        setError(err?.message ?? "Couldn’t load FTCScout events.");
         setLoading(false);
         return;
       }
 
-      const normalized = normalizeScoutEvents(found.data, season);
-      normalized.sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
-      setEvents(normalized);
+      const list = normalizeScoutEvents(payload, season);
+      if (cancelled) return;
+
+      setEvents(list);
       setLoading(false);
+
     }
 
     load();
@@ -558,33 +625,61 @@ const urls = [
 
     const code = e.code;
 
-    // Try a few likely endpoints; normalize whatever comes back.
-    const detailUrls = [
-      `${BASE}/events/${season}/${code}`,
-      `${BASE}/event/${season}/${code}`,
-      `${BASE}/events/${code}?season=${season}`,
-    ];
+    const EVENT_TEAMS_QUERY = `
+      query ScoutEventTeams($season: Int!, $code: String!) {
+        event(season: $season, code: $code) {
+          season
+          code
+          name
+          region
+          start
+          end
+          startDate
+          endDate
+          location
+          venue
+          city
+          stateProv
+          country
+          teams {
+            team { number name }
+            rank
+            wins
+            losses
+            ties
+            stats {
+              rank
+              wins
+              losses
+              ties
+              opr
+              autoOpr
+              teleopOpr
+              endgameOpr
+            }
+          }
+        }
+      }
+    `;
 
-    const teamsUrls = [
-      `${BASE}/events/${season}/${code}/teams`,
-      `${BASE}/events/${season}/${code}/stats`,
-      `${BASE}/event/${season}/${code}/teams`,
-      `${BASE}/events/${code}/teams?season=${season}`,
-    ];
+    let payload: any;
+    try {
+      payload = await gqlRequest<any>(EVENT_TEAMS_QUERY, { season, code });
+    } catch (err: any) {
+      setDetailsError(err?.message ?? "Couldn’t load FTCScout event details.");
+      setDetailsLoading(false);
+      return;
+    }
 
-    const detail = await fetchFirstJson(detailUrls);
-    const teams = await fetchFirstJson(teamsUrls);
-
-    const stats = normalizeScoutTeamStats(teams?.data ?? detail?.data);
+    const stats = normalizeScoutTeamStats(payload);
     if (stats.length === 0) {
       setDetailsError(
-        "Loaded the event, but couldn’t find team performance data in the response. The endpoint shape may have changed — but the UI is wired up; we just need to adjust the fetch URLs/normalizer."
+        "Loaded the event, but couldn’t find team performance data in the GraphQL response. The API likely changed field names—open the Scout tab in devtools and share the response shape and we’ll map it."
       );
     }
     setTeamStats(stats);
     setDetailsLoading(false);
   }, [season]);
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-3 items-end">
