@@ -417,7 +417,7 @@ function normalizeScoutTeamStats(raw: any): ScoutTeamStatLite[] {
 }
 
 function ScoutTab({ season }: { season: number }) {
-  const BASE = "https://api.ftcscout.org/rest/v1";
+  const BASE = "/api/ftcscout/rest/v1";
 
   const [events, setEvents] = useState<ScoutEventLite[]>([]);
   const [loading, setLoading] = useState(false);
