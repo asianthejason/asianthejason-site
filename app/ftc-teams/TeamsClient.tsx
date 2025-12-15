@@ -829,7 +829,7 @@ export function TeamsClient({
             new Set(
               list
                 .map((c: any) => (c ?? "").toString().trim())
-                .filter(Boolean)
+                .filter((s: string) => s.length > 0)
             )
           ).sort((a, b) => a.localeCompare(b));
 
