@@ -339,6 +339,14 @@ async function fetchFirstJson(
   return null;
 }
 
+function seasonDateRange(season: number): { start: string; end: string } {
+  // FTC season year (e.g., 2025) generally spans late summer/fall of the prior year through mid-summer of the season year.
+  // Using a wide buffer avoids missing early qualifiers / late championships.
+  const start = `${season - 1}-08-01`;
+  const end = `${season}-07-31`;
+  return { start, end };
+}
+
 function normalizeScoutEvents(raw: any, season: number): ScoutEventLite[] {
   const arr: any[] =
     Array.isArray(raw)
@@ -393,28 +401,65 @@ function normalizeScoutTeamStats(raw: any): ScoutTeamStatLite[] {
 
   return arr
     .map((t) => {
-      const teamNumber = Number(t?.teamNumber ?? t?.team ?? t?.number ?? t?.id);
+      const teamObj = t?.team ?? t?.teamInfo ?? t?.team_data ?? null;
+      const statsObj = t?.stats ?? t?.eventStats ?? t?.record ?? null;
+
+      const teamNumber = Number(
+        t?.teamNumber ??
+          t?.team_number ??
+          teamObj?.number ??
+          teamObj?.teamNumber ??
+          teamObj?.team_number ??
+          t?.team ??
+          t?.number ??
+          t?.id
+      );
       if (!Number.isFinite(teamNumber)) return null;
 
-      const w = t?.wins ?? t?.win ?? t?.w;
-      const l = t?.losses ?? t?.loss ?? t?.l;
-      const ties = t?.ties ?? t?.tie ?? t?.t;
+      const teamName =
+        (t?.teamName ??
+          t?.team_name ??
+          teamObj?.name ??
+          teamObj?.teamName ??
+          teamObj?.team_name ??
+          t?.name ??
+          t?.nickname ??
+          "")?.toString?.() ?? "";
+
+      const rank = t?.rank ?? t?.ranking ?? statsObj?.rank ?? statsObj?.ranking ?? undefined;
+
+      const w = statsObj?.wins ?? t?.wins ?? t?.win ?? t?.w;
+      const l = statsObj?.losses ?? t?.losses ?? t?.loss ?? t?.l;
+      const ties = statsObj?.ties ?? t?.ties ?? t?.tie ?? t?.t;
+
+      const mp =
+        statsObj?.matchesPlayed ??
+        statsObj?.played ??
+        t?.matchesPlayed ??
+        t?.played ??
+        t?.mp ??
+        undefined;
+
+      const opr = statsObj?.opr ?? t?.opr ?? t?.offensivePowerRating ?? undefined;
+      const dpr = statsObj?.dpr ?? t?.dpr ?? t?.defensivePowerRating ?? undefined;
+      const ccwm = statsObj?.ccwm ?? t?.ccwm ?? t?.combined_rating ?? undefined;
 
       return {
         teamNumber,
-        teamName: (t?.teamName ?? t?.name ?? t?.nickname ?? "").toString() || undefined,
-        rank: t?.rank ?? t?.ranking ?? undefined,
+        teamName: teamName || undefined,
+        rank,
         wins: typeof w === "number" ? w : undefined,
         losses: typeof l === "number" ? l : undefined,
         ties: typeof ties === "number" ? ties : undefined,
-        opr: typeof t?.opr === "number" ? t.opr : undefined,
-        autoOpr: typeof t?.autoOpr === "number" ? t.autoOpr : undefined,
-        teleopOpr: typeof t?.teleopOpr === "number" ? t.teleopOpr : undefined,
-        endgameOpr: typeof t?.endgameOpr === "number" ? t.endgameOpr : undefined,
+        matchesPlayed: typeof mp === "number" ? mp : undefined,
+        opr: typeof opr === "number" ? opr : undefined,
+        dpr: typeof dpr === "number" ? dpr : undefined,
+        ccwm: typeof ccwm === "number" ? ccwm : undefined,
       } as ScoutTeamStatLite;
     })
     .filter(Boolean) as ScoutTeamStatLite[];
 }
+
 
 function ScoutTab({ season }: { season: number }) {
   const BASE = "/api/ftcscout/rest/v1";
@@ -438,12 +483,13 @@ function ScoutTab({ season }: { season: number }) {
       setLoading(true);
       setError(null);
 
-      const urls = [
-        `${BASE}/events/${season}`,
-        `${BASE}/season/${season}/events`,
-        `${BASE}/events?season=${season}`,
-        `${BASE}/events?year=${season}`,
-      ];
+      const { start, end } = seasonDateRange(season);
+
+// REST docs: /events/search is the correct endpoint to list events.
+const urls = [
+  `${BASE}/events/search?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=2000`,
+];
+
 
       const found = await fetchFirstJson(urls);
       if (cancelled) return;
