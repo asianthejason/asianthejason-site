@@ -330,7 +330,7 @@ async function fetchFirstJson(
         },
       });
       if (!res.ok) continue;
-      const data = await res.json();
+      const data: any = await res.json();
       return { url, data };
     } catch {
       // try next
@@ -813,7 +813,7 @@ export function TeamsClient({
         try {
           const res = await fetch(url, { headers: { Accept: "application/json" } });
           if (!res.ok) continue;
-          const data = await res.json();
+          const data: any = await res.json();
           const list: any =
             Array.isArray(data)
               ? data
@@ -825,11 +825,25 @@ export function TeamsClient({
 
           if (!list) continue;
 
+          const toCountry = (c: unknown): string => {
+            if (typeof c === "string") return c.trim();
+            if (typeof c === "number") return String(c).trim();
+            if (c && typeof c === "object") {
+              const v =
+                (c as any).country ??
+                (c as any).name ??
+                (c as any).code ??
+                (c as any).value;
+              if (v !== undefined && v !== null) return String(v).trim();
+            }
+            return "";
+          };
+
           const countries = Array.from(
-            new Set(
-              list
-                .map((c: any) => (c ?? "").toString().trim())
-                .filter((s: string) => s.length > 0)
+            new Set<string>(
+              (list as unknown[])
+                .map(toCountry)
+                .filter((s): s is string => s.length > 0)
             )
           ).sort((a, b) => a.localeCompare(b));
 
