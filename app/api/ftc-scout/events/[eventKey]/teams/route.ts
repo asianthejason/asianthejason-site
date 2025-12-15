@@ -1,59 +1,47 @@
-// app/api/ftcscout/[...path]/route.ts
+// app/api/ftc-scout/events/[eventKey]/teams/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { getScoutTeamsForEvent } from "@/lib/ftcScout";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type RouteParams = {
-  params: { path: string[] };
-};
+// Next.js 16 route handlers type `context.params` as a Promise in strict mode.
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ eventKey: string }> }
+) {
+  const { eventKey } = await context.params;
 
-function safeJoinPath(parts: string[]): string {
-  // Remove empty segments and block traversal attempts
-  const cleaned = (parts || []).filter(Boolean).map((p) => p.replace(/^\/+|\/+$/g, ""));
-  for (const seg of cleaned) {
-    if (seg.includes("..")) {
-      throw new Error("Invalid path segment");
-    }
-  }
-  return cleaned.join("/");
-}
+  const { searchParams } = new URL(req.url);
+  const seasonParam = searchParams.get("season");
+  const season = seasonParam ? Number(seasonParam) : 2025;
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
-  try {
-    const remotePath = safeJoinPath(params.path);
-    const url = new URL(req.url);
-    const remoteUrl = `https://api.ftcscout.org/${remotePath}${url.search}`;
-
-    const res = await fetch(remoteUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        // Some public APIs are picky about UA; harmless to include.
-        "User-Agent": "asianthejason-site/ftcscout-proxy",
-      },
-      // Avoid caching surprises during development
-      cache: "no-store",
-    });
-
-    const contentType = res.headers.get("content-type") || "";
-
-    // If JSON, pass through as JSON
-    if (contentType.includes("application/json")) {
-      const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    // Otherwise, pass through as text
-    const text = await res.text();
-    return new NextResponse(text, {
-      status: res.status,
-      headers: { "content-type": contentType || "text/plain; charset=utf-8" },
-    });
-  } catch (err: any) {
-    console.error("FTCScout proxy error:", err);
+  if (!eventKey) {
     return NextResponse.json(
-      { ok: false, error: err?.message ?? "FTCScout proxy failed" },
+      { ok: false, error: "Missing eventKey path parameter" },
+      { status: 400 }
+    );
+  }
+
+  if (!Number.isFinite(season)) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid season parameter" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const teams = await getScoutTeamsForEvent(season, eventKey);
+    return NextResponse.json({ ok: true, season, eventKey, teams });
+  } catch (err: any) {
+    console.error("Error in /api/ftc-scout/events/[eventKey]/teams", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          err?.message ??
+          "Failed to load FTCScout team performance for this event.",
+      },
       { status: 500 }
     );
   }
