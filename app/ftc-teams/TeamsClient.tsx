@@ -1,7 +1,7 @@
 // app/ftc-teams/TeamsClient.tsx
 "use client";
 
-import { useMemo, useState, useEffect, useCallback, useRef, Fragment } from "react";
+import { useMemo, useState, useEffect, useCallback, Fragment } from "react";
 import type {
   FtcTeam,
   FtcTeamEvent,
@@ -20,24 +20,6 @@ type TeamsClientProps = {
   teams: FtcTeam[];
   authReady?: boolean;
   currentUser?: AuthUserLite | null;
-  // New: initial country & callback so shell can refetch when country changes
-  initialCountryFilter?: string;
-  onCountryFilterChange?: (value: string) => void;
-
-  /**
-   * Optional: provide a global list of countries so the country dropdown can show
-   * everything even when `teams` is a server-filtered slice (e.g. only your country).
-   */
-  allCountryOptions?: string[];
-
-  /**
-   * Optional: endpoints to try (in order) to prefetch a global country list.
-   * Response can be either:
-   *  - string[]
-   *  - { countries: string[] }
-   *  - { data: { countries: string[] } }
-   */
-  countryOptionsEndpoints?: string[];
 };
 
 type DrilldownState = {
@@ -114,6 +96,143 @@ type MatchDetailsState = {
 
 
 
+
+// Static country options used for the country filter dropdown.
+// This ensures the full list is available even when we initially
+// load only a single country's teams from the API.
+const COUNTRY_OPTIONS = [
+  "Afghanistan",
+  "Albania",
+  "Algeria",
+  "Andorra",
+  "Angola",
+  "Antigua and Barbuda",
+  "Argentina",
+  "Armenia",
+  "Australia",
+  "Austria",
+  "Azerbaijan",
+  "Bahamas",
+  "Bahrain",
+  "Bangladesh",
+  "Barbados",
+  "Belarus",
+  "Belgium",
+  "Belize",
+  "Benin",
+  "Bermuda",
+  "Bhutan",
+  "Bolivia",
+  "Bosnia and Herzegovina",
+  "Botswana",
+  "Brazil",
+  "Brunei",
+  "Bulgaria",
+  "Burkina Faso",
+  "Burundi",
+  "Cambodia",
+  "Cameroon",
+  "Canada",
+  "Chile",
+  "China",
+  "Colombia",
+  "Costa Rica",
+  "Croatia",
+  "Cyprus",
+  "Czech Republic",
+  "Denmark",
+  "Dominican Republic",
+  "Ecuador",
+  "Egypt",
+  "El Salvador",
+  "Estonia",
+  "Ethiopia",
+  "Fiji",
+  "Finland",
+  "France",
+  "Georgia",
+  "Germany",
+  "Ghana",
+  "Greece",
+  "Guatemala",
+  "Haiti",
+  "Honduras",
+  "Hong Kong",
+  "Hungary",
+  "Iceland",
+  "India",
+  "Indonesia",
+  "Ireland",
+  "Israel",
+  "Italy",
+  "Jamaica",
+  "Japan",
+  "Jordan",
+  "Kazakhstan",
+  "Kenya",
+  "Kuwait",
+  "Latvia",
+  "Lebanon",
+  "Lithuania",
+  "Luxembourg",
+  "Malaysia",
+  "Malta",
+  "Mauritius",
+  "Mexico",
+  "Moldova",
+  "Monaco",
+  "Mongolia",
+  "Montenegro",
+  "Morocco",
+  "Namibia",
+  "Nepal",
+  "Netherlands",
+  "New Zealand",
+  "Nicaragua",
+  "Nigeria",
+  "North Macedonia",
+  "Norway",
+  "Oman",
+  "Pakistan",
+  "Panama",
+  "Paraguay",
+  "Peru",
+  "Philippines",
+  "Poland",
+  "Portugal",
+  "Qatar",
+  "Romania",
+  "Russia",
+  "Rwanda",
+  "Saudi Arabia",
+  "Serbia",
+  "Singapore",
+  "Slovakia",
+  "Slovenia",
+  "South Africa",
+  "South Korea",
+  "Spain",
+  "Sri Lanka",
+  "Sweden",
+  "Switzerland",
+  "Taiwan",
+  "Tanzania",
+  "Thailand",
+  "Trinidad and Tobago",
+  "Tunisia",
+  "Turkey",
+  "Uganda",
+  "Ukraine",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "USA",
+  "Uruguay",
+  "Venezuela",
+  "Vietnam",
+  "Zambia",
+  "Zimbabwe",
+];
 function getDisplayName(t: FtcTeam): string {
   const shortName = (t.nameShort ?? "").toString().trim();
   const fullName = (t.nameFull ?? "").toString().trim();
@@ -272,623 +391,16 @@ function getListingScores(match: any): { red: number | null; blue: number | null
 }
 
 
-/* ===================== FTCScout (Scout tab) ===================== */
-type ScoutEventLite = {
-  season: number;
-  code: string;
-  name: string;
-  region?: string;
-  startDate?: string; // ISO-ish
-  endDate?: string; // ISO-ish
-  location?: string;
-};
-
-type ScoutTeamStatLite = {
-  teamNumber: number;
-  teamName?: string;
-  rank?: number;
-  wins?: number;
-  losses?: number;
-  ties?: number;
-  opr?: number;
-  autoOpr?: number;
-  teleopOpr?: number;
-  endgameOpr?: number;
-};
-
-function toIsoDateStringMaybe(v: any): string | undefined {
-  if (!v) return undefined;
-  if (typeof v === "string") {
-    // If it's already ISO-ish, keep it.
-    // Otherwise, try Date parse.
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? v : d.toISOString();
-  }
-  if (v instanceof Date) return v.toISOString();
-  return undefined;
-}
-
-function formatShortDate(iso?: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-async function fetchFirstJson(
-  urls: string[],
-  init?: RequestInit
-): Promise<{ url: string; data: any } | null> {
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        ...init,
-        // FTCScout docs say no headers needed; keep it simple.
-        headers: {
-          ...(init?.headers ?? {}),
-          Accept: "application/json",
-        },
-      });
-      if (!res.ok) continue;
-      const data: any = await res.json();
-      return { url, data };
-    } catch {
-      // try next
-    }
-  }
-  return null;
-}
-
-function seasonDateRange(season: number): { start: string; end: string } {
-  // FTC season year (e.g., 2025) generally spans late summer/fall of the prior year through mid-summer of the season year.
-  // Using a wide buffer avoids missing early qualifiers / late championships.
-  const start = `${season - 1}-08-01`;
-  const end = `${season}-07-31`;
-  return { start, end };
-}
-
-function normalizeScoutEvents(raw: any, season: number): ScoutEventLite[] {
-  const arr: any[] =
-    Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.events)
-      ? raw.events
-      : Array.isArray(raw?.data?.events)
-      ? raw.data.events
-      : Array.isArray(raw?.data?.eventsSearch)
-      ? raw.data.eventsSearch
-      : Array.isArray(raw?.data?.searchEvents)
-      ? raw.data.searchEvents
-      : [];
-
-
-  return arr
-    .map((e) => {
-      const code =
-        (e?.code ?? e?.eventCode ?? e?.id ?? e?.key ?? e?.eventKey ?? "").toString();
-      const name = (e?.name ?? e?.eventName ?? e?.title ?? code).toString();
-      const region =
-        (e?.region ?? e?.league ?? e?.state ?? e?.country ?? e?.regionName ?? "").toString() ||
-        undefined;
-      const startDate = toIsoDateStringMaybe(
-        e?.startDate ?? e?.start ?? e?.dateStart ?? e?.start_time ?? e?.startTime
-      );
-      const endDate = toIsoDateStringMaybe(
-        e?.endDate ?? e?.end ?? e?.dateEnd ?? e?.end_time ?? e?.endTime
-      );
-      const location =
-        (e?.location ?? e?.venue ?? e?.city ?? e?.address ?? "").toString() || undefined;
-
-      return {
-        season,
-        code,
-        name,
-        region,
-        startDate,
-        endDate,
-        location,
-      } as ScoutEventLite;
-    })
-    .filter((e) => e.code && e.name);
-}
-
-function normalizeScoutTeamStats(raw: any): ScoutTeamStatLite[] {
-  const arr: any[] =
-    Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.teams)
-      ? raw.teams
-      : Array.isArray(raw?.teamStats)
-      ? raw.teamStats
-      : Array.isArray(raw?.data?.teams)
-      ? raw.data.teams
-      : Array.isArray(raw?.data?.teamStats)
-      ? raw.data.teamStats
-      : Array.isArray(raw?.data?.event?.teams)
-      ? raw.data.event.teams
-      : Array.isArray(raw?.data?.event?.teamEventParticipations)
-      ? raw.data.event.teamEventParticipations
-      : Array.isArray(raw?.data?.eventTeams)
-      ? raw.data.eventTeams
-      : [];
-  return arr
-    .map((t) => {
-      const teamObj = t?.team ?? t?.teamInfo ?? t?.team_data ?? null;
-      const statsObj = t?.stats ?? t?.eventStats ?? t?.record ?? null;
-
-      const teamNumber = Number(
-        t?.teamNumber ??
-          t?.team_number ??
-          teamObj?.number ??
-          teamObj?.teamNumber ??
-          teamObj?.team_number ??
-          t?.team ??
-          t?.number ??
-          t?.id
-      );
-      if (!Number.isFinite(teamNumber)) return null;
-
-      const teamName =
-        (t?.teamName ??
-          t?.team_name ??
-          teamObj?.name ??
-          teamObj?.teamName ??
-          teamObj?.team_name ??
-          t?.name ??
-          t?.nickname ??
-          "")?.toString?.() ?? "";
-
-      const rank = t?.rank ?? t?.ranking ?? statsObj?.rank ?? statsObj?.ranking ?? undefined;
-
-      const w = statsObj?.wins ?? t?.wins ?? t?.win ?? t?.w;
-      const l = statsObj?.losses ?? t?.losses ?? t?.loss ?? t?.l;
-      const ties = statsObj?.ties ?? t?.ties ?? t?.tie ?? t?.t;
-
-      const mp =
-        statsObj?.matchesPlayed ??
-        statsObj?.played ??
-        t?.matchesPlayed ??
-        t?.played ??
-        t?.mp ??
-        undefined;
-
-      const opr = statsObj?.opr ?? t?.opr ?? t?.offensivePowerRating ?? undefined;
-      const dpr = statsObj?.dpr ?? t?.dpr ?? t?.defensivePowerRating ?? undefined;
-      const ccwm = statsObj?.ccwm ?? t?.ccwm ?? t?.combined_rating ?? undefined;
-
-      return {
-        teamNumber,
-        teamName: teamName || undefined,
-        rank,
-        wins: typeof w === "number" ? w : undefined,
-        losses: typeof l === "number" ? l : undefined,
-        ties: typeof ties === "number" ? ties : undefined,
-        matchesPlayed: typeof mp === "number" ? mp : undefined,
-        opr: typeof opr === "number" ? opr : undefined,
-        dpr: typeof dpr === "number" ? dpr : undefined,
-        ccwm: typeof ccwm === "number" ? ccwm : undefined,
-      } as ScoutTeamStatLite;
-    })
-    .filter(Boolean) as ScoutTeamStatLite[];
-}
-
-
-function ScoutTab({ season }: { season: number }) {
-  const GQL = "/api/ftcscout/graphql";
-
-  const [events, setEvents] = useState<ScoutEventLite[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [search, setSearch] = useState("");
-  const [region, setRegion] = useState<string>("");
-
-  const [selected, setSelected] = useState<ScoutEventLite | null>(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [teamStats, setTeamStats] = useState<ScoutTeamStatLite[]>([]);
-  const [detailsError, setDetailsError] = useState<string | null>(null);
-
-  async function gqlRequest<T = any>(query: string, variables?: Record<string, any>): Promise<T> {
-    const res = await fetch(GQL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({ query, variables }),
-      cache: "no-store",
-    });
-
-    const raw = await res.text();
-    let json: any = null;
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch {
-      // ignore
-    }
-
-    if (!res.ok) {
-      const msg =
-        json?.errors?.[0]?.message ??
-        json?.error ??
-        `FTCScout GraphQL request failed (HTTP ${res.status}).`;
-      throw new Error(msg);
-    }
-
-    if (json?.errors?.length) {
-      throw new Error(json.errors[0]?.message ?? "FTCScout GraphQL error.");
-    }
-
-    return json as T;
-  }
-
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      setError(null);
-      const { start, end } = seasonDateRange(season);
-
-      // Use FTCScout GraphQL (REST has been unreliable).
-      const EVENTS_QUERY = `
-        query ScoutEvents($start: Date, $end: Date, $region: RegionOption, $limit: Int, $searchText: String) {
-          events(start: $start, end: $end, region: $region, limit: $limit, searchText: $searchText) {
-            season
-            code
-            name
-            region
-            start
-            end
-            startDate
-            endDate
-            location
-            venue
-            city
-            stateProv
-            country
-          }
-        }
-      `;
-
-      let payload: any;
-      try {
-        payload = await gqlRequest<any>(EVENTS_QUERY, {
-          start,
-          end,
-          region: region || null,
-          limit: 2000,
-          searchText: search || null,
-        });
-      } catch (err: any) {
-        setEvents([]);
-        setError(err?.message ?? "Couldn’t load FTCScout events.");
-        setLoading(false);
-        return;
-      }
-
-      const list = normalizeScoutEvents(payload, season);
-      if (cancelled) return;
-
-      setEvents(list);
-      setLoading(false);
-
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [season]);
-
-  const regionOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const e of events) if (e.region) set.add(e.region);
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [events]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return events.filter((e) => {
-      if (region && (e.region ?? "") !== region) return false;
-      if (!q) return true;
-      return (
-        e.name.toLowerCase().includes(q) ||
-        e.code.toLowerCase().includes(q) ||
-        (e.location ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [events, search, region]);
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, ScoutEventLite[]>();
-    for (const e of filtered) {
-      const key = e.region ?? "Other";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(e);
-    }
-    const out = Array.from(map.entries())
-      .map(([key, list]) => {
-        list.sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
-        return [key, list] as const;
-      })
-      .sort(([a], [b]) => a.localeCompare(b));
-    return out;
-  }, [filtered]);
-
-  const openEvent = useCallback(async (e: ScoutEventLite) => {
-    setSelected(e);
-    setDetailsLoading(true);
-    setDetailsError(null);
-    setTeamStats([]);
-
-    const code = e.code;
-
-    const EVENT_TEAMS_QUERY = `
-      query ScoutEventTeams($season: Int!, $code: String!) {
-        event(season: $season, code: $code) {
-          season
-          code
-          name
-          region
-          start
-          end
-          startDate
-          endDate
-          location
-          venue
-          city
-          stateProv
-          country
-          teams {
-            team { number name }
-            rank
-            wins
-            losses
-            ties
-            stats {
-              rank
-              wins
-              losses
-              ties
-              opr
-              autoOpr
-              teleopOpr
-              endgameOpr
-            }
-          }
-        }
-      }
-    `;
-
-    let payload: any;
-    try {
-      payload = await gqlRequest<any>(EVENT_TEAMS_QUERY, { season, code });
-    } catch (err: any) {
-      setDetailsError(err?.message ?? "Couldn’t load FTCScout event details.");
-      setDetailsLoading(false);
-      return;
-    }
-
-    const stats = normalizeScoutTeamStats(payload);
-    if (stats.length === 0) {
-      setDetailsError(
-        "Loaded the event, but couldn’t find team performance data in the GraphQL response. The API likely changed field names—open the Scout tab in devtools and share the response shape and we’ll map it."
-      );
-    }
-    setTeamStats(stats);
-    setDetailsLoading(false);
-  }, [season]);
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[180px]">
-          <label className="block text-[14px] text-gray-400 mb-1">Search events</label>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="e.g. Qualifier, League Meet, CA, Alberta…"
-            className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
-          />
-        </div>
-
-        <div className="min-w-[180px]">
-          <label className="block text-[14px] text-gray-400 mb-1">Region</label>
-          <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
-          >
-            <option value="">All</option>
-            {regionOptions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {loading && <p className="text-gray-400">Loading events…</p>}
-      {error && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-100">
-          {error}
-        </div>
-      )}
-
-      {!loading && !error && grouped.length === 0 && (
-        <p className="text-gray-400">No events match your filters.</p>
-      )}
-
-      <div className="space-y-2">
-        {grouped.map(([group, list]) => (
-          <details key={group} className="rounded-lg border border-white/10 bg-black/30 px-3 py-2" open>
-            <summary className="cursor-pointer select-none text-[14px] font-semibold text-gray-200">
-              {group} <span className="text-gray-500 font-normal">({list.length})</span>
-            </summary>
-
-            <div className="mt-2 divide-y divide-white/5">
-              {list.map((e) => (
-                <button
-                  key={`${e.season}-${e.code}`}
-                  type="button"
-                  onClick={() => openEvent(e)}
-                  className="w-full text-left py-2 hover:bg-white/5 rounded-md px-2 transition-colors"
-                >
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 items-baseline">
-                    <span className="font-semibold text-gray-100">{e.name}</span>
-                    <span className="text-[12px] text-gray-500">{e.code}</span>
-                    {e.startDate && (
-                      <span className="text-[12px] text-gray-400">
-                        {formatShortDate(e.startDate)}
-                        {e.endDate ? ` – ${formatShortDate(e.endDate)}` : ""}
-                      </span>
-                    )}
-                    {e.location && <span className="text-[12px] text-gray-500">{e.location}</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </details>
-        ))}
-      </div>
-
-      {/* Event details modal */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4">
-          <div className="w-full max-w-4xl rounded-xl border border-white/10 bg-[#0b0f19] shadow-xl">
-            <div className="flex items-start justify-between gap-3 p-4 border-b border-white/10">
-              <div>
-                <div className="text-lg font-semibold text-gray-100">{selected.name}</div>
-                <div className="text-[13px] text-gray-400">
-                  {selected.code}
-                  {selected.region ? ` • ${selected.region}` : ""}
-                  {selected.startDate ? ` • ${formatShortDate(selected.startDate)}` : ""}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-200 hover:bg-white/10"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              {detailsLoading && <p className="text-gray-400">Loading team performance…</p>}
-              {detailsError && (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-100">
-                  {detailsError}
-                </div>
-              )}
-
-              {!detailsLoading && teamStats.length > 0 && (
-                <div className="rounded-xl border border-white/10 overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-white/5 text-gray-300">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Team</th>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Rank</th>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">W-L-T</th>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">OPR</th>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Auto</th>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">TeleOp</th>
-                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Endgame</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {teamStats
-                        .slice()
-                        .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9))
-                        .map((t) => (
-                          <tr key={t.teamNumber} className="hover:bg-white/5">
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              <span className="font-semibold text-gray-100">{t.teamNumber}</span>
-                              {t.teamName ? <span className="text-gray-400"> • {t.teamName}</span> : null}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-gray-200">{t.rank ?? "—"}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-gray-200">
-                              {t.wins ?? "—"}-{t.losses ?? "—"}-{t.ties ?? "—"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-gray-200">
-                              {typeof t.opr === "number" ? t.opr.toFixed(2) : "—"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-gray-200">
-                              {typeof t.autoOpr === "number" ? t.autoOpr.toFixed(2) : "—"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-gray-200">
-                              {typeof t.teleopOpr === "number" ? t.teleopOpr.toFixed(2) : "—"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-gray-200">
-                              {typeof t.endgameOpr === "number" ? t.endgameOpr.toFixed(2) : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-/* =================== /FTCScout (Scout tab) =================== */
-
-
 export function TeamsClient({
   season,
   teams,
   authReady = false,
   currentUser = null,
-  initialCountryFilter,
-  onCountryFilterChange,
-  allCountryOptions,
-  countryOptionsEndpoints,
 }: TeamsClientProps) {
   // === Filters / search ===
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "" = All
-
-  // Start the country filter from the server-detected country, if provided.
-  const [countryFilter, setCountryFilter] = useState(
-    initialCountryFilter ?? ""
-  );
-
-  // Track whether the user has manually touched the country filter so we don't
-  // keep snapping back to the server-detected default after interactions.
-  const didUserSetCountryFilter = useRef(false);
-
-  // If you render a server-filtered slice of teams (e.g. only the user's country),
-  // this lets us still show a full country list in the dropdown.
-  const [prefetchedCountryOptions, setPrefetchedCountryOptions] = useState<
-    string[] | null
-  >(null);
-
-  // Keep local state in sync if the prop changes (e.g., season change)
-  useEffect(() => {
-    if (
-      initialCountryFilter !== undefined &&
-      !didUserSetCountryFilter.current
-    ) {
-      setCountryFilter(initialCountryFilter);
-    }
-  }, [initialCountryFilter]);
-
-  const handleCountryFilterChange = useCallback(
-    (value: string) => {
-      didUserSetCountryFilter.current = true;
-      setCountryFilter(value);
-      if (onCountryFilterChange) {
-        onCountryFilterChange(value);
-      }
-    },
-    [onCountryFilterChange]
-  );
+  const [countryFilter, setCountryFilter] = useState(""); // "" = All
 
   const stateOptions = useMemo(
     () =>
@@ -902,107 +414,20 @@ export function TeamsClient({
     [teams]
   );
 
-  const countryOptions = useMemo(() => {
-    const set = new Set<string>();
-
-    // 1) Explicit override from the server (best).
-    for (const c of allCountryOptions ?? []) {
-      const v = (c ?? "").toString().trim();
-      if (v) set.add(v);
-    }
-
-    // 2) Prefetched list (optional best-effort).
-    for (const c of prefetchedCountryOptions ?? []) {
-      const v = (c ?? "").toString().trim();
-      if (v) set.add(v);
-    }
-
-    // 3) Whatever is present in the currently loaded team slice.
-    for (const t of teams) {
-      const v = (t.country ?? "").toString().trim();
-      if (v) set.add(v);
-    }
-
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [teams, allCountryOptions, prefetchedCountryOptions]);
-
-  // If we only loaded a server-filtered slice (e.g. just your country),
-  // try (best-effort) to prefetch a global country list so the dropdown
-  // can show all countries without forcing you to click "All" first.
-  useEffect(() => {
-    if ((allCountryOptions?.length ?? 0) > 0) return;
-    if (prefetchedCountryOptions) return;
-
-    const uniqueCountries = new Set(
-      teams
-        .map((t) => (t.country ?? "").toString().trim())
-        .filter(Boolean)
-    ).size;
-
-    // Only prefetch when it looks like we're on a narrowed slice.
-    if (uniqueCountries > 1) return;
-
-    const endpoints =
-      (countryOptionsEndpoints?.length ?? 0) > 0
-        ? countryOptionsEndpoints!
-        : ["/api/ftc/countries", "/api/ftc/teams/countries"];
-
-    let cancelled = false;
-
-    (async () => {
-      for (const url of endpoints) {
-        try {
-          const res = await fetch(url, { headers: { Accept: "application/json" } });
-          if (!res.ok) continue;
-          const data: any = await res.json();
-          const list: any =
-            Array.isArray(data)
-              ? data
-              : Array.isArray(data?.countries)
-              ? data.countries
-              : Array.isArray(data?.data?.countries)
-              ? data.data.countries
-              : null;
-
-          if (!list) continue;
-
-          const toCountry = (c: unknown): string => {
-            if (typeof c === "string") return c.trim();
-            if (typeof c === "number") return String(c).trim();
-            if (c && typeof c === "object") {
-              const v =
-                (c as any).country ??
-                (c as any).name ??
-                (c as any).code ??
-                (c as any).value;
-              if (v !== undefined && v !== null) return String(v).trim();
-            }
-            return "";
-          };
-
-          const countries = Array.from(
-            new Set<string>(
-              (list as unknown[])
-                .map(toCountry)
-                .filter((s): s is string => s.length > 0)
-            )
-          ).sort((a, b) => a.localeCompare(b));
-
-          if (!cancelled && countries.length > 0) {
-            setPrefetchedCountryOptions(countries);
-          }
-          break;
-        } catch {
-          // try next
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [teams, allCountryOptions, prefetchedCountryOptions, countryOptionsEndpoints]);
-
+  const countryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...COUNTRY_OPTIONS,
+          ...teams
+            .map((t) => (t.country ?? "").toString().trim())
+            .filter((c) => c !== ""),
+        ])
+      )
+        .filter((c) => c !== "")
+        .sort(),
+    [teams]
+  );
 
   const filteredTeams = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1046,7 +471,7 @@ export function TeamsClient({
     return map;
   }, [teams]);
   // === Watch list state (per user, persisted in Firestore) ===
-  const [activeTab, setActiveTab] = useState<"directory" | "watchlist" | "scout">(
+  const [activeTab, setActiveTab] = useState<"directory" | "watchlist">(
     "directory"
   );
 
@@ -2047,28 +1472,11 @@ export function TeamsClient({
               <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
             )}
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "scout"}
-            onClick={() => setActiveTab("scout")}
-            className={`relative -mb-px pb-2 mr-8 transition-colors ${
-              activeTab === "scout"
-                ? "text-white"
-                : "text-gray-400 hover:text-gray-200"
-            }`}
-          >
-            Scout
-            {activeTab === "scout" && (
-              <span className="pointer-events-none absolute left-0 bottom-0 h-0.5 w-full rounded-full bg-indigo-400" />
-            )}
-          </button>
         </div>
       </div>
 
       <section className="space-y-3 text-[14px]">
         {/* Controls */}
-        {activeTab !== "scout" && (
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
             <label className="block text-[14px] text-gray-400 mb-1">
@@ -2107,7 +1515,7 @@ export function TeamsClient({
             </label>
             <select
               value={countryFilter}
-              onChange={(e) => handleCountryFilterChange(e.target.value)}
+              onChange={(e) => setCountryFilter(e.target.value)}
               className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
             >
               <option value="">All</option>
@@ -2119,10 +1527,9 @@ export function TeamsClient({
             </select>
           </div>
         </div>
-        )}
 
         <p className="text-[14px] text-gray-400">
-          {activeTab === "watchlist" ? watchlistSummary : activeTab === "directory" ? directorySummary : "Browse events and stats powered by FTCScout."}
+          {activeTab === "directory" ? directorySummary : watchlistSummary}
         </p>
 
         {activeTab === "watchlist" && !isLoggedIn && (
@@ -2486,13 +1893,7 @@ export function TeamsClient({
           </table>
         </div>
         )}
-      
-        {activeTab === "scout" && (
-          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <ScoutTab season={season} />
-          </div>
-        )}
-</section>
+      </section>
 
       
       {/* EVENT INFO MODAL */}

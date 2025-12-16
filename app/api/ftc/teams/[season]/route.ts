@@ -1,6 +1,10 @@
 // app/api/ftc/teams/[season]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getAllFtcTeamsForSeason, type FtcTeam } from "@/lib/ftcEvents";
+import {
+  getAllFtcTeamsForSeason,
+  getFtcTeamsForSeasonByCountry,
+  type FtcTeam,
+} from "@/lib/ftcEvents";
 
 function sortTeams(teams: FtcTeam[]): FtcTeam[] {
   return [...teams].sort((a, b) => {
@@ -23,6 +27,8 @@ function filterRealTeams(teams: FtcTeam[]): FtcTeam[] {
     const hasName = nameShort !== "" || nameFull !== "";
     const hasLocation = city !== "" || state !== "" || country !== "";
 
+    // Filter out phantom/empty entries; keep only teams with a number and
+    // at least a name or some location info.
     return num > 0 && (hasName || hasLocation);
   });
 }
@@ -42,15 +48,19 @@ export async function GET(
     );
   }
 
-  // Inspect optional ?country=... query param
   const url = new URL(request.url);
   const countryParam = url.searchParams.get("country");
   const countryFilter = countryParam?.toString().trim() || "";
 
   try {
-    const rawTeams = await getAllFtcTeamsForSeason(seasonNumber);
+    const rawTeams = countryFilter
+      ? await getFtcTeamsForSeasonByCountry(seasonNumber, countryFilter)
+      : await getAllFtcTeamsForSeason(seasonNumber);
+
     let teams = filterRealTeams(rawTeams);
 
+    // Keep a defensive filter by country here as well, in case the upstream
+    // API's country filter is not exact or changes behavior.
     if (countryFilter) {
       teams = teams.filter((t) => {
         const c = (t.country ?? "").toString().trim();

@@ -103,6 +103,50 @@ export async function getAllFtcTeamsForSeason(
   return all.filter((t) => t.teamNumber && t.teamNumber < 99900);
 }
 
+
+/**
+ * Get teams for a single season filtered by country.
+ *
+ * NOTE:
+ * - The query param key "country" here is an educated guess.
+ *   Check the FTC Events API docs for the exact name and adjust if needed
+ *   (for example "countryCode" or similar).
+ */
+export async function getFtcTeamsForSeasonByCountry(
+  season: number,
+  country: string
+): Promise<FtcTeam[]> {
+  const trimmed = country.trim();
+  if (!trimmed) {
+    // No country provided, fall back to the full list
+    return getAllFtcTeamsForSeason(season);
+  }
+
+  const pageSize = 250;
+  let page = 1;
+  const all: FtcTeam[] = [];
+
+  // The /teams endpoint pages; we loop until less than pageSize is returned
+  while (true) {
+    const data = await ftcFetch<FtcTeamApiResponse>(`/${season}/teams`, {
+      page,
+      size: pageSize,
+      // TODO: confirm the correct query parameter name for country in the FTC API.
+      country: trimmed,
+    });
+
+    if (!data.teams?.length) break;
+
+    all.push(...data.teams);
+    if (data.teams.length < pageSize) break;
+    page += 1;
+  }
+
+  // Keep the same 999xx filter as the "all teams" helper.
+  return all.filter((t) => t.teamNumber && t.teamNumber < 99900);
+}
+
+
 /* ===================== Drilldown types ===================== */
 
 /**

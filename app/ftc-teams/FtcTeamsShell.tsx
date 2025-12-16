@@ -10,7 +10,6 @@ import type { FtcTeam } from "@/lib/ftcEvents";
 
 type FtcTeamsShellProps = {
   season: number;
-  initialCountry?: string;
 };
 
 interface AuthUser {
@@ -21,19 +20,13 @@ interface AuthUser {
 
 type AuthMode = "login" | "signup";
 
-export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
+export function FtcTeamsShell({ season }: FtcTeamsShellProps) {
   const currentYear = new Date().getFullYear();
 
   // ---------- Teams data (client-side) ----------
   const [teams, setTeams] = useState<FtcTeam[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [teamsError, setTeamsError] = useState<string | null>(null);
-
-  // Which country we’re currently fetching from the API for.
-  // "" = all countries.
-  const [selectedCountryForFetch, setSelectedCountryForFetch] = useState(
-    initialCountry ?? ""
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -43,16 +36,7 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
       setTeamsError(null);
 
       try {
-        const params = new URLSearchParams();
-        if (selectedCountryForFetch) {
-          params.set("country", selectedCountryForFetch);
-        }
-
-        const query = params.toString();
-        const url =
-          `/api/ftc/teams/${season}` + (query ? `?${query}` : "");
-
-        const res = await fetch(url);
+        const res = await fetch(`/api/ftc/teams/${season}`);
 
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -90,9 +74,9 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [season, selectedCountryForFetch]);
+  }, [season]);
 
-// ---------- Auth state (copied from HomePage) ----------
+  // ---------- Auth state (copied from HomePage) ----------
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
@@ -393,8 +377,9 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
                   Loading season {season} team directory…
                 </p>
                 <p className="mt-1 text-xs text-gray-400 text-center">
-                  Fetching 15,000+ teams from the FTC API. You can stay on this
-                  page while the data loads.
+                  {selectedCountryForFetch
+                    ? `Fetching teams in ${selectedCountryForFetch} from the FTC API…`
+                    : "Fetching teams from the FTC API…"}
                 </p>
               </div>
             )}
@@ -413,10 +398,6 @@ export function FtcTeamsShell({ season, initialCountry }: FtcTeamsShellProps) {
                 teams={teams}
                 authReady={authReady}
                 currentUser={currentUser}
-                initialCountryFilter={selectedCountryForFetch || undefined}
-                onCountryFilterChange={(value) => {
-                  setSelectedCountryForFetch(value);
-                }}
               />
             )}
           </div>
