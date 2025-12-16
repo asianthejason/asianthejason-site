@@ -28,6 +28,12 @@ export function FtcTeamsShell({ season }: FtcTeamsShellProps) {
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [teamsError, setTeamsError] = useState<string | null>(null);
 
+  // Which country we’re currently fetching from the API for.
+  // "" = all countries.
+  const [selectedCountryForFetch, setSelectedCountryForFetch] = useState(
+    initialCountry ?? ""
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -36,7 +42,14 @@ export function FtcTeamsShell({ season }: FtcTeamsShellProps) {
       setTeamsError(null);
 
       try {
-        const res = await fetch(`/api/ftc/teams/${season}`);
+        const params = new URLSearchParams();
+        if (selectedCountryForFetch) {
+          params.set("country", selectedCountryForFetch);
+        }
+        const query = params.toString();
+        const url = `/api/ftc/teams/${season}` + (query ? `?${query}` : "");
+
+        const res = await fetch(url);
 
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -74,9 +87,8 @@ export function FtcTeamsShell({ season }: FtcTeamsShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [season]);
-
-  // ---------- Auth state (copied from HomePage) ----------
+  }, [season, selectedCountryForFetch]);
+// ---------- Auth state (copied from HomePage) ----------
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
@@ -398,6 +410,8 @@ export function FtcTeamsShell({ season }: FtcTeamsShellProps) {
                 teams={teams}
                 authReady={authReady}
                 currentUser={currentUser}
+                initialCountryFilter={selectedCountryForFetch || undefined}
+                onCountryFilterChange={(value) => setSelectedCountryForFetch(value)}
               />
             )}
           </div>
