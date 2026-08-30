@@ -8,6 +8,7 @@ import type {
   FtcMatch,
   FtcMatchScores,
 } from "@/lib/ftcEvents";
+import { supabase } from "@/lib/supabase";
 
 type AuthUserLite = {
   uid: string;
@@ -20,6 +21,8 @@ type TeamsClientProps = {
   teams: FtcTeam[];
   authReady?: boolean;
   currentUser?: AuthUserLite | null;
+  initialCountryFilter?: string;
+  onCountryFilterChange?: (value: string) => void;
 };
 
 type DrilldownState = {
@@ -396,11 +399,13 @@ export function TeamsClient({
   teams,
   authReady = false,
   currentUser = null,
+  initialCountryFilter = "",
+  onCountryFilterChange,
 }: TeamsClientProps) {
   // === Filters / search ===
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState(""); // "" = All
-  const [countryFilter, setCountryFilter] = useState(""); // "" = All
+  const [countryFilter, setCountryFilter] = useState(initialCountryFilter); // "" = All
 
   const stateOptions = useMemo(
     () =>
@@ -481,7 +486,7 @@ export function TeamsClient({
 
   const isLoggedIn = !!currentUser;
 
-  // Load watch list from Firestore when auth is ready / user changes
+  // Load watch list from Supabase when auth is ready / user changes
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -494,26 +499,20 @@ export function TeamsClient({
 
     const load = async () => {
       try {
-        const w = window as any;
-        const db = w.db;
-        const firebase = w.firebase;
-
-        if (!db || !firebase) {
-          console.warn("Firestore not available on window for watch list");
-          return;
-        }
-
         setWatchlistLoading(true);
         setWatchlistError(null);
 
-        const docRef = db.collection("ftcTeamWatchlists").doc(currentUser.uid);
-        const snap = await docRef.get();
+        const { data, error } = await supabase
+          .from("ftc_team_watchlists")
+          .select("team_numbers")
+          .eq("user_id", currentUser.uid)
+          .maybeSingle();
+        if (error) throw error;
 
-        if (snap.exists) {
-          const data = snap.data() || {};
-          const raw = Array.isArray(data.teamNumbers) ? data.teamNumbers : [];
+        if (data) {
+          const raw = Array.isArray(data.team_numbers) ? data.team_numbers : [];
           const cleaned = raw
-            .map((n: any) => Number(n))
+            .map((n: unknown) => Number(n))
             .filter((n: number) => Number.isFinite(n) && n > 0);
           setWatchlist(cleaned);
         } else {
@@ -537,22 +536,12 @@ export function TeamsClient({
       if (!currentUser) return;
 
       try {
-        const w = window as any;
-        const db = w.db;
-        const firebase = w.firebase;
-        if (!db || !firebase) {
-          console.warn("Firestore not available on window for watch list save");
-          return;
-        }
-
-        const docRef = db.collection("ftcTeamWatchlists").doc(currentUser.uid);
-        await docRef.set(
-          {
-            teamNumbers,
-            updatedAt: firebase.firestore.FieldValue?.serverTimestamp?.(),
-          },
-          { merge: true }
-        );
+        const { error } = await supabase.from("ftc_team_watchlists").upsert({
+          user_id: currentUser.uid,
+          team_numbers: teamNumbers,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
       } catch (err) {
         console.error("Error saving watch list", err);
       }
@@ -1515,7 +1504,10 @@ export function TeamsClient({
             </label>
             <select
               value={countryFilter}
-              onChange={(e) => setCountryFilter(e.target.value)}
+              onChange={(e) => {
+                setCountryFilter(e.target.value);
+                onCountryFilterChange?.(e.target.value);
+              }}
               className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-white/40"
             >
               <option value="">All</option>

@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
+import { useAuth } from "../../lib/useAuth";
 
 import {
   Elements,
@@ -13,12 +13,6 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
-
-interface AuthUser {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
@@ -219,59 +213,10 @@ function DonationForm() {
 }
 
 export default function SupportPage() {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const { currentUser, authReady, handleSignOut, userLabel } = useAuth();
 
   // Share button feedback
   const [copied, setCopied] = useState(false);
-
-  // ---------- Auth listener (for header) ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const w = window as any;
-
-    if (!w.auth && w.firebase?.auth) {
-      w.auth = w.firebase.auth();
-    }
-
-    const auth = w.auth;
-    if (!auth) {
-      console.warn("Firebase auth not available on window (support page)");
-      return;
-    }
-
-    const unsub = auth.onAuthStateChanged((user: any) => {
-      if (user) {
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-        });
-      } else {
-        setCurrentUser(null);
-      }
-      setAuthReady(true);
-    });
-
-    return () => unsub();
-  }, []);
-
-  const headerUser = currentUser;
-  const userLabel =
-    headerUser?.displayName || headerUser?.email || "Unknown soldier";
-
-  const handleSignOut = async () => {
-    try {
-      const w = window as any;
-      const auth = w.auth;
-      if (!auth) return;
-      await auth.signOut();
-      window.location.href = "/";
-    } catch (err) {
-      console.error("Sign out error", err);
-    }
-  };
 
   const handleCopyLink = async () => {
     try {
@@ -315,50 +260,10 @@ export default function SupportPage() {
 
   return (
     <>
-      {/* Firebase scripts so the header works */}
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        id="firebase-init-support"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-          const firebaseConfig = {
-            apiKey: "AIzaSyAteayH-i26BMMYrTHecwlJF1S4DKmDPXI",
-            authDomain: "wwiii-game-af0e7.firebaseapp.com",
-            projectId: "wwiii-game-af0e7",
-            storageBucket: "wwiii-game-af0e7.appspot.com",
-            messagingSenderId: "906432978784",
-            appId: "1:906432978784:web:433e23330bef1e6a3ac805"
-          };
-
-          if (!window.firebase?.apps?.length) {
-            window.firebase.initializeApp(firebaseConfig);
-          }
-          if (!window.db) {
-            window.db = window.firebase.firestore();
-          }
-          if (!window.auth) {
-            window.auth = window.firebase.auth();
-          }
-        `,
-        }}
-      />
-
       <main className="site">
         <SiteHeader
           authReady={authReady}
-          user={headerUser}
+          user={currentUser}
           userLabel={userLabel}
           onOpenAuth={() => {
             // Send them back to main page auth flow
