@@ -132,5 +132,9 @@ export function toAuthUser(supabaseUser: any): AuthUser {
     uid: supabaseUser.id,
     email: supabaseUser.email || null,
     displayName: supabaseUser.user_metadata?.display_name || null,
+    hasPasswordIdentity:
+      supabaseUser.identities?.some(
+        (identity: { provider?: string }) => identity.provider === "email"
+      ) ?? false,
   };
 }

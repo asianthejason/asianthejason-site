@@ -6,6 +6,7 @@ export type AuthUser = {
   uid: string;
   email: string | null;
   displayName: string | null;
+  hasPasswordIdentity: boolean;
 };
 
 export type AuthMode = "login" | "signup";
@@ -64,6 +65,7 @@ export function useAuth(): UseAuthReturn {
         full_name?: string;
         name?: string;
       };
+      identities?: Array<{ provider?: string }>;
     }) => {
       const metadataName =
         user.user_metadata?.display_name?.trim() ||
@@ -85,6 +87,9 @@ export function useAuth(): UseAuthReturn {
         uid: user.id,
         email: user.email || null,
         displayName: profile?.display_name || metadataName || user.email || null,
+        hasPasswordIdentity:
+          user.identities?.some((identity) => identity.provider === "email") ??
+          false,
       });
       setAuthReady(true);
     };

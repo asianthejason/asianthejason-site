@@ -444,13 +444,18 @@ export default function ProfilePage() {
                     </form>
                   </div>
 
-                  {/* Password form */}
+                  {/* Password form is only meaningful for email/password identities. */}
                   <div className="profile-section-block">
                     <h2>Password</h2>
-                    <p className="profile-subtext">
+                    {!currentUser.hasPasswordIdentity ? (
+                      <p className="profile-subtext">
+                        You sign in with Google. Your password is managed through
+                        your Google Account.
+                      </p>
+                    ) : (
+                    <><p className="profile-subtext">
                       To change your password, confirm your current one first.
-                    </p>
-                    <form
+                    </p><form
                       onSubmit={handlePasswordSubmit}
                       className="profile-form"
                     >
@@ -504,7 +509,8 @@ export default function ProfilePage() {
                       >
                         {passwordLoading ? "Updating…" : "Change password"}
                       </button>
-                    </form>
+                    </form></>
+                    )}
                   </div>
                 </>
               )}
