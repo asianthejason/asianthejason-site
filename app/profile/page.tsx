@@ -187,7 +187,8 @@ export default function ProfilePage() {
       }
       const newName = trimmed;
       const newNameLower = newName.toLowerCase();
-      const { data: existing } = await supabase.from("users").select("id").eq("display_name_lower", newNameLower).neq("id", currentUser.uid).maybeSingle();
+      const { data: existing, error: lookupError } = await supabase.from("users").select("id").eq("display_name_lower", newNameLower).neq("id", currentUser.uid).maybeSingle();
+      if (lookupError) console.warn("Display-name uniqueness check unavailable", lookupError);
       if (existing) {
         setDisplayNameError("That display name is already taken. Please choose another one.");
         return;
@@ -195,7 +196,9 @@ export default function ProfilePage() {
       const { error: authError } = await supabase.auth.updateUser({ data: { display_name: newName } });
       if (authError) throw authError;
       const { error: profileError } = await supabase.from("users").upsert({ id: currentUser.uid, email: currentUser.email, display_name: newName, display_name_lower: newNameLower });
-      if (profileError) throw profileError;
+      // The Auth update is the source of truth. A missing table or restrictive
+      // RLS policy should not make a successful name change look like failure.
+      if (profileError) console.warn("Could not synchronize public profile", profileError);
       setDisplayNameStatus("Display name updated.");
     } catch (err: any) {
       console.error("Error updating display name", err);

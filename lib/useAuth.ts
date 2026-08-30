@@ -89,7 +89,9 @@ export function useAuth(): UseAuthReturn {
       setCurrentUser({
         uid: user.id,
         email: user.email || null,
-        displayName: profile?.display_name || metadataName || user.email || null,
+        // Auth metadata is authoritative so profile edits are reflected
+        // immediately even if the optional public profile row is stale.
+        displayName: metadataName || profile?.display_name || user.email || null,
       });
       setAuthReady(true);
     };
