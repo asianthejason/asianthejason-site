@@ -72,16 +72,11 @@ export function useAuth(): UseAuthReturn {
         null;
       let profile = await authService.getUserProfile(user.id);
 
-      // Email-confirmation signups have no authenticated session, so create
-      // their public profile on the first authenticated session instead.
-      if (!profile && metadataName) {
-        const { error } = await supabase.from("users").upsert({
-          id: user.id,
-          email: user.email || null,
-          display_name: metadataName,
-          display_name_lower: metadataName.toLowerCase(),
-        });
-        if (!error) profile = await authService.getUserProfile(user.id);
+      // The database assigns a collision-safe name on first login. Its unique
+      // index is the final authority, including for simultaneous requests.
+      if (!profile) {
+        const { data, error } = await supabase.rpc("ensure_user_profile");
+        if (!error) profile = data;
         else console.error("Could not create Supabase user profile", error);
       }
 
@@ -89,9 +84,7 @@ export function useAuth(): UseAuthReturn {
       setCurrentUser({
         uid: user.id,
         email: user.email || null,
-        // Auth metadata is authoritative so profile edits are reflected
-        // immediately even if the optional public profile row is stale.
-        displayName: metadataName || profile?.display_name || user.email || null,
+        displayName: profile?.display_name || metadataName || user.email || null,
       });
       setAuthReady(true);
     };
