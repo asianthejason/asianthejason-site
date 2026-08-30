@@ -475,7 +475,7 @@ export function TeamsClient({
     }
     return map;
   }, [teams]);
-  // === Watch list state (per user, persisted in Firestore) ===
+  // === Watch list state (per user, persisted in Supabase) ===
   const [activeTab, setActiveTab] = useState<"directory" | "watchlist">(
     "directory"
   );

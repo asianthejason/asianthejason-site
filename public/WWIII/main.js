@@ -29,7 +29,7 @@ let machineGunInterval = null;
 let player, pointer;
 let bullets, enemyBullets, enemies, ground;
 let playerHealthBar;
-// --- Run stats for Firebase leaderboard ---
+// --- Run stats for Supabase leaderboard ---
 let enemiesKilled = 0;
 const bulletsFired = {
   Pistol: 0,
@@ -2198,8 +2198,6 @@ function showGameOver(scene) {
   window.wwiiiPendingScore = runSummary;
 
   const w = window;
-  const db = w.db;
-  const firebase = w.firebase;
   const auth = w.auth;
   const currentUser = auth && auth.currentUser;
   const isSignedIn = !!currentUser;
@@ -2334,46 +2332,15 @@ function showGameOver(scene) {
   // ----------------------
   (async () => {
     try {
-      if (!db || !firebase) {
-        setInfo('Leaderboard not available right now.');
-        return;
-      }
-
-      const snap = await db
-        .collection('scores')
-        .where('distance', '>', runSummary.distance)
-        .get();
-      const higherCount = snap.size;
-      const rank = higherCount + 1;
-
       if (isSignedIn) {
         const displayName =
           (currentUser.displayName || currentUser.email || 'Player')
             .trim()
             .slice(0, 24);
-
-        const scoreDoc = {
-          uid: currentUser.uid,
-          name: displayName,
-          enemiesKilled: runSummary.enemiesKilled,
-          bulletsFired: runSummary.bulletsFired,
-          distance: runSummary.distance,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        try {
-          await db.collection('scores').add(scoreDoc);
-          setInfo(
-            `Saved as ${displayName}. You are currently #${rank} on the leaderboard.`
-          );
-        } catch (err) {
-          console.error('Error saving score', err);
-          setInfo(
-            `You are currently #${rank} on the leaderboard, but saving your score failed.`
-          );
-        }
+        setInfo(`Saving as ${displayName}…`);
+        window.dispatchEvent(new CustomEvent('wwiii-score-ready', { detail: { run: runSummary } }));
       } else {
-        setInfo(`You would be #${rank} on the leaderboard.`);
+        setInfo('Sign in to save this run and calculate your rank.');
 
         promptText = scene.add.text(
           960,

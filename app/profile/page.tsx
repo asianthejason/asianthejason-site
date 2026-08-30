@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
 import { useAuth } from "../../lib/useAuth";
@@ -83,33 +82,21 @@ export default function ProfilePage() {
       return;
     }
 
-    const w = window as any;
-    const db = w.db;
-
-    if (!db) {
-      console.warn("Firestore not available on window (profile stats)");
-      setGameStats((prev) =>
-        prev.map((g) => ({
-          ...g,
-          loading: false,
-          error: "Stats unavailable (database offline).",
-        }))
-      );
-      return;
-    }
-
     const fetchStats = async () => {
       const results: GameStat[] = [];
 
       for (const cfg of GAME_CONFIGS) {
         try {
           // Get all scores for this user for this game
-          const userSnap = await db
-            .collection(cfg.collection)
-            .where("uid", "==", currentUser.uid)
-            .get();
+          const { data: bestRows, error: bestError } = await supabase
+            .from(cfg.collection)
+            .select(cfg.scoreField)
+            .eq("user_id", currentUser.uid)
+            .order(cfg.scoreField, { ascending: false })
+            .limit(1);
+          if (bestError) throw bestError;
 
-          if (userSnap.empty) {
+          if (!bestRows?.length) {
             // No scores yet
             results.push({
               ...cfg,
@@ -118,16 +105,9 @@ export default function ProfilePage() {
             continue;
           }
 
-          // Compute best score client-side to avoid composite index
-          let bestScore: number | undefined;
-          userSnap.forEach((doc: any) => {
-            const val = doc.get(cfg.scoreField);
-            if (typeof val === "number") {
-              if (bestScore === undefined || val > bestScore) {
-                bestScore = val;
-              }
-            }
-          });
+          const bestScore = Number(
+            (bestRows[0] as unknown as Record<string, unknown>)[cfg.scoreField]
+          );
 
           if (bestScore === undefined) {
             // Docs exist but no numeric field – treat as no stats
@@ -139,11 +119,12 @@ export default function ProfilePage() {
           }
 
           // Rank: count how many scores are strictly higher
-          const higherSnap = await db
-            .collection(cfg.collection)
-            .where(cfg.scoreField, ">", bestScore)
-            .get();
-          const rank = higherSnap.size + 1;
+          const { count, error: rankError } = await supabase
+            .from(cfg.collection)
+            .select("id", { count: "exact", head: true })
+            .gt(cfg.scoreField, bestScore);
+          if (rankError) throw rankError;
+          const rank = (count || 0) + 1;
 
           results.push({
             ...cfg,
@@ -269,39 +250,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      {/* Firebase scripts (reused config from home page) */}
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        id="firebase-init-profile"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-          const firebaseConfig = {
-            apiKey: "AIzaSyAteayH-i26BMMYrTHecwlJF1S4DKmDPXI",
-            authDomain: "wwiii-game-af0e7.firebaseapp.com",
-            projectId: "wwiii-game-af0e7",
-            storageBucket: "wwiii-game-af0e7.appspot.com",
-            messagingSenderId: "906432978784",
-            appId: "1:906432978784:web:433e23330bef1e6a3ac805"
-          };
-
-          if (!window.firebase?.apps?.length) {
-            window.firebase.initializeApp(firebaseConfig);
-          }
-          if (!window.db) {
-            window.db = window.firebase.firestore();
-          }
-        `,
-        }}
-      />
-
       <main className="profile-site">
         {/* Shared header component */}
         <SiteHeader
@@ -312,7 +260,10 @@ export default function ProfilePage() {
             // No auth modal on this page; send them to main page.
             window.location.href = "/";
           }}
-          onSignOut={handleSignOut}
+          onSignOut={async () => {
+            await handleSignOut();
+            window.location.assign("/");
+          }}
         />
 
         {/* Content */}

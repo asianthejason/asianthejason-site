@@ -7,6 +7,7 @@ import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
 import GoogleAuthButton from "../components/GoogleAuthButton";
 import { useAuth } from "../../lib/useAuth";
+import { supabase } from "../../lib/supabase";
 
 type TabKey = "instructions" | "updates" | "leaderboard" | "review";
 
@@ -113,70 +114,6 @@ export default function HomePage() {
     return `${formatter.format(d)} Update`;
   };
 
-  // ---------- Keep leaderboard/review names in sync with current display name ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!authReady || !currentUser) return;
-
-    const w = window as any;
-    const db = w.db;
-    if (!db || !w.firebase?.firestore) return;
-
-    const desiredName =
-      currentUser.displayName || currentUser.email || "Unknown soldier";
-
-    if (!desiredName) return;
-
-    let cancelled = false;
-
-    const syncNames = async () => {
-      try {
-        const batch = db.batch();
-        let hasChanges = false;
-
-        // Scores docs for this user
-        const scoresSnap = await db
-          .collection("scores")
-          .where("uid", "==", currentUser.uid)
-          .get();
-
-        scoresSnap.forEach((doc: any) => {
-          const d = doc.data() || {};
-          if (d.name !== desiredName) {
-            batch.update(doc.ref, { name: desiredName });
-            hasChanges = true;
-          }
-        });
-
-        // Reviews docs for this user
-        const reviewsSnap = await db
-          .collection("reviews")
-          .where("uid", "==", currentUser.uid)
-          .get();
-
-        reviewsSnap.forEach((doc: any) => {
-          const d = doc.data() || {};
-          if (d.name !== desiredName) {
-            batch.update(doc.ref, { name: desiredName });
-            hasChanges = true;
-          }
-        });
-
-        if (!cancelled && hasChanges) {
-          await batch.commit();
-        }
-      } catch (err) {
-        console.error("Error syncing display name to scores/reviews", err);
-      }
-    };
-
-    syncNames();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authReady, currentUser?.uid, currentUser?.displayName, currentUser?.email]);
-
   // ---------- Listen for "open auth" from Phaser ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -233,240 +170,73 @@ export default function HomePage() {
     };
   }, []);
 
-  // ---------- Leaderboard listener ----------
+  // ---------- Supabase game data ----------
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let unsubscribe: (() => void) | undefined;
-
-    try {
-      const w = window as any;
-      const db = w?.db;
-      if (!db) {
-        console.warn("Firestore db not found on window");
-        return;
-      }
-
-      unsubscribe = db
-        .collection("scores")
-        .orderBy("distance", "desc")
-        .limit(10)
-        .onSnapshot((snapshot: any) => {
-          if (snapshot.empty) {
-            setScores([]);
-            return;
-          }
-          const now = Date.now();
-          const rows: ScoreRow[] = snapshot.docs.map(
-            (doc: any, index: number) => {
-              const d = doc.data() || {};
-              const ts =
-                d.createdAt && d.createdAt.toDate
-                  ? d.createdAt.toDate()
-                  : new Date();
-              const daysAgo = Math.floor(
-                (now - ts.getTime()) / (1000 * 60 * 60 * 24)
-              );
-
-              return {
-                id: doc.id,
-                rank: index + 1,
-                name: d.name || "Unknown",
-                enemiesKilled: d.enemiesKilled ?? 0,
-                distance: d.distance ?? 0,
-                bulletsFired: d.bulletsFired || {},
-                daysAgo,
-              };
-            }
-          );
-
-          setScores(rows);
-        });
-    } catch (err) {
-      console.error("Error setting up leaderboard listener", err);
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  // ---------- Reviews listener ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let unsubscribe: (() => void) | undefined;
-
-    try {
-      const w = window as any;
-      const db = w?.db;
-      if (!db) {
-        console.warn("Firestore db not found on window (reviews)");
-        setReviews([]);
-        return;
-      }
-
-      unsubscribe = db
-        .collection("reviews")
-        .orderBy("createdAt", "desc")
-        .limit(50)
-        .onSnapshot((snapshot: any) => {
-          if (snapshot.empty) {
-            setReviews([]);
-            return;
-          }
-
-          const rows: ReviewRow[] = snapshot.docs.map((doc: any) => {
-            const d = doc.data() || {};
-            let createdAt: Date | null = null;
-            if (d.createdAt && d.createdAt.toDate) {
-              createdAt = d.createdAt.toDate();
-            }
-            return {
-              id: doc.id,
-              uid: d.uid,
-              name: d.name || "Unknown soldier",
-              rating: d.rating ?? 0,
-              comment: d.comment ?? "",
-              createdAt,
-            };
-          });
-
-          setReviews(rows);
-        });
-    } catch (err) {
-      console.error("Error setting up reviews listener", err);
-      setReviews([]);
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  // ---------- Updates listener ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let unsubscribe: (() => void) | undefined;
-
-    try {
-      const w = window as any;
-      const db = w?.db;
-      if (!db) {
-        console.warn("Firestore db not found on window (updates)");
-        setUpdates([]);
-        setUpdatesLoaded(true);
-        return;
-      }
-
-      unsubscribe = db
-        .collection("updates")
-        .orderBy("createdAt", "desc")
-        .limit(50)
-        .onSnapshot(
-          (snapshot: any) => {
-            if (snapshot.empty) {
-              setUpdates([]);
-              setUpdatesLoaded(true);
-              return;
-            }
-
-            const rows: UpdateRow[] = snapshot.docs.map((doc: any) => {
-              const d = doc.data() || {};
-              let createdAt: Date | null = null;
-              if (d.createdAt && d.createdAt.toDate) {
-                createdAt = d.createdAt.toDate();
-              }
-              return {
-                id: doc.id,
-                text: d.text ?? "",
-                createdAt,
-              };
-            });
-
-            setUpdates(rows);
-            setUpdatesLoaded(true);
-            setUpdateError(null);
-          },
-          (err: any) => {
-            console.error("Error listening to updates", err);
-            setUpdateError(
-              "Could not load updates. Check Firestore rules for the 'updates' collection."
-            );
-            setUpdates([]);
-            setUpdatesLoaded(true);
-          }
-        );
-    } catch (err) {
-      console.error("Error setting up updates listener", err);
-      setUpdates([]);
+    let active = true;
+    const load = async () => {
+      const [scoreResult, reviewResult, updateResult] = await Promise.all([
+        supabase.from("scores").select("id,name,distance,enemies_killed,bullets_fired,created_at").order("distance", { ascending: false }).limit(10),
+        supabase.from("reviews").select("id,user_id,name,rating,comment,created_at").order("created_at", { ascending: false }).limit(50),
+        supabase.from("updates").select("id,text,created_at").order("created_at", { ascending: false }).limit(50),
+      ]);
+      if (!active) return;
+      const now = Date.now();
+      if (!scoreResult.error) setScores((scoreResult.data || []).map((row, index) => ({
+        id: String(row.id), rank: index + 1, name: row.name, distance: row.distance,
+        enemiesKilled: row.enemies_killed, bulletsFired: row.bullets_fired || {},
+        daysAgo: Math.floor((now - new Date(row.created_at).getTime()) / 86400000),
+      })));
+      if (!reviewResult.error) setReviews((reviewResult.data || []).map((row) => ({
+        id: String(row.id), uid: row.user_id, name: row.name, rating: row.rating,
+        comment: row.comment, createdAt: new Date(row.created_at),
+      })));
+      if (!updateResult.error) {
+        setUpdates((updateResult.data || []).map((row) => ({ id: String(row.id), text: row.text, createdAt: new Date(row.created_at) })));
+        setUpdateError(null);
+      } else setUpdateError("Could not load updates.");
       setUpdatesLoaded(true);
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
     };
+    void load();
+    const channel = supabase.channel("wwiii-page-data")
+      .on("postgres_changes", { event: "*", schema: "public", table: "scores" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "updates" }, load)
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
   }, []);
 
-  // ---------- Save pending score to Firestore ----------
-  const savePendingScore = async (firebaseUser: any) => {
-    if (!pendingScore) return;
-    try {
-      const w = window as any;
-      const db = w.db;
-      if (!db || !w.firebase?.firestore) return;
-
-      const displayName =
-        firebaseUser.displayName ||
-        firebaseUser.email ||
-        currentUser?.displayName ||
-        currentUser?.email ||
-        "Unknown soldier";
-
-      // Check if this run would be in the top 10 before saving.
-      // We count how many existing runs have a strictly higher distance.
-      const scoresSnap = await db
-        .collection("scores")
-        .where("distance", ">", pendingScore.distance)
-        .get();
-
-      const higherCount = scoresSnap.size;
-      const rank = higherCount + 1;
-
-      if (higherCount >= 10) {
-        // Not in the top 10 – do not save this run.
-        setPendingScore(null);
-        setAuthStatus(
-          `Your run would be #${rank} on the leaderboard, but only the top 10 runs are saved. This run was not saved.`
-        );
-        return;
-      }
-
-      await db.collection("scores").add({
-        name: displayName,
-        enemiesKilled: pendingScore.enemiesKilled,
-        distance: pendingScore.distance,
-        bulletsFired: pendingScore.bulletsFired || {},
-        uid: firebaseUser.uid,
-        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
-      });
-
-      (window as any).dispatchEvent(
-        new CustomEvent("wwiii-run-saved", {
-          detail: { name: displayName },
-        })
-      );
-
+  // ---------- Save pending score to Supabase ----------
+  const savePendingScore = async (user: AuthUser, run = pendingScore) => {
+    if (!run) return;
+    const displayName = user.displayName || user.email || "Unknown soldier";
+    const { count, error: rankError } = await supabase.from("scores").select("id", { count: "exact", head: true }).gt("distance", run.distance);
+    if (rankError) throw rankError;
+    const rank = (count || 0) + 1;
+    if ((count || 0) >= 10) {
       setPendingScore(null);
-      setAuthStatus("Run saved to leaderboard.");
-    } catch (err) {
-      console.error("Error saving pending score", err);
-      setAuthError(
-        "We created your account, but couldn’t save this run. Future runs will save normally."
-      );
+      setAuthStatus(`Your run would be #${rank}, but only the top 10 runs are saved.`);
+      return;
     }
+    const { error } = await supabase.from("scores").insert({
+      user_id: user.uid, name: displayName, distance: run.distance,
+      enemies_killed: run.enemiesKilled, bullets_fired: run.bulletsFired || {},
+    });
+    if (error) throw error;
+    window.dispatchEvent(new CustomEvent("wwiii-run-saved", { detail: { name: displayName } }));
+    setPendingScore(null);
+    setAuthStatus("Run saved to leaderboard.");
   };
+
+  useEffect(() => {
+    const handleScore = (event: Event) => {
+      const run = (event as CustomEvent<{ run?: PendingScore }>).detail?.run;
+      if (!run) return;
+      if (currentUser) void savePendingScore(currentUser, run);
+      else setPendingScore(run);
+    };
+    window.addEventListener("wwiii-score-ready", handleScore);
+    return () => window.removeEventListener("wwiii-score-ready", handleScore);
+  }, [currentUser, pendingScore]);
 
   // ---------- Review submit ----------
   const handleReviewSubmit = async (e: FormEvent) => {
@@ -490,23 +260,16 @@ export default function HomePage() {
 
     try {
       setReviewSubmitting(true);
-      const w = window as any;
-      const db = w.db;
-      if (!db || !w.firebase?.firestore) {
-        setReviewError("Reviews are not available right now. Try again later.");
-        return;
-      }
-
       const name =
         currentUser.displayName || currentUser.email || "Unknown soldier";
 
-      await db.collection("reviews").add({
-        uid: currentUser.uid,
+      const { error } = await supabase.from("reviews").insert({
+        user_id: currentUser.uid,
         name,
         rating: reviewRating,
         comment: trimmedComment,
-        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
       });
+      if (error) throw error;
 
       setReviewStatus("Thanks for your review!");
       setReviewComment("");
@@ -514,7 +277,7 @@ export default function HomePage() {
       console.error("Error submitting review", err);
       if (err?.code === "permission-denied") {
         setReviewError(
-          "Your review was rejected by the server (permission denied). The site owner needs to update Firestore security rules for the 'reviews' collection."
+          "Your review was rejected by the server. Please sign in and try again."
         );
       } else {
         setReviewError("Could not submit your review. Please try again.");
@@ -542,26 +305,17 @@ export default function HomePage() {
 
     try {
       setUpdateSubmitting(true);
-      const w = window as any;
-      const db = w.db;
-      if (!db || !w.firebase?.firestore) {
-        setUpdateError(
-          "Updates are not available right now. Check Firestore initialization."
-        );
-        return;
-      }
-
-      await db.collection("updates").add({
+      const { error } = await supabase.from("updates").insert({
         text: trimmed,
-        createdAt: w.firebase.firestore.FieldValue.serverTimestamp(),
       });
+      if (error) throw error;
 
       setUpdateDraft("");
     } catch (err: any) {
       console.error("Error posting update", err);
       if (err?.code === "permission-denied") {
         setUpdateError(
-          "The update was rejected by the server (permission denied). Check the Firestore rules for the 'updates' collection."
+          "The update was rejected by the server. Check the Supabase policy."
         );
       } else {
         setUpdateError("Could not post update. Please try again.");
@@ -594,35 +348,6 @@ export default function HomePage() {
       <Script
         src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"
         strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        id="firebase-init"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-          const firebaseConfig = {
-            apiKey: "AIzaSyAteayH-i26BMMYrTHecwlJF1S4DKmDPXI",
-            authDomain: "wwiii-game-af0e7.firebaseapp.com",
-            projectId: "wwiii-game-af0e7",
-            storageBucket: "wwiii-game-af0e7.appspot.com",
-            messagingSenderId: "906432978784",
-            appId: "1:906432978784:web:433e23330bef1e6a3ac805"
-          };
-
-          if (!window.firebase.apps || !window.firebase.apps.length) {
-            window.firebase.initializeApp(firebaseConfig);
-          }
-          window.db = window.firebase.firestore();
-        `,
-        }}
       />
       <Script src="/WWIII/main.js" strategy="afterInteractive" />
 
