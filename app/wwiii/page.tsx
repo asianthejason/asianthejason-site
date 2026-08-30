@@ -5,6 +5,8 @@ import { useState, useEffect, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
+import GoogleAuthButton from "../components/GoogleAuthButton";
+import { useAuth } from "../../lib/useAuth";
 
 type TabKey = "instructions" | "updates" | "leaderboard" | "review";
 
@@ -76,25 +78,25 @@ export default function HomePage() {
   const [updateSubmitting, setUpdateSubmitting] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  // Auth state
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [showAuthForm, setShowAuthForm] = useState(false);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authDisplayName, setAuthDisplayName] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authStatus, setAuthStatus] = useState<string | null>(null);
-
-  // During signup we temporarily hide auth header changes so
-  // the user never appears as "logged in" for a split second.
-  const [signupVerificationInFlight, setSignupVerificationInFlight] =
-    useState(false);
+  const {
+    currentUser, authReady, showAuthForm, setShowAuthForm,
+    authMode, setAuthMode, authEmail, setAuthEmail,
+    authPassword, setAuthPassword, authDisplayName, setAuthDisplayName,
+    authLoading, authError, setAuthError, authStatus, setAuthStatus,
+    handleAuthSubmit, handleSignOut, userLabel,
+  } = useAuth();
 
   // Run that the game wants to save AFTER login/signup
   const [pendingScore, setPendingScore] = useState<PendingScore | null>(null);
+
+  // The legacy Phaser bundle reads this tiny bridge when saving a run.
+  // It intentionally exposes only the current Supabase user's public fields.
+  useEffect(() => {
+    const w = window as typeof window & {
+      auth?: { currentUser: AuthUser | null };
+    };
+    w.auth = { currentUser };
+  }, [currentUser]);
 
   const isAdmin =
     currentUser?.email &&
@@ -110,38 +112,6 @@ export default function HomePage() {
     });
     return `${formatter.format(d)} Update`;
   };
-
-  // ---------- Auth listener ----------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const w = window as any;
-
-    if (!w.auth && w.firebase?.auth) {
-      w.auth = w.firebase.auth();
-    }
-
-    const auth = w.auth;
-    if (!auth) {
-      console.warn("Firebase auth not available on window");
-      return;
-    }
-
-    const unsub = auth.onAuthStateChanged((user: any) => {
-      if (user) {
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-        });
-      } else {
-        setCurrentUser(null);
-      }
-      setAuthReady(true);
-    });
-
-    return () => unsub();
-  }, []);
 
   // ---------- Keep leaderboard/review names in sync with current display name ----------
   useEffect(() => {
@@ -498,172 +468,6 @@ export default function HomePage() {
     }
   };
 
-  // ---------- Auth actions (with email verification) ----------
-  const handleAuthSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthStatus(null);
-    setAuthLoading(true);
-
-    const modeAtStart = authMode;
-    if (modeAtStart === "signup") {
-      setSignupVerificationInFlight(true);
-    }
-
-    try {
-      const w = window as any;
-      const auth = w.auth;
-      const db = w.db;
-      const firebase = w.firebase;
-      if (!auth) {
-        setAuthError("Authentication is not ready. Try again in a moment.");
-        return;
-      }
-
-      if (modeAtStart === "signup") {
-        const rawDisplayName = authDisplayName.trim();
-        if (!rawDisplayName) {
-          setAuthError("Please enter a display name.");
-          return;
-        }
-        const displayNameLower = rawDisplayName.toLowerCase();
-
-        // Create auth user (this signs them in)
-        const cred = await auth.createUserWithEmailAndPassword(
-          authEmail,
-          authPassword
-        );
-
-        await cred.user.updateProfile({
-          displayName: rawDisplayName,
-        });
-
-        // Store user profile document
-        if (db && firebase?.firestore) {
-          await db
-            .collection("users")
-            .doc(cred.user.uid)
-            .set(
-              {
-                displayName: rawDisplayName,
-                displayNameLower,
-                email: authEmail.trim(),
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-        }
-
-        // Send verification email (no custom continue URL)
-        try {
-          await cred.user.sendEmailVerification();
-          setAuthStatus(
-            "Account created. Check your inbox and junk mail for the verification email before logging in."
-          );
-        } catch (err: any) {
-          console.error("Error sending verification email on signup", err);
-          const code = err?.code || "";
-          if (code === "auth/too-many-requests") {
-            setAuthError(
-              "Account created, but we hit a temporary email limit. Wait a bit, then use 'Log in' and we'll try sending the verification again."
-            );
-          } else {
-            setAuthError(
-              "Account created, but we couldn’t send a verification email automatically. Try again later or contact the site owner."
-            );
-          }
-        }
-
-        // Force them to verify before being considered logged in
-        await auth.signOut();
-
-        // The current run won't be saved until after verification + login
-        setPendingScore(null);
-        setAuthPassword("");
-        // Keep the signup modal open with the status/error message
-      } else {
-        // Log in
-        const cred = await auth.signInWithEmailAndPassword(
-          authEmail,
-          authPassword
-        );
-
-        // Refresh user to get up-to-date emailVerified flag
-        await cred.user.reload();
-
-        if (!cred.user.emailVerified) {
-          // Try to send / re-send verification email
-          try {
-            await cred.user.sendEmailVerification();
-            setAuthError(
-              "You need to verify your email before logging in. We just sent a verification link to your inbox."
-            );
-          } catch (err: any) {
-            console.error("Error sending verification email on login", err);
-            const code = err?.code || "";
-            if (code === "auth/too-many-requests") {
-              setAuthError(
-                "You need to verify your email before logging in, and we’ve temporarily hit an email limit. Wait a bit and try again."
-              );
-            } else {
-              setAuthError(
-                "You need to verify your email before logging in, and we couldn’t send a new verification email automatically."
-              );
-            }
-          }
-
-          // Don't keep them signed in if not verified
-          await auth.signOut();
-          return;
-        }
-
-        // Email is verified – proceed
-        if (pendingScore) {
-          await savePendingScore(cred.user);
-        }
-
-        setAuthStatus("Signed in successfully.");
-        setAuthPassword("");
-        setShowAuthForm(false);
-      }
-    } catch (err: any) {
-      console.error("Auth error", err);
-      const code = err?.code || "";
-      let msg =
-        err?.message || "Something went wrong. Please check your details.";
-      if (code === "auth/email-already-in-use") {
-        msg = "That email is already in use. Try logging in instead.";
-      } else if (code === "auth/invalid-email") {
-        msg = "That email address doesn’t look valid.";
-      } else if (code === "auth/weak-password") {
-        msg = "Password should be at least 6 characters.";
-      } else if (code === "permission-denied") {
-        msg =
-          "We couldn't finish creating your account because of a permissions issue. Please try again or contact the site owner.";
-      }
-      setAuthError(msg);
-    } finally {
-      setAuthLoading(false);
-      if (modeAtStart === "signup") {
-        setSignupVerificationInFlight(false);
-      }
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      const w = window as any;
-      const auth = w.auth;
-      if (!auth) return;
-      await auth.signOut();
-      setAuthStatus("Signed out.");
-      setShowAuthForm(false);
-      setPendingScore(null);
-    } catch (err) {
-      console.error("Sign out error", err);
-    }
-  };
-
   // ---------- Review submit ----------
   const handleReviewSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -767,11 +571,7 @@ export default function HomePage() {
     }
   };
 
-  // For the header, we hide auth changes during signup verification
-  const headerUser = signupVerificationInFlight ? null : currentUser;
-
-  const userLabel =
-    headerUser?.displayName || headerUser?.email || "Unknown soldier";
+  const headerUser = currentUser;
 
   // helper to stop key events from reaching the game
   const stopKeyEvent = (e: any) => {
@@ -804,10 +604,6 @@ export default function HomePage() {
         strategy="beforeInteractive"
       />
       <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
         id="firebase-init"
         strategy="beforeInteractive"
         dangerouslySetInnerHTML={{
@@ -825,7 +621,6 @@ export default function HomePage() {
             window.firebase.initializeApp(firebaseConfig);
           }
           window.db = window.firebase.firestore();
-          window.auth = window.firebase.auth();
         `,
         }}
       />
@@ -1325,6 +1120,7 @@ export default function HomePage() {
               </button>
             </div>
 
+            <GoogleAuthButton />
             <form onSubmit={handleAuthSubmit} className="auth-fields">
               {authMode === "signup" && (
                 <div className="auth-field">

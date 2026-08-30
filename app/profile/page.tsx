@@ -5,12 +5,8 @@ import { useEffect, useState, FormEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
-
-interface AuthUser {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
+import { useAuth } from "../../lib/useAuth";
+import { supabase } from "../../lib/supabase";
 
 interface GameConfig {
   id: string;
@@ -49,8 +45,7 @@ const GAME_CONFIGS: GameConfig[] = [
 ];
 
 export default function ProfilePage() {
-  const [authReady, setAuthReady] = useState(false);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const { currentUser, authReady, handleSignOut, userLabel } = useAuth();
 
   // Display name form
   const [displayName, setDisplayName] = useState("");
@@ -73,39 +68,10 @@ export default function ProfilePage() {
     GAME_CONFIGS.map((cfg) => ({ ...cfg, loading: true }))
   );
 
-  // ---------- Auth listener ----------
+  // Keep the editable field synchronized with the Supabase profile.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const w = window as any;
-
-    if (!w.auth && w.firebase?.auth) {
-      w.auth = w.firebase.auth();
-    }
-
-    const auth = w.auth;
-    if (!auth) {
-      console.warn("Firebase auth not available on window (profile page)");
-      return;
-    }
-
-    const unsub = auth.onAuthStateChanged((user: any) => {
-      if (user) {
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-        });
-        setDisplayName(user.displayName || "");
-      } else {
-        setCurrentUser(null);
-        setDisplayName("");
-      }
-      setAuthReady(true);
-    });
-
-    return () => unsub();
-  }, []);
+    setDisplayName(currentUser?.displayName || "");
+  }, [currentUser?.displayName]);
 
   // ---------- Fetch per-game high scores / ranks ----------
   useEffect(() => {
@@ -215,59 +181,21 @@ export default function ProfilePage() {
 
     setDisplayNameLoading(true);
     try {
-      const w = window as any;
-      const auth = w.auth;
-      const db = w.db;
-      const firebase = w.firebase;
-
-      if (!auth || !auth.currentUser) {
+      if (!currentUser) {
         setDisplayNameError("You must be signed in to update your display name.");
         return;
       }
-
-      const user = auth.currentUser;
       const newName = trimmed;
       const newNameLower = newName.toLowerCase();
-
-      // Optional: enforce uniqueness (case-insensitive) against other users
-      if (db && firebase?.firestore) {
-        const existingSnap = await db
-          .collection("users")
-          .where("displayNameLower", "==", newNameLower)
-          .limit(1)
-          .get();
-
-        const takenByOther =
-          !existingSnap.empty && existingSnap.docs[0].id !== user.uid;
-
-        if (takenByOther) {
-          setDisplayNameError(
-            "That display name is already taken. Please choose another one."
-          );
-          return;
-        }
+      const { data: existing } = await supabase.from("users").select("id").eq("display_name_lower", newNameLower).neq("id", currentUser.uid).maybeSingle();
+      if (existing) {
+        setDisplayNameError("That display name is already taken. Please choose another one.");
+        return;
       }
-
-      // Update Firebase Auth profile
-      await user.updateProfile({ displayName: newName });
-
-      // Update Firestore users/{uid} doc
-      if (db && firebase?.firestore) {
-        await db
-          .collection("users")
-          .doc(user.uid)
-          .set(
-            {
-              displayName: newName,
-              displayNameLower: newNameLower,
-            },
-            { merge: true }
-          );
-      }
-
-      setCurrentUser((prev) =>
-        prev ? { ...prev, displayName: newName } : prev
-      );
+      const { error: authError } = await supabase.auth.updateUser({ data: { display_name: newName } });
+      if (authError) throw authError;
+      const { error: profileError } = await supabase.from("users").upsert({ id: currentUser.uid, email: currentUser.email, display_name: newName, display_name_lower: newNameLower });
+      if (profileError) throw profileError;
       setDisplayNameStatus("Display name updated.");
     } catch (err: any) {
       console.error("Error updating display name", err);
@@ -296,32 +224,22 @@ export default function ProfilePage() {
 
     setPasswordLoading(true);
     try {
-      const w = window as any;
-      const auth = w.auth;
-      const firebase = w.firebase;
-
-      if (!auth || !auth.currentUser) {
+      if (!currentUser) {
         setPasswordError("You must be signed in to change your password.");
         return;
       }
 
-      const user = auth.currentUser;
-      if (!user.email) {
+      if (!currentUser.email) {
         setPasswordError(
           "Your account does not have an email address. Password cannot be changed here."
         );
         return;
       }
 
-      const credential =
-        firebase.auth.EmailAuthProvider.credential(
-          user.email,
-          currentPassword
-        );
-
-      // Re-authenticate, then update password
-      await user.reauthenticateWithCredential(credential);
-      await user.updatePassword(newPassword);
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email: currentUser.email, password: currentPassword });
+      if (loginError) throw loginError;
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) throw updateError;
 
       setPasswordStatus("Password updated successfully.");
       setCurrentPassword("");
@@ -348,23 +266,7 @@ export default function ProfilePage() {
     }
   };
 
-  // ---------- Sign out ----------
-  const handleSignOut = async () => {
-    try {
-      const w = window as any;
-      const auth = w.auth;
-      if (!auth) return;
-      await auth.signOut();
-      // After sign-out, kick back to main page
-      window.location.href = "/";
-    } catch (err) {
-      console.error("Sign out error", err);
-    }
-  };
-
   const headerUser = currentUser;
-  const userLabel =
-    headerUser?.displayName || headerUser?.email || "Unknown soldier";
 
   return (
     <>
@@ -375,10 +277,6 @@ export default function ProfilePage() {
       />
       <Script
         src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"
-        strategy="beforeInteractive"
-      />
-      <Script
-        src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"
         strategy="beforeInteractive"
       />
       <Script
@@ -400,9 +298,6 @@ export default function ProfilePage() {
           }
           if (!window.db) {
             window.db = window.firebase.firestore();
-          }
-          if (!window.auth) {
-            window.auth = window.firebase.auth();
           }
         `,
         }}
