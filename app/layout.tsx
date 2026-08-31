@@ -26,8 +26,36 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="initial-page-load" suppressHydrationWarning>
       <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              #initial-page-cover {
+                position: fixed;
+                inset: 0;
+                z-index: 2147483647;
+                display: grid;
+                place-items: center;
+                background: #02050d;
+                color: #f5f7ff;
+                opacity: 1;
+                transition: opacity 140ms ease;
+              }
+              #initial-page-cover span {
+                font: 600 15px/1 Arial, Helvetica, sans-serif;
+                letter-spacing: 0.22em;
+              }
+              html:not(.initial-page-load) #initial-page-cover {
+                opacity: 0;
+                pointer-events: none;
+              }
+            `,
+          }}
+        />
+        <noscript>
+          <style>{`#initial-page-cover { display: none !important; }`}</style>
+        </noscript>
         {/* Google AdSense */}
         <Script
           id="adsense-script"
@@ -40,10 +68,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <div id="initial-page-cover" aria-hidden="true">
+          <span>ASIANTHEJASON</span>
+        </div>
         {children}
 
         {/* Cookie consent banner (shows until user accepts/declines) */}
         <CookieConsent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `requestAnimationFrame(function(){requestAnimationFrame(function(){document.documentElement.classList.remove("initial-page-load");setTimeout(function(){var cover=document.getElementById("initial-page-cover");if(cover)cover.remove();},180);});});`,
+          }}
+        />
       </body>
     </html>
   );
