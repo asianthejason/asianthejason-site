@@ -30,18 +30,9 @@
             package.location = util.normalize_path(flf_config.root + flf_config.package);
         }
 
-        //analytics
-        if (window.location.href.indexOf('http') === 0) {
-            (function(c,l,a,r,i,t,y){
-                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-            })(window, document, "clarity", "script", "7e9t7td3ig");
-        }
-
         util.div('window_caption_title').innerHTML = buildinfo.version;
 
-        var manager = new Manager(package, buildinfo);
+        new Manager(package, buildinfo);
 
     });
 

@@ -15,9 +15,32 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AsiantheJason",
+  metadataBase: new URL("https://www.asianthejason.com"),
+  title: {
+    default: "AsiantheJason | Software Projects and Developer Portfolio",
+    template: "%s | AsiantheJason",
+  },
   description:
-    "A silly game by AsiantheJason",
+    "Jason Huang's software development portfolio featuring robotics tools, Alberta energy dashboards, web applications, and browser projects.",
+  applicationName: "AsiantheJason",
+  authors: [{ name: "Jason Huang", url: "https://www.asianthejason.com" }],
+  creator: "Jason Huang",
+  category: "technology",
+  keywords: [
+    "software development",
+    "developer portfolio",
+    "web applications",
+    "FTC robotics",
+    "Alberta energy",
+  ],
+  openGraph: {
+    type: "website",
+    url: "https://www.asianthejason.com",
+    siteName: "AsiantheJason",
+    title: "AsiantheJason | Software Projects and Developer Portfolio",
+    description:
+      "Software projects, robotics tools, energy dashboards, web applications, and browser projects by Jason Huang.",
+  },
 };
 
 export default function RootLayout({

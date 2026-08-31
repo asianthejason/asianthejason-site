@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, KeyboardEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import SiteHeader from "./components/SiteHeader";
@@ -51,7 +51,7 @@ const DEV_PROJECTS = [
 
 export default function HomePage() {
   const currentYear = new Date().getFullYear();
-  const [homeTab, setHomeTab] = useState<HomeTab>("games");
+  const [homeTab, setHomeTab] = useState<HomeTab>("dev");
 
   // Use the shared auth hook
   const {
@@ -78,7 +78,7 @@ export default function HomePage() {
   } = useAuth();
 
   // Helper to stop key events from reaching the page in the modal inputs
-  const stopKeyEvent = (e: any) => {
+  const stopKeyEvent = (e: KeyboardEvent<HTMLElement>) => {
     e.stopPropagation();
   };
 
@@ -103,7 +103,7 @@ export default function HomePage() {
         {/* Hero / title */}
         <section className="home-hero">
           <div className="home-hero-text">
-            <h1>Welcome to my little corner on the internet 🎮</h1>
+            <h1>Software projects, tools, and experiments by Jason Huang</h1>
           </div>
         </section>
 
@@ -118,7 +118,7 @@ export default function HomePage() {
               appreciated.
             </p>
             <p className="home-support-small">
-              I&apos;ll be adding more games, tools, and features over time —
+              I&apos;ll be adding more developer tools, applications, games, and features over time —
               your support goes directly into hosting, tools, and time to keep
               improving everything.
             </p>
@@ -138,17 +138,6 @@ export default function HomePage() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={homeTab === "games"}
-                className={
-                  "home-tab" + (homeTab === "games" ? " home-tab-active" : "")
-                }
-                onClick={() => setHomeTab("games")}
-              >
-                Games
-              </button>
-              <button
-                type="button"
-                role="tab"
                 aria-selected={homeTab === "dev"}
                 className={
                   "home-tab" + (homeTab === "dev" ? " home-tab-active" : "")
@@ -156,6 +145,17 @@ export default function HomePage() {
                 onClick={() => setHomeTab("dev")}
               >
                 Dev Projects
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={homeTab === "games"}
+                className={
+                  "home-tab" + (homeTab === "games" ? " home-tab-active" : "")
+                }
+                onClick={() => setHomeTab("games")}
+              >
+                Games
               </button>
             </div>
 
