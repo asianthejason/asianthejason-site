@@ -77,7 +77,7 @@ export default function RootLayout({
         <CookieConsent />
         <script
           dangerouslySetInnerHTML={{
-            __html: `requestAnimationFrame(function(){requestAnimationFrame(function(){document.documentElement.classList.remove("initial-page-load");setTimeout(function(){var cover=document.getElementById("initial-page-cover");if(cover)cover.remove();},180);});});`,
+            __html: `requestAnimationFrame(function(){requestAnimationFrame(function(){document.documentElement.classList.remove("initial-page-load");});});`,
           }}
         />
       </body>
