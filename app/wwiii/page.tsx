@@ -497,8 +497,8 @@ export default function HomePage() {
                         <div className="key-control key-f">
                           <kbd>F</kbd><span>Open shop</span>
                         </div>
-                        <div className="key-control key-home">
-                          <kbd>Home</kbd><span>Use medkit</span>
+                        <div className="key-control key-space">
+                          <kbd>Space</kbd><span>Use medkit</span>
                         </div>
                       </div>
                     </section>
@@ -1380,9 +1380,9 @@ export default function HomePage() {
         .key-a { grid-column: 1; grid-row: 2; }
         .key-d { grid-column: 3; grid-row: 2; }
         .key-f { grid-column: 4; grid-row: 2; }
-        .key-home { grid-column: 6 / span 2; grid-row: 2; }
-        .key-home kbd {
-          width: 68px;
+        .key-space { grid-column: 2 / span 3; grid-row: 3; }
+        .key-space kbd {
+          width: 150px;
           font-size: 13px;
         }
         .key-w kbd { animation-delay: -0.2s; }
@@ -2058,6 +2058,11 @@ export default function HomePage() {
             width: 38px;
             height: 38px;
             font-size: 15px;
+          }
+
+          .key-space kbd {
+            width: 110px;
+            font-size: 12px;
           }
 
           .key-control span {

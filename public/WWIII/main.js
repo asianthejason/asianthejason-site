@@ -160,7 +160,7 @@ const DEFAULT_BINDINGS = {
   openShop: 'F',
   weaponPrev: 'Q',
   weaponNext: 'E',
-  heal: 'Home'
+  heal: 'Space'
 };
 
 let controlBindings = null;
@@ -195,8 +195,8 @@ function loadControlBindings() {
     const raw = window.localStorage.getItem('wwiiiControls');
     if (!raw) return { ...defaults };
     const parsed = JSON.parse(raw);
-    // Migrate the original medkit default without overriding a custom binding.
-    if (parsed.heal === 'H') parsed.heal = defaults.heal;
+    // Migrate both earlier medkit defaults without overriding other custom bindings.
+    if (parsed.heal === 'H' || parsed.heal === 'Home') parsed.heal = defaults.heal;
     return { ...defaults, ...parsed };
   } catch (e) {
     console.warn('Failed to load control bindings, using defaults', e);
@@ -1888,10 +1888,10 @@ function showStartMainScreen(scene) {
   sectionTitle(centerX - 230, 'KEYBOARD');
   sectionTitle(centerX + 265, 'MOUSE');
 
-  const drawKey = (x, y, key, label, accent = 0x38bdf8) => {
+  const drawKey = (x, y, key, label, accent = 0x38bdf8, width = 62) => {
     const keyBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
-    keyBg.fillStyle(0x17233a, 1).fillRoundedRect(x - 31, y - 27, 62, 54, 8);
-    keyBg.lineStyle(2, accent, 0.9).strokeRoundedRect(x - 31, y - 27, 62, 54, 8);
+    keyBg.fillStyle(0x17233a, 1).fillRoundedRect(x - width / 2, y - 27, width, 54, 8);
+    keyBg.lineStyle(2, accent, 0.9).strokeRoundedRect(x - width / 2, y - 27, width, 54, 8);
     const keyText = scene.add.text(x, y - 4, normalizeKeyName(key), {
       font: 'bold 21px Arial', fill: '#ffffff'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
@@ -1910,8 +1910,8 @@ function showStartMainScreen(scene) {
   drawKey(centerX - 365, keyTopY + 105, b.moveLeft, 'Move left');
   drawKey(centerX - 365 + keyStep * 2, keyTopY + 105, b.moveRight, 'Move right');
   drawKey(centerX - 365 + keyStep * 3, keyTopY + 105, b.openShop, 'Shop', 0xf97316);
-  // Home belongs to the navigation cluster, visually separated from the letters.
-  drawKey(centerX + 15, keyTopY + 105, b.heal, 'Medkit', 0xef4444);
+  // Spacebar sits beneath the letter rows, matching a physical keyboard.
+  drawKey(centerX - 253, keyTopY + 205, b.heal, 'Use medkit', 0xef4444, 190);
 
   // Mouse diagram with alternating click indicators.
   const mouseX = centerX + 270;
