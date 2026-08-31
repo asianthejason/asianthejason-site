@@ -23,7 +23,7 @@ interface ScoreRow {
     Sniper?: number;
     "Machine Gun"?: number;
   };
-  daysAgo: number;
+  createdAt: Date | null;
 }
 
 interface ReviewRow {
@@ -114,6 +114,15 @@ export default function HomePage() {
     return `${formatter.format(d)} Update`;
   };
 
+  const formatCalendarDate = (d: Date | null | undefined) => {
+    if (!d || Number.isNaN(d.getTime())) return "Date unavailable";
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(d);
+  };
+
   // ---------- Listen for "open auth" from Phaser ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -180,11 +189,10 @@ export default function HomePage() {
         supabase.from("updates").select("id,text,created_at").order("created_at", { ascending: false }).limit(50),
       ]);
       if (!active) return;
-      const now = Date.now();
       if (!scoreResult.error) setScores((scoreResult.data || []).map((row, index) => ({
         id: String(row.id), rank: index + 1, name: row.name, distance: row.distance,
         enemiesKilled: row.enemies_killed, bulletsFired: row.bullets_fired || {},
-        daysAgo: Math.floor((now - new Date(row.created_at).getTime()) / 86400000),
+        createdAt: row.created_at ? new Date(row.created_at) : null,
       })));
       if (!reviewResult.error) setReviews((reviewResult.data || []).map((row) => ({
         id: String(row.id), uid: row.user_id, name: row.name, rating: row.rating,
@@ -539,7 +547,7 @@ export default function HomePage() {
                       <thead>
                         <tr>
                           <th>Rank</th>
-                          <th>Days Ago</th>
+                          <th>Date</th>
                           <th>Player</th>
                           <th>Enemies Killed</th>
                           <th>Pistol Shots</th>
@@ -569,7 +577,7 @@ export default function HomePage() {
                           scores.map((s) => (
                             <tr key={s.id}>
                               <td>{s.rank}</td>
-                              <td>{s.daysAgo}</td>
+                              <td>{formatCalendarDate(s.createdAt)}</td>
                               <td>{s.name}</td>
                               <td>{s.enemiesKilled}</td>
                               <td>{s.bulletsFired?.Pistol ?? 0}</td>
@@ -733,8 +741,13 @@ export default function HomePage() {
                           {reviews.map((r) => (
                             <li key={r.id} className="review-item">
                               <div className="review-item-header">
-                                <span className="review-item-name">
-                                  {r.name}
+                                <span className="review-item-author">
+                                  <span className="review-item-name">
+                                    {r.name}
+                                  </span>
+                                  <span className="review-item-date">
+                                    {formatCalendarDate(r.createdAt)}
+                                  </span>
                                 </span>
                                 <span className="review-item-stars">
                                   {Array.from({ length: 5 }).map((_, i) => {
@@ -1387,6 +1400,18 @@ export default function HomePage() {
 
         .review-item-name {
           font-weight: 600;
+        }
+
+        .review-item-author {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 6px;
+        }
+
+        .review-item-date {
+          font-size: 12px;
+          opacity: 0.65;
         }
 
         .review-item-stars {
