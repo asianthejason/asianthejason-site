@@ -497,8 +497,8 @@ export default function HomePage() {
                         <div className="key-control key-f">
                           <kbd>F</kbd><span>Open shop</span>
                         </div>
-                        <div className="key-control key-h">
-                          <kbd>H</kbd><span>Use medkit</span>
+                        <div className="key-control key-home">
+                          <kbd>Home</kbd><span>Use medkit</span>
                         </div>
                       </div>
                     </section>
@@ -1380,7 +1380,11 @@ export default function HomePage() {
         .key-a { grid-column: 1; grid-row: 2; }
         .key-d { grid-column: 3; grid-row: 2; }
         .key-f { grid-column: 4; grid-row: 2; }
-        .key-h { grid-column: 6; grid-row: 2; }
+        .key-home { grid-column: 6 / span 2; grid-row: 2; }
+        .key-home kbd {
+          width: 68px;
+          font-size: 13px;
+        }
         .key-w kbd { animation-delay: -0.2s; }
         .key-a kbd { animation-delay: -1.1s; }
         .key-d kbd { animation-delay: -2.1s; }

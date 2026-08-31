@@ -160,7 +160,7 @@ const DEFAULT_BINDINGS = {
   openShop: 'F',
   weaponPrev: 'Q',
   weaponNext: 'E',
-  heal: 'H'
+  heal: 'Home'
 };
 
 let controlBindings = null;
@@ -195,6 +195,8 @@ function loadControlBindings() {
     const raw = window.localStorage.getItem('wwiiiControls');
     if (!raw) return { ...defaults };
     const parsed = JSON.parse(raw);
+    // Migrate the original medkit default without overriding a custom binding.
+    if (parsed.heal === 'H') parsed.heal = defaults.heal;
     return { ...defaults, ...parsed };
   } catch (e) {
     console.warn('Failed to load control bindings, using defaults', e);
@@ -1823,8 +1825,8 @@ function showStartMainScreen(scene) {
     .setDepth(4000);
   startScreenObjects.push(overlay);
 
-  const panelW = 1120;
-  const panelH = 850;
+  const panelW = 960;
+  const panelH = 720;
 
   const panel = scene.add.rectangle(centerX, centerY, panelW, panelH, 0x080f1f, 0.97)
     .setStrokeStyle(2, 0x38bdf8, 0.7)
@@ -1832,14 +1834,14 @@ function showStartMainScreen(scene) {
     .setDepth(4001);
   startScreenObjects.push(panel);
 
-  const title = scene.add.text(centerX, centerY - 370, 'WWIII — ENDLESS DEFENSE', {
-    font: 'bold 42px Arial',
+  const title = scene.add.text(centerX, centerY - 310, 'WWIII — ENDLESS DEFENSE', {
+    font: 'bold 34px Arial',
     fill: '#ffffff'
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
   startScreenObjects.push(title);
 
-  const subtitle = scene.add.text(centerX, centerY - 322, 'FIELD BRIEFING', {
-    font: 'bold 16px Arial',
+  const subtitle = scene.add.text(centerX, centerY - 272, 'FIELD BRIEFING', {
+    font: 'bold 14px Arial',
     fill: '#38bdf8',
     letterSpacing: 5
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4002);
@@ -1848,98 +1850,101 @@ function showStartMainScreen(scene) {
   const b = controlBindings || getDefaultBindings();
 
   // Objective banner
-  const objectiveY = centerY - 242;
-  const objectiveBg = scene.add.rectangle(centerX, objectiveY, 1000, 110, 0x101b31, 1)
+  const objectiveY = centerY - 212;
+  const objectiveBg = scene.add.rectangle(centerX, objectiveY, 860, 90, 0x101b31, 1)
     .setStrokeStyle(2, 0x22c55e, 0.55)
     .setScrollFactor(0).setDepth(4002);
   startScreenObjects.push(objectiveBg);
 
   const target = scene.add.graphics().setScrollFactor(0).setDepth(4003);
-  target.lineStyle(5, 0x22c55e, 1).strokeCircle(centerX - 430, objectiveY, 30);
-  target.lineStyle(3, 0x38bdf8, 1).strokeCircle(centerX - 430, objectiveY, 15);
-  target.fillStyle(0xf97316, 1).fillCircle(centerX - 430, objectiveY, 5);
+  target.lineStyle(4, 0x22c55e, 1).strokeCircle(centerX - 370, objectiveY, 24);
+  target.lineStyle(2, 0x38bdf8, 1).strokeCircle(centerX - 370, objectiveY, 12);
+  target.fillStyle(0xf97316, 1).fillCircle(centerX - 370, objectiveY, 4);
   target.lineStyle(2, 0xffffff, 0.7)
-    .lineBetween(centerX - 468, objectiveY, centerX - 392, objectiveY)
-    .lineBetween(centerX - 430, objectiveY - 38, centerX - 430, objectiveY + 38);
+    .lineBetween(centerX - 400, objectiveY, centerX - 340, objectiveY)
+    .lineBetween(centerX - 370, objectiveY - 30, centerX - 370, objectiveY + 30);
   startScreenObjects.push(target);
 
-  const objectiveLabel = scene.add.text(centerX - 365, objectiveY - 30, 'YOUR OBJECTIVE', {
-    font: 'bold 15px Arial', fill: '#4ade80', letterSpacing: 2
+  const objectiveLabel = scene.add.text(centerX - 320, objectiveY - 27, 'YOUR OBJECTIVE', {
+    font: 'bold 13px Arial', fill: '#4ade80', letterSpacing: 2
   }).setScrollFactor(0).setDepth(4003);
-  const objectiveText = scene.add.text(centerX - 365, objectiveY - 2,
+  const objectiveText = scene.add.text(centerX - 320, objectiveY - 3,
     'Survive the assault. Defeat enemies. Push farther.', {
-      font: 'bold 23px Arial', fill: '#ffffff'
+      font: 'bold 19px Arial', fill: '#ffffff'
     }).setScrollFactor(0).setDepth(4003);
-  const objectiveHint = scene.add.text(centerX - 365, objectiveY + 31,
+  const objectiveHint = scene.add.text(centerX - 320, objectiveY + 25,
     'Earn cash, improve your loadout, and set the highest distance.', {
-      font: '17px Arial', fill: '#a9b7cc'
+      font: '14px Arial', fill: '#a9b7cc'
     }).setScrollFactor(0).setDepth(4003);
   startScreenObjects.push(objectiveLabel, objectiveText, objectiveHint);
 
-  const sectionY = centerY - 130;
+  const sectionY = centerY - 145;
   const sectionTitle = (x, text) => {
     const heading = scene.add.text(x, sectionY, text, {
       font: 'bold 15px Arial', fill: '#94a3b8', letterSpacing: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4003);
     startScreenObjects.push(heading);
   };
-  sectionTitle(centerX - 260, 'KEYBOARD');
-  sectionTitle(centerX + 290, 'MOUSE');
+  sectionTitle(centerX - 230, 'KEYBOARD');
+  sectionTitle(centerX + 265, 'MOUSE');
 
   const drawKey = (x, y, key, label, accent = 0x38bdf8) => {
     const keyBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
-    keyBg.fillStyle(0x17233a, 1).fillRoundedRect(x - 38, y - 34, 76, 68, 10);
-    keyBg.lineStyle(2, accent, 0.9).strokeRoundedRect(x - 38, y - 34, 76, 68, 10);
+    keyBg.fillStyle(0x17233a, 1).fillRoundedRect(x - 31, y - 27, 62, 54, 8);
+    keyBg.lineStyle(2, accent, 0.9).strokeRoundedRect(x - 31, y - 27, 62, 54, 8);
     const keyText = scene.add.text(x, y - 4, normalizeKeyName(key), {
-      font: 'bold 26px Arial', fill: '#ffffff'
+      font: 'bold 21px Arial', fill: '#ffffff'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
-    const keyLabel = scene.add.text(x, y + 50, label, {
-      font: '15px Arial', fill: '#cbd5e1', align: 'center'
+    const keyLabel = scene.add.text(x, y + 39, label, {
+      font: '13px Arial', fill: '#cbd5e1', align: 'center'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
     startScreenObjects.push(keyBg, keyText, keyLabel);
   };
 
-  const keyTopY = centerY - 55;
-  drawKey(centerX - 375, keyTopY, b.weaponPrev, 'Previous');
-  drawKey(centerX - 260, keyTopY, b.moveUp, 'Jump', 0x22c55e);
-  drawKey(centerX - 145, keyTopY, b.weaponNext, 'Next');
-  drawKey(centerX - 375, keyTopY + 130, b.moveLeft, 'Move left');
-  drawKey(centerX - 260, keyTopY + 130, b.openShop, 'Shop', 0xf97316);
-  drawKey(centerX - 145, keyTopY + 130, b.moveRight, 'Move right');
-  drawKey(centerX - 260, keyTopY + 260, b.heal, 'Use medkit', 0xef4444);
+  const keyTopY = centerY - 78;
+  const keyStep = 88;
+  // Letter keys follow their physical QWERTY rows. The S-key gap is intentional.
+  drawKey(centerX - 385, keyTopY, b.weaponPrev, 'Previous');
+  drawKey(centerX - 385 + keyStep, keyTopY, b.moveUp, 'Jump', 0x22c55e);
+  drawKey(centerX - 385 + keyStep * 2, keyTopY, b.weaponNext, 'Next');
+  drawKey(centerX - 365, keyTopY + 105, b.moveLeft, 'Move left');
+  drawKey(centerX - 365 + keyStep * 2, keyTopY + 105, b.moveRight, 'Move right');
+  drawKey(centerX - 365 + keyStep * 3, keyTopY + 105, b.openShop, 'Shop', 0xf97316);
+  // Home belongs to the navigation cluster, visually separated from the letters.
+  drawKey(centerX + 15, keyTopY + 105, b.heal, 'Medkit', 0xef4444);
 
   // Mouse diagram with alternating click indicators.
-  const mouseX = centerX + 290;
-  const mouseY = centerY + 30;
+  const mouseX = centerX + 270;
+  const mouseY = centerY - 3;
   const mouse = scene.add.graphics().setScrollFactor(0).setDepth(4003);
-  mouse.fillStyle(0x17233a, 1).fillRoundedRect(mouseX - 85, mouseY - 120, 170, 240, 75);
-  mouse.lineStyle(3, 0x38bdf8, 0.9).strokeRoundedRect(mouseX - 85, mouseY - 120, 170, 240, 75);
-  mouse.lineStyle(2, 0x64748b, 1).lineBetween(mouseX, mouseY - 118, mouseX, mouseY - 25);
-  mouse.lineBetween(mouseX - 83, mouseY - 25, mouseX + 83, mouseY - 25);
-  mouse.fillStyle(0x64748b, 1).fillRoundedRect(mouseX - 8, mouseY - 89, 16, 45, 8);
+  mouse.fillStyle(0x17233a, 1).fillRoundedRect(mouseX - 68, mouseY - 92, 136, 184, 58);
+  mouse.lineStyle(3, 0x38bdf8, 0.9).strokeRoundedRect(mouseX - 68, mouseY - 92, 136, 184, 58);
+  mouse.lineStyle(2, 0x64748b, 1).lineBetween(mouseX, mouseY - 90, mouseX, mouseY - 20);
+  mouse.lineBetween(mouseX - 66, mouseY - 20, mouseX + 66, mouseY - 20);
+  mouse.fillStyle(0x64748b, 1).fillRoundedRect(mouseX - 7, mouseY - 69, 14, 34, 7);
   startScreenObjects.push(mouse);
 
-  const leftClick = scene.add.circle(mouseX - 42, mouseY - 72, 18, 0x22c55e, 0.75)
+  const leftClick = scene.add.circle(mouseX - 34, mouseY - 55, 14, 0x22c55e, 0.75)
     .setScrollFactor(0).setDepth(4004);
-  const rightClick = scene.add.circle(mouseX + 42, mouseY - 72, 18, 0xf97316, 0.25)
+  const rightClick = scene.add.circle(mouseX + 34, mouseY - 55, 14, 0xf97316, 0.25)
     .setScrollFactor(0).setDepth(4004);
   startScreenObjects.push(leftClick, rightClick);
   scene.tweens.add({ targets: leftClick, alpha: { from: 1, to: 0.2 }, scale: { from: 0.75, to: 1.25 }, duration: 650, yoyo: true, repeat: -1 });
   scene.tweens.add({ targets: rightClick, alpha: { from: 0.2, to: 1 }, scale: { from: 1.25, to: 0.75 }, duration: 650, yoyo: true, repeat: -1 });
 
-  const fireLabel = scene.add.text(mouseX - 110, mouseY + 155, 'LEFT CLICK\nFIRE', {
-    font: 'bold 16px Arial', fill: '#4ade80', align: 'center', lineSpacing: 5
+  const fireLabel = scene.add.text(mouseX - 90, mouseY + 120, 'LEFT CLICK\nFIRE', {
+    font: 'bold 14px Arial', fill: '#4ade80', align: 'center', lineSpacing: 4
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
-  const reloadLabel = scene.add.text(mouseX + 110, mouseY + 155, 'RIGHT CLICK\nRELOAD', {
-    font: 'bold 16px Arial', fill: '#fb923c', align: 'center', lineSpacing: 5
+  const reloadLabel = scene.add.text(mouseX + 90, mouseY + 120, 'RIGHT CLICK\nRELOAD', {
+    font: 'bold 14px Arial', fill: '#fb923c', align: 'center', lineSpacing: 4
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
-  const aimHint = scene.add.text(mouseX, mouseY + 215, 'MOVE MOUSE TO AIM', {
-    font: 'bold 14px Arial', fill: '#94a3b8', letterSpacing: 2
+  const aimHint = scene.add.text(mouseX, mouseY + 170, 'MOVE MOUSE TO AIM', {
+    font: 'bold 12px Arial', fill: '#94a3b8', letterSpacing: 2
   }).setOrigin(0.5).setScrollFactor(0).setDepth(4004);
   startScreenObjects.push(fireLabel, reloadLabel, aimHint);
 
   const PLAY_W = 260, PLAY_H = 64, PLAY_R = 14;
-  const playY = centerY + 350;
+  const playY = centerY + 300;
   const playBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
   startScreenObjects.push(playBg);
 
@@ -1980,7 +1985,7 @@ function showStartMainScreen(scene) {
   });
 
   const CTRL_W = 210, CTRL_H = 48, CTRL_R = 12;
-  const ctrlY = centerY + 350;
+  const ctrlY = centerY + 300;
   const ctrlX = centerX - 265;
   const ctrlBg = scene.add.graphics().setScrollFactor(0).setDepth(4003);
   startScreenObjects.push(ctrlBg);
