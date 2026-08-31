@@ -58,6 +58,21 @@ interface PendingScore {
   };
 }
 
+interface ScoreDatabaseRow {
+  id: string | number;
+  name: string;
+  distance: number;
+  enemies_killed: number;
+  bullets_fired: ScoreRow["bulletsFired"] | null;
+  created_at: string | null;
+}
+
+interface UpdateDatabaseRow {
+  id: string | number;
+  text: string;
+  created_at: string | null;
+}
+
 declare global {
   interface Window {
     auth?: { currentUser: AuthUser | null };
@@ -93,6 +108,30 @@ function formatCalendarDate(date: Date | null | undefined) {
   return calendarDateFormatter.format(date);
 }
 
+function mapUpdateRow(row: UpdateDatabaseRow): UpdateRow {
+  return {
+    id: String(row.id),
+    text: row.text,
+    createdAt: row.created_at ? new Date(row.created_at) : null,
+  };
+}
+
+function rankScoreRows(rows: ScoreDatabaseRow[]): ScoreRow[] {
+  return rows
+    .map((row) => ({
+      id: String(row.id),
+      rank: 0,
+      name: row.name,
+      distance: row.distance,
+      enemiesKilled: row.enemies_killed,
+      bulletsFired: row.bullets_fired || {},
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+    }))
+    .sort((a, b) => b.distance - a.distance)
+    .slice(0, 10)
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("instructions");
   const [scores, setScores] = useState<ScoreRow[] | null>(null);
@@ -111,6 +150,10 @@ export default function HomePage() {
   const [updateDraft, setUpdateDraft] = useState("");
   const [updateSubmitting, setUpdateSubmitting] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
+  const [editingUpdateDraft, setEditingUpdateDraft] = useState("");
+  const [updateMutatingId, setUpdateMutatingId] = useState<string | null>(null);
 
   const {
     currentUser, authReady, showAuthForm, setShowAuthForm,
@@ -194,11 +237,7 @@ export default function HomePage() {
     const loadScores = async () => {
       const scoreResult = await supabase.from("scores").select("id,name,distance,enemies_killed,bullets_fired,created_at").order("distance", { ascending: false }).limit(10);
       if (!active) return;
-      if (!scoreResult.error) setScores((scoreResult.data || []).map((row, index) => ({
-        id: String(row.id), rank: index + 1, name: row.name, distance: row.distance,
-        enemiesKilled: row.enemies_killed, bulletsFired: row.bullets_fired || {},
-        createdAt: row.created_at ? new Date(row.created_at) : null,
-      })));
+      if (!scoreResult.error) setScores(rankScoreRows((scoreResult.data || []) as ScoreDatabaseRow[]));
     };
     const loadReviews = async () => {
       const reviewResult = await supabase.from("reviews").select("id,user_id,name,rating,comment,created_at").order("created_at", { ascending: false }).limit(50);
@@ -212,7 +251,7 @@ export default function HomePage() {
       const updateResult = await supabase.from("updates").select("id,text,created_at").order("created_at", { ascending: false }).limit(50);
       if (!active) return;
       if (!updateResult.error) {
-        setUpdates((updateResult.data || []).map((row) => ({ id: String(row.id), text: row.text, createdAt: new Date(row.created_at) })));
+        setUpdates((updateResult.data || []).map((row) => mapUpdateRow(row as UpdateDatabaseRow)));
         setUpdateError(null);
       } else setUpdateError("Could not load updates.");
       setUpdatesLoaded(true);
@@ -238,11 +277,24 @@ export default function HomePage() {
       setAuthStatus(`Your run would be #${rank}, but only the top 10 runs are saved.`);
       return;
     }
-    const { error } = await supabase.from("scores").insert({
+    const { data: savedScore, error } = await supabase.from("scores").insert({
       user_id: user.uid, name: displayName, distance: run.distance,
       enemies_killed: run.enemiesKilled, bullets_fired: run.bulletsFired || {},
-    });
+    }).select("id,name,distance,enemies_killed,bullets_fired,created_at").single();
     if (error) throw error;
+    if (savedScore) {
+      setScores((current) => rankScoreRows([
+        ...((current || []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          distance: row.distance,
+          enemies_killed: row.enemiesKilled,
+          bullets_fired: row.bulletsFired,
+          created_at: row.createdAt?.toISOString() || null,
+        })) as ScoreDatabaseRow[]),
+        savedScore as ScoreDatabaseRow,
+      ]));
+    }
     window.dispatchEvent(new CustomEvent("wwiii-run-saved", { detail: { name: displayName } }));
     setPendingScore(null);
     setAuthStatus("Run saved to leaderboard.");
@@ -312,6 +364,7 @@ export default function HomePage() {
   const handleUpdateSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setUpdateError(null);
+    setUpdateStatus(null);
 
     const trimmed = updateDraft.trim();
     if (!trimmed) {
@@ -326,12 +379,17 @@ export default function HomePage() {
 
     try {
       setUpdateSubmitting(true);
-      const { error } = await supabase.from("updates").insert({
+      const { data: savedUpdate, error } = await supabase.from("updates").insert({
         text: trimmed,
-      });
+      }).select("id,text,created_at").single();
       if (error) throw error;
 
+      if (savedUpdate) {
+        const nextUpdate = mapUpdateRow(savedUpdate as UpdateDatabaseRow);
+        setUpdates((current) => [nextUpdate, ...(current || []).filter((item) => item.id !== nextUpdate.id)]);
+      }
       setUpdateDraft("");
+      setUpdateStatus("Update posted.");
     } catch (err: unknown) {
       console.error("Error posting update", err);
       if (getErrorCode(err) === "permission-denied") {
@@ -343,6 +401,78 @@ export default function HomePage() {
       }
     } finally {
       setUpdateSubmitting(false);
+    }
+  };
+
+  const beginEditingUpdate = (update: UpdateRow) => {
+    setEditingUpdateId(update.id);
+    setEditingUpdateDraft(update.text);
+    setUpdateError(null);
+    setUpdateStatus(null);
+  };
+
+  const cancelEditingUpdate = () => {
+    setEditingUpdateId(null);
+    setEditingUpdateDraft("");
+  };
+
+  const saveEditedUpdate = async (updateId: string) => {
+    const trimmed = editingUpdateDraft.trim();
+    setUpdateError(null);
+    setUpdateStatus(null);
+
+    if (!isAdmin) {
+      setUpdateError("Only the admin account can edit updates.");
+      return;
+    }
+    if (!trimmed) {
+      setUpdateError("An update cannot be empty.");
+      return;
+    }
+
+    try {
+      setUpdateMutatingId(updateId);
+      const { data, error } = await supabase
+        .from("updates")
+        .update({ text: trimmed })
+        .eq("id", updateId)
+        .select("id,text,created_at")
+        .single();
+      if (error) throw error;
+
+      const savedUpdate = mapUpdateRow(data as UpdateDatabaseRow);
+      setUpdates((current) => (current || []).map((item) => item.id === updateId ? savedUpdate : item));
+      cancelEditingUpdate();
+      setUpdateStatus("Update saved.");
+    } catch (err) {
+      console.error("Error editing update", err);
+      setUpdateError("Could not edit the update. Check the Supabase admin policy.");
+    } finally {
+      setUpdateMutatingId(null);
+    }
+  };
+
+  const deleteUpdate = async (updateId: string) => {
+    if (!isAdmin) {
+      setUpdateError("Only the admin account can delete updates.");
+      return;
+    }
+    if (!window.confirm("Delete this update? This cannot be undone.")) return;
+
+    setUpdateError(null);
+    setUpdateStatus(null);
+    try {
+      setUpdateMutatingId(updateId);
+      const { error } = await supabase.from("updates").delete().eq("id", updateId);
+      if (error) throw error;
+      setUpdates((current) => (current || []).filter((item) => item.id !== updateId));
+      if (editingUpdateId === updateId) cancelEditingUpdate();
+      setUpdateStatus("Update deleted.");
+    } catch (err) {
+      console.error("Error deleting update", err);
+      setUpdateError("Could not delete the update. Check the Supabase admin policy.");
+    } finally {
+      setUpdateMutatingId(null);
     }
   };
 
@@ -548,7 +678,7 @@ export default function HomePage() {
                       onSubmit={handleUpdateSubmit}
                     >
                       <label className="update-label">
-                        New update (only visible to you to edit)
+                        New update — posting is restricted to your admin account
                       </label>
                       <textarea
                         className="update-textarea"
@@ -563,6 +693,11 @@ export default function HomePage() {
                       {updateError && (
                         <div className="auth-message auth-error">
                           {updateError}
+                        </div>
+                      )}
+                      {updateStatus && (
+                        <div className="auth-message auth-success">
+                          {updateStatus}
                         </div>
                       )}
                       <button
@@ -594,12 +729,66 @@ export default function HomePage() {
                       <ul className="updates-list-ul">
                         {updates.map((u) => (
                           <li key={u.id} className="update-item">
-                            <div className="update-item-title">
-                              {formatUpdateTitle(u.createdAt ?? null)}
+                            <div className="update-item-header">
+                              <div className="update-item-title">
+                                {formatUpdateTitle(u.createdAt ?? null)}
+                              </div>
+                              {isAdmin && editingUpdateId !== u.id && (
+                                <div className="update-item-actions">
+                                  <button
+                                    type="button"
+                                    className="update-action-btn"
+                                    onClick={() => beginEditingUpdate(u)}
+                                    disabled={updateMutatingId === u.id}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="update-action-btn update-delete-btn"
+                                    onClick={() => void deleteUpdate(u.id)}
+                                    disabled={updateMutatingId === u.id}
+                                  >
+                                    {updateMutatingId === u.id ? "Working…" : "Delete"}
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                            {u.text && (
+                            {editingUpdateId === u.id ? (
+                              <div className="update-edit-form">
+                                <textarea
+                                  className="update-textarea"
+                                  rows={4}
+                                  value={editingUpdateDraft}
+                                  onChange={(event) => setEditingUpdateDraft(event.target.value)}
+                                  onKeyDown={stopKeyEvent}
+                                  onKeyUp={stopKeyEvent}
+                                  onKeyPress={stopKeyEvent}
+                                  maxLength={5000}
+                                  autoFocus
+                                />
+                                <div className="update-edit-actions">
+                                  <button
+                                    type="button"
+                                    className="account-btn primary"
+                                    onClick={() => void saveEditedUpdate(u.id)}
+                                    disabled={updateMutatingId === u.id}
+                                  >
+                                    {updateMutatingId === u.id ? "Saving…" : "Save changes"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="account-btn"
+                                    onClick={cancelEditingUpdate}
+                                    disabled={updateMutatingId === u.id}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : u.text ? (
                               <p className="update-item-body">{u.text}</p>
-                            )}
+                            ) : null}
                           </li>
                         ))}
                       </ul>
@@ -1704,7 +1893,57 @@ export default function HomePage() {
 
         .update-item-title {
           font-weight: 600;
-          margin-bottom: 4px;
+        }
+
+        .update-item-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 6px;
+        }
+
+        .update-item-actions,
+        .update-edit-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .update-action-btn {
+          border: 1px solid rgba(125, 211, 252, 0.42);
+          border-radius: 999px;
+          padding: 5px 10px;
+          background: rgba(14, 116, 144, 0.12);
+          color: #bae6fd;
+          cursor: pointer;
+          font: inherit;
+        }
+
+        .update-action-btn:hover:not(:disabled) {
+          border-color: #7dd3fc;
+          background: rgba(14, 116, 144, 0.25);
+        }
+
+        .update-delete-btn {
+          border-color: rgba(248, 113, 113, 0.45);
+          background: rgba(127, 29, 29, 0.16);
+          color: #fecaca;
+        }
+
+        .update-delete-btn:hover:not(:disabled) {
+          border-color: #f87171;
+          background: rgba(127, 29, 29, 0.32);
+        }
+
+        .update-action-btn:disabled {
+          cursor: wait;
+          opacity: 0.55;
+        }
+
+        .update-edit-form {
+          display: grid;
+          gap: 10px;
         }
 
         .update-item-body {
