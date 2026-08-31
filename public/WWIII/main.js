@@ -55,7 +55,6 @@ let upgradeTabButtons = [];
 let pistolTabButtons = [], shotgunTabButtons = [], sniperTabButtons = [], machineGunTabButtons = [];
 
 let currentTab = 'shop';
-let shopTabBg, shopTabText, upgradeTabBg, upgradeTabText;
 
 // new: track all tab backgrounds/text for styling
 let allTabBgs = [];
@@ -63,12 +62,12 @@ let allTabTexts = [];
 
 let distanceTraveled = 0;
 let lastTerrainX = 0, tileWidth = 64, tileHeight = 32;
+let terrainSurfaceBodies = [];
 
 // Number of distance-based giant bosses we've spawned so far
 let nextBossDistanceMeters = 1000;
 
 
-let lastDirection = 1; // player look dir
 let enemySpawnInterval = 3000;
 let enemySpawnTimer = -enemySpawnInterval;
 
@@ -138,7 +137,6 @@ let weaponState = weapons.map(w => ({
   totalAmmo: w.totalAmmo - w.clipSize
 }));
 
-let lastShotTime = 0;
 
 // Player HP & Shield
 let playerMaxHealth = 100;
@@ -580,6 +578,7 @@ function create() {
 
   distanceTraveled = 0;
   lastTerrainX = 0;
+  terrainSurfaceBodies = [];
   enemySpawnInterval = 3000;
   enemySpawnTimer = -enemySpawnInterval;
   // first giant spawns at 1000m, then every +1000m
@@ -871,10 +870,6 @@ function create() {
     const x = startX + i * tabSpacing;
     const [bg, text] = createTabButton(this, x, tabY, tabLabels[i], tabNames[i]);
     shopButtons.push(bg, text);
-    switch (tabNames[i]) {
-      case 'shop':    shopTabBg = bg;    shopTabText    = text; break;
-      case 'upgrade': upgradeTabBg = bg; upgradeTabText = text; break;
-    }
   }
   updateTabVisuals();
 
@@ -1183,8 +1178,6 @@ function create() {
   });
 
   // ------ Global key handlers (use customizable bindings) ------
-  const self = this;
-
   if (globalKeyDownHandler) {
     this.input.keyboard.off('keydown', globalKeyDownHandler);
   }
@@ -1192,7 +1185,7 @@ function create() {
     this.input.keyboard.off('keyup', globalKeyUpHandler);
   }
 
-  globalKeyDownHandler = function (event) {
+  globalKeyDownHandler = (event) => {
     const keyName = normalizeKeyName(event.key);
     // Movement states (even if not playing, so they are "ready")
     if (keyName === controlBindings.moveLeft)  moveLeftPressed = true;
@@ -1209,9 +1202,9 @@ function create() {
 
       shopPanel.setVisible(shopVisible);
       if (shopVisible) {
-        self.physics.world.pause();
+        this.physics.world.pause();
       } else {
-        self.physics.world.resume();
+        this.physics.world.resume();
       }
       shopButtons.forEach(btn => btn.setVisible(shopVisible));
       switchTab(currentTab);
@@ -1220,23 +1213,23 @@ function create() {
 
     if (keyName === controlBindings.weaponNext) {
       currentWeaponIndex = (currentWeaponIndex + 1) % weapons.length;
-      updateWeaponAndHealthUI(self);
+      updateWeaponAndHealthUI(this);
       return;
     }
 
     if (keyName === controlBindings.weaponPrev) {
       currentWeaponIndex = (currentWeaponIndex - 1 + weapons.length) % weapons.length;
-      updateWeaponAndHealthUI(self);
+      updateWeaponAndHealthUI(this);
       return;
     }
 
     if (keyName === controlBindings.heal) {
-      tryBuyMedicalKit(self, null);
+      tryBuyMedicalKit(this, null);
       return;
     }
   };
 
-  globalKeyUpHandler = function (event) {
+  globalKeyUpHandler = (event) => {
     const keyName = normalizeKeyName(event.key);
     if (keyName === controlBindings.moveLeft)  moveLeftPressed = false;
     if (keyName === controlBindings.moveRight) moveRightPressed = false;
@@ -1354,11 +1347,13 @@ function update(time) {
     enemySpawnTimer = time;
   }
 
+  const activeEnemies = enemies.getChildren();
+
   // --- Enemy movement AI (with shooting while moving / holding) ---
   {
     const elapsedMin2 = (this.time.now - gameStartMs) / 60000;
 
-    enemies.getChildren().forEach(e => {
+    activeEnemies.forEach(e => {
       if (!e || !e.active) return;
 
       // face player
@@ -1423,10 +1418,8 @@ function update(time) {
     // Movement & jumping
   if (moveLeftPressed && !moveRightPressed) {
     player.setVelocityX(-200);
-    lastDirection = -1;
   } else if (moveRightPressed && !moveLeftPressed) {
     player.setVelocityX(200);
-    lastDirection = 1;
   } else if (player.body.onFloor()) {
     player.setVelocityX(0);
   }
@@ -1449,7 +1442,7 @@ function update(time) {
 statusText.setText(`Distance: ${Math.floor(distanceTraveled)}m`);
 
   // Enemy HP bars
-  enemies.getChildren().forEach(e => {
+  activeEnemies.forEach(e => {
     const hb = enemyHealthBars.get(e);
     if (!hb) return;
 
@@ -1504,8 +1497,8 @@ function generateTerrain(scene, fromX, toX) {
     y = Phaser.Math.Clamp(y, config.height - 200, config.height - 50);
 
     lastY = y;
-    scene.physics.add.existing(ground);
-    ground.create(x, y, 'ground').setScale(2).refreshBody();
+    const surfaceTile = ground.create(x, y, 'ground').setScale(2).refreshBody();
+    terrainSurfaceBodies.push(surfaceTile.body);
 
     for (let fy = y + tileHeight; fy <= config.height; fy += tileHeight) {
       ground.create(x, fy, 'ground').setScale(2).refreshBody();
@@ -1519,8 +1512,7 @@ function findSurfaceTile(x) {
   let surfaceBody = null;
   let bestTop = Infinity;
 
-  for (const tile of ground.getChildren()) {
-    const b = tile.body;
+  for (const b of terrainSurfaceBodies) {
     if (!b) continue;
     if (x >= b.left && x <= b.right) {
       if (b.top < bestTop) {
@@ -1686,7 +1678,6 @@ function shootEnemyBullet(enemy, scene) {
   const targetY = player.y - (player.displayHeight * AIM_HEIGHT_RATIO);
   const baseAngle = Math.atan2(targetY - muzzleY, player.x - muzzleX);
 
-  const elapsedMinDamage = (scene.time.now - gameStartMs) / 60000;
   const dmgMult = 1 + elapsedMin * DIFFICULTY.DAMAGE_GROWTH_PER_MIN;
   const minD = Math.round(ENEMY_BASE_DAMAGE_MIN * dmgMult);
   const maxD = Math.round(ENEMY_BASE_DAMAGE_MAX * dmgMult);
@@ -2069,10 +2060,7 @@ function showControlSettingsScreen(scene) {
   startScreenObjects.push(hint);
 
   // Rebinding logic
-  let awaitingRebindAction = null;
-
   const beginRebind = (action) => {
-    awaitingRebindAction = action;
     const row = controlRows.find(r => r.action === action);
     subtitle.setText(`Press a key for "${row.label}"...`);
 
@@ -2081,7 +2069,6 @@ function showControlSettingsScreen(scene) {
       const invalid = ['Shift', 'Control', 'Alt', 'Meta'];
       if (invalid.includes(rawKey)) {
         subtitle.setText('That key cannot be used. Try another.');
-        awaitingRebindAction = null;
         scene.time.delayedCall(1000, () => {
           subtitle.setText('Click a key name, then press a new key to rebind.');
         });
@@ -2096,7 +2083,6 @@ function showControlSettingsScreen(scene) {
       }
 
       subtitle.setText('Click a key name, then press a new key to rebind.');
-      awaitingRebindAction = null;
     });
   };
 

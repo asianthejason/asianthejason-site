@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useCallback, FormEvent, KeyboardEvent } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import SiteHeader from "../components/SiteHeader";
@@ -47,8 +47,6 @@ interface AuthUser {
   displayName: string | null;
 }
 
-type AuthMode = "login" | "signup";
-
 interface PendingScore {
   distance: number;
   enemiesKilled: number;
@@ -58,6 +56,41 @@ interface PendingScore {
     Sniper?: number;
     "Machine Gun"?: number;
   };
+}
+
+declare global {
+  interface Window {
+    auth?: { currentUser: AuthUser | null };
+    wwiiiPendingScore?: PendingScore;
+  }
+}
+
+function getErrorCode(error: unknown) {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+  return String(error.code);
+}
+
+const updateDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
+
+const calendarDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function formatUpdateTitle(date: Date | null | undefined) {
+  return date ? `${updateDateFormatter.format(date)} Update` : "Update";
+}
+
+function formatCalendarDate(date: Date | null | undefined) {
+  if (!date || Number.isNaN(date.getTime())) return "Date unavailable";
+  return calendarDateFormatter.format(date);
 }
 
 export default function HomePage() {
@@ -93,43 +126,20 @@ export default function HomePage() {
   // The legacy Phaser bundle reads this tiny bridge when saving a run.
   // It intentionally exposes only the current Supabase user's public fields.
   useEffect(() => {
-    const w = window as typeof window & {
-      auth?: { currentUser: AuthUser | null };
-    };
-    w.auth = { currentUser };
+    window.auth = { currentUser };
   }, [currentUser]);
 
   const isAdmin =
     currentUser?.email &&
     currentUser.email.toLowerCase() === "asianthejason@gmail.com";
 
-  // Helper: format "November 21, 2025 Update"
-  const formatUpdateTitle = (d: Date | null | undefined) => {
-    if (!d) return "Update";
-    const formatter = new Intl.DateTimeFormat(undefined, {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-    return `${formatter.format(d)} Update`;
-  };
-
-  const formatCalendarDate = (d: Date | null | undefined) => {
-    if (!d || Number.isNaN(d.getTime())) return "Date unavailable";
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(d);
-  };
-
   // ---------- Listen for "open auth" from Phaser ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handler = (event: any) => {
-      const detail = event?.detail || {};
-      const run = detail.run || (window as any).wwiiiPendingScore;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ run?: PendingScore }>).detail;
+      const run = detail?.run || window.wwiiiPendingScore;
 
       if (run) {
         setPendingScore({
@@ -145,10 +155,9 @@ export default function HomePage() {
       setAuthStatus(null);
     };
 
-    window.addEventListener("wwiii-open-auth", handler as any);
-    return () =>
-      window.removeEventListener("wwiii-open-auth", handler as any);
-  }, []);
+    window.addEventListener("wwiii-open-auth", handler);
+    return () => window.removeEventListener("wwiii-open-auth", handler);
+  }, [setAuthError, setAuthMode, setAuthStatus, setShowAuthForm]);
 
   // ---------- Ensure game canvas exists; reload page if not ----------
   useEffect(() => {
@@ -167,7 +176,7 @@ export default function HomePage() {
             window.sessionStorage.setItem(guardKey, String(now));
             window.location.reload();
           }
-        } catch (err) {
+        } catch {
           // If sessionStorage is unavailable, just reload once
           window.location.reload();
         }
@@ -182,39 +191,43 @@ export default function HomePage() {
   // ---------- Supabase game data ----------
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      const [scoreResult, reviewResult, updateResult] = await Promise.all([
-        supabase.from("scores").select("id,name,distance,enemies_killed,bullets_fired,created_at").order("distance", { ascending: false }).limit(10),
-        supabase.from("reviews").select("id,user_id,name,rating,comment,created_at").order("created_at", { ascending: false }).limit(50),
-        supabase.from("updates").select("id,text,created_at").order("created_at", { ascending: false }).limit(50),
-      ]);
+    const loadScores = async () => {
+      const scoreResult = await supabase.from("scores").select("id,name,distance,enemies_killed,bullets_fired,created_at").order("distance", { ascending: false }).limit(10);
       if (!active) return;
       if (!scoreResult.error) setScores((scoreResult.data || []).map((row, index) => ({
         id: String(row.id), rank: index + 1, name: row.name, distance: row.distance,
         enemiesKilled: row.enemies_killed, bulletsFired: row.bullets_fired || {},
         createdAt: row.created_at ? new Date(row.created_at) : null,
       })));
+    };
+    const loadReviews = async () => {
+      const reviewResult = await supabase.from("reviews").select("id,user_id,name,rating,comment,created_at").order("created_at", { ascending: false }).limit(50);
+      if (!active) return;
       if (!reviewResult.error) setReviews((reviewResult.data || []).map((row) => ({
         id: String(row.id), uid: row.user_id, name: row.name, rating: row.rating,
         comment: row.comment, createdAt: new Date(row.created_at),
       })));
+    };
+    const loadUpdates = async () => {
+      const updateResult = await supabase.from("updates").select("id,text,created_at").order("created_at", { ascending: false }).limit(50);
+      if (!active) return;
       if (!updateResult.error) {
         setUpdates((updateResult.data || []).map((row) => ({ id: String(row.id), text: row.text, createdAt: new Date(row.created_at) })));
         setUpdateError(null);
       } else setUpdateError("Could not load updates.");
       setUpdatesLoaded(true);
     };
-    void load();
+    void Promise.all([loadScores(), loadReviews(), loadUpdates()]);
     const channel = supabase.channel("wwiii-page-data")
-      .on("postgres_changes", { event: "*", schema: "public", table: "scores" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "updates" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "scores" }, () => { void loadScores(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, () => { void loadReviews(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "updates" }, () => { void loadUpdates(); })
       .subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }, []);
 
   // ---------- Save pending score to Supabase ----------
-  const savePendingScore = async (user: AuthUser, run = pendingScore) => {
+  const savePendingScore = useCallback(async (user: AuthUser, run = pendingScore) => {
     if (!run) return;
     const displayName = user.displayName || user.email || "Unknown soldier";
     const { count, error: rankError } = await supabase.from("scores").select("id", { count: "exact", head: true }).gt("distance", run.distance);
@@ -233,7 +246,7 @@ export default function HomePage() {
     window.dispatchEvent(new CustomEvent("wwiii-run-saved", { detail: { name: displayName } }));
     setPendingScore(null);
     setAuthStatus("Run saved to leaderboard.");
-  };
+  }, [pendingScore, setAuthStatus]);
 
   useEffect(() => {
     const handleScore = (event: Event) => {
@@ -244,7 +257,7 @@ export default function HomePage() {
     };
     window.addEventListener("wwiii-score-ready", handleScore);
     return () => window.removeEventListener("wwiii-score-ready", handleScore);
-  }, [currentUser, pendingScore]);
+  }, [currentUser, savePendingScore]);
 
   // ---------- Review submit ----------
   const handleReviewSubmit = async (e: FormEvent) => {
@@ -281,9 +294,9 @@ export default function HomePage() {
 
       setReviewStatus("Thanks for your review!");
       setReviewComment("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error submitting review", err);
-      if (err?.code === "permission-denied") {
+      if (getErrorCode(err) === "permission-denied") {
         setReviewError(
           "Your review was rejected by the server. Please sign in and try again."
         );
@@ -319,9 +332,9 @@ export default function HomePage() {
       if (error) throw error;
 
       setUpdateDraft("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error posting update", err);
-      if (err?.code === "permission-denied") {
+      if (getErrorCode(err) === "permission-denied") {
         setUpdateError(
           "The update was rejected by the server. Check the Supabase policy."
         );
@@ -336,7 +349,7 @@ export default function HomePage() {
   const headerUser = currentUser;
 
   // helper to stop key events from reaching the game
-  const stopKeyEvent = (e: any) => {
+  const stopKeyEvent = (e: KeyboardEvent<HTMLElement>) => {
     e.stopPropagation();
   };
 
