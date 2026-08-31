@@ -60,14 +60,16 @@ export default function RootLayout({
                 z-index: 2147483647;
                 display: grid;
                 place-items: center;
-                background: #02050d;
+                background:
+                  radial-gradient(circle at 50% 35%, rgba(34, 211, 238, 0.12), transparent 35%),
+                  #030711;
                 color: #f5f7ff;
                 opacity: 1;
                 transition: opacity 140ms ease;
               }
               #initial-page-cover span {
-                font: 600 15px/1 Arial, Helvetica, sans-serif;
-                letter-spacing: 0.22em;
+                font: 700 13px/1 Arial, Helvetica, sans-serif;
+                letter-spacing: 0.28em;
               }
               html:not(.initial-page-load) #initial-page-cover {
                 opacity: 0;

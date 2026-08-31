@@ -103,7 +103,32 @@ export default function HomePage() {
         {/* Hero / title */}
         <section className="home-hero">
           <div className="home-hero-text">
-            <h1>Software projects, tools, and experiments by Jason Huang</h1>
+            <div className="home-kicker"><span /> Independent developer portfolio</div>
+            <h1>
+              I build digital products that turn
+              <span> complex ideas into useful experiences.</span>
+            </h1>
+            <p className="home-hero-lede">
+              Software, data tools, robotics platforms, and interactive worlds—designed and built by Jason Huang.
+            </p>
+            <div className="home-hero-actions">
+              <a href="#projects" className="home-hero-primary">Explore the work <span aria-hidden="true">↓</span></a>
+              <Link href="/about" className="home-hero-secondary">More about Jason <span aria-hidden="true">↗</span></Link>
+            </div>
+            <div className="home-proof" aria-label="Portfolio highlights">
+              <div><strong>03</strong><span>Live products</span></div>
+              <div><strong>Data + Play</strong><span>Across disciplines</span></div>
+              <div><strong>Always</strong><span>Building & learning</span></div>
+            </div>
+          </div>
+
+          <div className="home-hero-visual" aria-hidden="true">
+            <div className="hero-orbit orbit-one" />
+            <div className="hero-orbit orbit-two" />
+            <div className="hero-core"><span>AJ</span><small>BUILD LAB</small></div>
+            <div className="hero-float-card hero-float-code"><span>01</span><strong>PRODUCTS</strong><small>Ideas → shipped</small></div>
+            <div className="hero-float-card hero-float-data"><span>02</span><strong>DATA</strong><small>Signal → clarity</small></div>
+            <div className="hero-float-card hero-float-play"><span>03</span><strong>PLAY</strong><small>Systems → worlds</small></div>
           </div>
         </section>
 
@@ -131,7 +156,7 @@ export default function HomePage() {
         </section>
 
         {/* Games / Dev Projects tabs */}
-        <section className="panel-section">
+        <section id="projects" className="panel-section">
           <div className="tabs-shell">
             {/* Tab bar */}
             <div className="home-tabs-row" role="tablist">
@@ -447,7 +472,7 @@ export default function HomePage() {
           min-height: 100vh;
           display: flex;
           flex-direction: column;
-          padding: 16px 0 32px;
+          padding: 0 0 32px;
         }
 
         /* We keep button styles global so SiteHeader can use them */
@@ -495,103 +520,265 @@ export default function HomePage() {
 
         /* Hero */
         .home-hero {
-          max-width: 1100px;
-          margin: 28px auto 0;
-          padding: 0 24px;
+          width: min(1200px, calc(100% - 48px));
+          min-height: 620px;
+          margin: 46px auto 0;
+          display: grid;
+          grid-template-columns: minmax(0, 1.12fr) minmax(420px, 0.88fr);
+          align-items: center;
+          gap: clamp(36px, 7vw, 96px);
+          padding: 44px 0 80px;
         }
 
         .home-hero-text h1 {
-          font-size: clamp(28px, 4vw, 40px);
-          line-height: 1.1;
-          margin: 10px 0 0;
+          max-width: 760px;
+          margin: 22px 0 0;
+          font-size: clamp(45px, 5.6vw, 78px);
+          line-height: 0.98;
+          letter-spacing: -0.055em;
+          text-wrap: balance;
         }
+
+        .home-hero-text h1 span {
+          color: transparent;
+          background: linear-gradient(100deg, #67e8f9 5%, #c4b5fd 72%);
+          background-clip: text;
+          -webkit-background-clip: text;
+        }
+
+        .home-kicker {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          color: #94a3b8;
+          font: 700 11px/1 var(--font-geist-mono), monospace;
+          letter-spacing: 0.13em;
+          text-transform: uppercase;
+        }
+
+        .home-kicker span {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #34d399;
+          box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.1), 0 0 20px rgba(52, 211, 153, 0.5);
+          animation: aj-pulse 2.4s ease-in-out infinite;
+        }
+
+        .home-hero-lede {
+          max-width: 650px;
+          margin: 27px 0 0;
+          color: #9aa8bd;
+          font-size: clamp(16px, 1.6vw, 20px);
+          line-height: 1.65;
+        }
+
+        .home-hero-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 11px;
+          margin-top: 32px;
+        }
+
+        .home-hero-primary,
+        .home-hero-secondary {
+          min-height: 50px;
+          padding: 0 19px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          border-radius: 14px;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 700;
+          transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+        }
+
+        .home-hero-primary {
+          color: #031014;
+          background: linear-gradient(135deg, #67e8f9, #a5f3fc);
+          box-shadow: 0 16px 42px rgba(34, 211, 238, 0.2);
+        }
+
+        .home-hero-secondary {
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          color: #dbeafe;
+          background: rgba(15, 23, 42, 0.46);
+        }
+
+        .home-hero-primary:hover,
+        .home-hero-secondary:hover { transform: translateY(-3px); }
+        .home-hero-primary:hover { box-shadow: 0 22px 55px rgba(34, 211, 238, 0.3); }
+        .home-hero-secondary:hover { border-color: rgba(103, 232, 249, 0.4); }
+
+        .home-proof {
+          display: flex;
+          gap: clamp(20px, 4vw, 45px);
+          margin-top: 48px;
+          padding-top: 22px;
+          border-top: 1px solid rgba(148, 163, 184, 0.12);
+        }
+
+        .home-proof div { display: grid; gap: 5px; }
+        .home-proof strong { color: #e2e8f0; font: 700 14px/1 var(--font-geist-mono), monospace; }
+        .home-proof span { color: #64748b; font-size: 11px; }
+
+        .home-hero-visual {
+          position: relative;
+          min-height: 480px;
+          display: grid;
+          place-items: center;
+          perspective: 900px;
+        }
+
+        .home-hero-visual::before {
+          content: "";
+          position: absolute;
+          inset: 8%;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(34, 211, 238, 0.16), rgba(109, 40, 217, 0.08) 42%, transparent 70%);
+          filter: blur(16px);
+        }
+
+        .hero-core {
+          position: relative;
+          width: 176px;
+          aspect-ratio: 1;
+          display: grid;
+          place-content: center;
+          gap: 8px;
+          text-align: center;
+          border: 1px solid rgba(103, 232, 249, 0.35);
+          border-radius: 48px;
+          background: linear-gradient(145deg, rgba(15, 29, 52, 0.88), rgba(7, 11, 24, 0.94));
+          box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 30px 80px rgba(0, 0, 0, 0.45), 0 0 70px rgba(34, 211, 238, 0.08);
+          transform: rotate(-8deg);
+        }
+
+        .hero-core span { font-size: 57px; font-weight: 800; letter-spacing: -0.08em; color: transparent; background: linear-gradient(135deg, #fff, #67e8f9); background-clip: text; }
+        .hero-core small { color: #64748b; font: 700 9px/1 var(--font-geist-mono), monospace; letter-spacing: 0.2em; }
+
+        .hero-orbit { position: absolute; border: 1px solid rgba(148, 163, 184, 0.13); border-radius: 50%; transform: rotate(-18deg); }
+        .orbit-one { width: 330px; height: 210px; }
+        .orbit-two { width: 440px; height: 315px; transform: rotate(25deg); border-color: rgba(139, 92, 246, 0.13); }
+
+        .hero-float-card {
+          position: absolute;
+          min-width: 148px;
+          padding: 14px 16px;
+          display: grid;
+          gap: 4px;
+          border: 1px solid rgba(148, 163, 184, 0.16);
+          border-radius: 16px;
+          background: rgba(8, 14, 28, 0.82);
+          box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
+          backdrop-filter: blur(14px);
+          animation: aj-float 5s ease-in-out infinite;
+        }
+
+        .hero-float-card span { color: #67e8f9; font: 700 9px/1 var(--font-geist-mono), monospace; }
+        .hero-float-card strong { font-size: 11px; letter-spacing: 0.16em; }
+        .hero-float-card small { color: #64748b; font-size: 10px; }
+        .hero-float-code { top: 11%; right: 1%; }
+        .hero-float-data { left: 0; bottom: 17%; animation-delay: -1.7s; }
+        .hero-float-play { right: 2%; bottom: 7%; animation-delay: -3.2s; }
 
         /* Support / donation */
         .home-support {
           display: flex;
           justify-content: center;
-          margin-top: 32px;
+          margin-top: 0;
           padding: 0 24px;
         }
 
         .home-support-shell {
           width: 100%;
-          max-width: 900px;
-          border-radius: 22px;
-          padding: 20px 20px 22px;
-          background: radial-gradient(circle at top, #11172a, #050712);
-          border: 1px solid rgba(148, 163, 252, 0.35);
-          box-shadow: 0 22px 60px rgba(15, 23, 42, 0.9);
+          max-width: 1200px;
+          border-radius: 24px;
+          padding: 26px 28px;
+          display: grid;
+          grid-template-columns: 0.8fr 1.8fr auto;
+          align-items: center;
+          gap: 26px;
+          background: linear-gradient(120deg, rgba(11, 23, 43, 0.82), rgba(11, 13, 29, 0.86));
+          border: 1px solid rgba(103, 232, 249, 0.16);
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
         }
 
         .home-support-shell h2 {
-          margin-top: 0;
-          margin-bottom: 10px;
+          margin: 0;
+          font-size: 21px;
         }
 
         .home-support-shell p {
-          font-size: 14px;
-          opacity: 0.9;
+          margin: 0;
+          color: #94a3b8;
+          font-size: 13px;
+          line-height: 1.6;
         }
 
         .home-support-small {
-          margin-top: 6px;
-          font-size: 13px;
-          opacity: 0.8;
+          display: none;
         }
 
         .home-support-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          margin-top: 14px;
-          padding: 9px 16px;
-          border-radius: 999px;
+          margin-top: 0;
+          min-height: 46px;
+          padding: 0 17px;
+          border-radius: 13px;
           text-decoration: none;
-          background: linear-gradient(135deg, #f97316, #f59e0b);
-          color: #111827;
-          font-weight: 500;
-          font-size: 14px;
-          border: none;
+          background: transparent;
+          color: #e2e8f0;
+          font-weight: 700;
+          font-size: 12px;
+          border: 1px solid rgba(251, 146, 60, 0.45);
           cursor: pointer;
-          box-shadow: 0 16px 40px rgba(249, 115, 22, 0.35);
+          box-shadow: none;
           transition: transform 0.12s ease, box-shadow 0.18s ease;
         }
 
         .home-support-btn:hover {
           transform: translateY(-1px);
-          box-shadow: 0 24px 60px rgba(249, 115, 22, 0.5);
+          border-color: rgba(251, 146, 60, 0.8);
+          background: rgba(251, 146, 60, 0.08);
+          box-shadow: 0 16px 40px rgba(249, 115, 22, 0.12);
         }
 
         /* Games / Dev projects panel */
         .panel-section {
           display: flex;
           justify-content: center;
-          margin-top: 32px;
+          margin-top: 82px;
+          scroll-margin-top: 110px;
           padding: 0 24px;
         }
 
         .tabs-shell {
           width: 100%;
-          max-width: 1100px;
-          background: rgba(9, 12, 25, 0.9);
-          border-radius: 24px;
-          padding: 18px 18px 20px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          box-shadow: 0 26px 70px rgba(0, 0, 0, 0.85);
+          max-width: 1200px;
+          background: rgba(7, 12, 24, 0.62);
+          border-radius: 28px;
+          padding: 12px 22px 24px;
+          border: 1px solid rgba(148, 163, 184, 0.13);
+          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.3);
+          backdrop-filter: blur(16px);
         }
 
         .home-tabs-row {
           display: flex;
-          justify-content: center;
-          gap: 20px;
+          justify-content: flex-start;
+          gap: 5px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.12);
           margin-bottom: 14px;
         }
 
         .home-tab {
           position: relative;
-          padding: 4px 0 8px;
+          padding: 16px 14px;
           background: transparent;
           border: none;
           color: #9ca3af;
@@ -607,12 +794,12 @@ export default function HomePage() {
         .home-tab-active::after {
           content: "";
           position: absolute;
-          left: 0;
+          left: 14px;
           bottom: -1px;
           height: 2px;
-          width: 100%;
+          width: calc(100% - 28px);
           border-radius: 999px;
-          background: rgba(129, 140, 248, 0.9);
+          background: linear-gradient(90deg, #22d3ee, #8b5cf6);
         }
 
         .home-section-header {
@@ -662,9 +849,16 @@ export default function HomePage() {
         .game-card {
           border-radius: 18px;
           padding: 14px 14px 16px;
-          background: radial-gradient(circle at top left, #111827, #020617);
-          border: 1px solid rgba(148, 163, 252, 0.3);
-          box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+          background: linear-gradient(145deg, rgba(15, 24, 43, 0.88), rgba(4, 8, 18, 0.94));
+          border: 1px solid rgba(148, 163, 184, 0.15);
+          box-shadow: 0 18px 55px rgba(0, 0, 0, 0.24);
+          transition: transform 240ms ease, border-color 240ms ease, box-shadow 240ms ease;
+        }
+
+        .game-card:hover {
+          transform: translateY(-5px);
+          border-color: rgba(103, 232, 249, 0.3);
+          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
         }
 
         .game-card-layout {
@@ -941,6 +1135,10 @@ export default function HomePage() {
         }
 
         @media (max-width: 800px) {
+          .home-hero { grid-template-columns: 1fr; min-height: auto; }
+          .home-hero-visual { min-height: 420px; }
+          .home-support-shell { grid-template-columns: 1fr; gap: 12px; }
+          .home-support-btn { justify-self: start; }
           .game-card-layout {
             flex-direction: column;
           }
@@ -952,8 +1150,15 @@ export default function HomePage() {
 
         @media (max-width: 700px) {
           .home-hero {
-            margin-top: 20px;
+            width: min(100% - 30px, 1200px);
+            margin-top: 18px;
+            padding: 32px 0 44px;
           }
+
+          .home-hero-text h1 { font-size: clamp(40px, 13vw, 58px); }
+          .home-proof { gap: 18px; overflow-x: auto; }
+          .home-proof div { min-width: max-content; }
+          .home-hero-visual { min-height: 350px; transform: scale(0.86); margin: -25px -25px; }
 
           .home-support-shell {
             padding: 16px 14px 18px;

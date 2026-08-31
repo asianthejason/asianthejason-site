@@ -43,7 +43,7 @@ export default function PowerTraderRootLayout({
               <Link href="/about" className="site-footer-link">
                 About
               </Link>
-              <Link href="/privacy" className="site-footer-link">
+              <Link href="/privacy-policy" className="site-footer-link">
                 Privacy Policy
               </Link>
               <Link href="/terms" className="site-footer-link">
