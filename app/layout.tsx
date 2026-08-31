@@ -17,18 +17,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.asianthejason.com"),
   title: {
-    default: "AsiantheJason | Software Projects and Developer Portfolio",
+    default: "AsiantheJason | Software, Games, Animation and More",
     template: "%s | AsiantheJason",
   },
   description:
-    "Jason Huang's software development portfolio featuring robotics tools, Alberta energy dashboards, web applications, and browser projects.",
+    "The official AsiantheJason creator hub for original software, games, animations, tools, products, and independent projects by Jason Huang.",
   applicationName: "AsiantheJason",
   authors: [{ name: "Jason Huang", url: "https://www.asianthejason.com" }],
   creator: "Jason Huang",
   category: "technology",
   keywords: [
     "software development",
-    "developer portfolio",
+    "independent creator",
     "web applications",
     "FTC robotics",
     "Alberta energy",
@@ -37,9 +37,9 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://www.asianthejason.com",
     siteName: "AsiantheJason",
-    title: "AsiantheJason | Software Projects and Developer Portfolio",
+    title: "AsiantheJason | Software, Games, Animation and More",
     description:
-      "Software projects, robotics tools, energy dashboards, web applications, and browser projects by Jason Huang.",
+      "Original software, games, animation, tools, and independent creative projects by Jason Huang.",
   },
 };
 

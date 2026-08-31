@@ -16,7 +16,7 @@ export default function CraftshoreLandingPage() {
           </p>
           <div className="craftshore-actions">
             <Link href="/craftshore/play" className="craftshore-play">Enter the prototype <span>→</span></Link>
-            <Link href="/" className="craftshore-back">Back to portfolio</Link>
+            <Link href="/" className="craftshore-back">Back to creator hub</Link>
           </div>
           <div className="craftshore-meta">
             <div><strong>BUILD</strong><small>Shape your town</small></div>

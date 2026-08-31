@@ -103,44 +103,39 @@ export default function HomePage() {
         {/* Hero / title */}
         <section className="home-hero">
           <div className="home-hero-text">
-            <div className="home-kicker"><span /> Independent developer portfolio</div>
+            <div className="home-kicker"><span /> The official AsiantheJason creator hub</div>
             <h1>
-              I build digital products that turn
-              <span> complex ideas into useful experiences.</span>
+              Software, games, animation
+              <span> and whatever comes next.</span>
             </h1>
             <p className="home-hero-lede">
-              Software, data tools, robotics platforms, and interactive worlds—designed and built by Jason Huang.
+              Welcome to my corner of the internet—a place to enjoy what I create, discover useful tools, follow new releases, and help independent projects grow.
             </p>
             <div className="home-hero-actions">
-              <a href="#projects" className="home-hero-primary">Explore the work <span aria-hidden="true">↓</span></a>
-              <Link href="/about" className="home-hero-secondary">More about Jason <span aria-hidden="true">↗</span></Link>
-            </div>
-            <div className="home-proof" aria-label="Portfolio highlights">
-              <div><strong>03</strong><span>Live products</span></div>
-              <div><strong>Data + Play</strong><span>Across disciplines</span></div>
-              <div><strong>Always</strong><span>Building & learning</span></div>
+              <a href="#projects" className="home-hero-primary">Explore creations <span aria-hidden="true">↓</span></a>
+              <Link href="/support" className="home-hero-secondary">Support the studio <span aria-hidden="true">♥</span></Link>
             </div>
           </div>
 
           <div className="home-hero-visual" aria-hidden="true">
             <div className="hero-orbit orbit-one" />
             <div className="hero-orbit orbit-two" />
-            <div className="hero-core"><span>AJ</span><small>BUILD LAB</small></div>
-            <div className="hero-float-card hero-float-code"><span>01</span><strong>PRODUCTS</strong><small>Ideas → shipped</small></div>
-            <div className="hero-float-card hero-float-data"><span>02</span><strong>DATA</strong><small>Signal → clarity</small></div>
-            <div className="hero-float-card hero-float-play"><span>03</span><strong>PLAY</strong><small>Systems → worlds</small></div>
+            <div className="hero-core"><span>AJ</span><small>CREATOR UNIVERSE</small></div>
+            <div className="hero-float-card hero-float-code"><span>USE</span><strong>SOFTWARE</strong><small>Tools built to help</small></div>
+            <div className="hero-float-card hero-float-data"><span>WATCH</span><strong>ANIMATION</strong><small>Animated Escape</small></div>
+            <div className="hero-float-card hero-float-play"><span>PLAY</span><strong>GAMES</strong><small>Worlds made for you</small></div>
+            <div className="hero-float-card hero-float-shop"><span>COLLECT</span><strong>SHOP</strong><small>Products coming soon</small></div>
           </div>
         </section>
 
         {/* Support / donation section */}
         <section id="support" className="home-support">
           <div className="home-support-shell">
-            <h2>Support the projects</h2>
+            <h2>Help make more possible</h2>
             <p>
-              These are solo-dev projects that take a lot of late nights,
-              coffee, and testing. If you enjoy what I&apos;m building and want
-              to help keep the projects going, any support is hugely
-              appreciated.
+              Everything here is independently made. Donations help cover
+              hosting, creative tools, and the time it takes to keep releasing
+              new things.
             </p>
             <p className="home-support-small">
               I&apos;ll be adding more developer tools, applications, games, and features over time —
@@ -150,7 +145,34 @@ export default function HomePage() {
 
             {/* Now links to the new /support page */}
             <Link href="/support" className="home-support-btn">
-              ⛽ Fuel the projects
+              Donate to the studio
+            </Link>
+          </div>
+        </section>
+
+        <section className="creator-destinations" aria-labelledby="creator-destinations-title">
+          <div className="creator-destinations-heading">
+            <span>Beyond the code</span>
+            <h2 id="creator-destinations-title">More from the AsiantheJason universe</h2>
+          </div>
+          <div className="creator-destinations-grid">
+            <a href="https://www.animatedescape.com" target="_blank" rel="noreferrer" className="creator-destination creator-destination-animation">
+              <span className="creator-destination-number">01 / WATCH</span>
+              <strong>Animated Escape</strong>
+              <p>Original animated skits, characters, and stories created for fun.</p>
+              <span className="creator-destination-link">Visit animation site ↗</span>
+            </a>
+            <article className="creator-destination creator-destination-shop">
+              <span className="creator-destination-number">02 / COLLECT</span>
+              <strong>Creator shop</strong>
+              <p>Products and creator merchandise are being prepared for a future release.</p>
+              <span className="creator-destination-link">Opening in the future</span>
+            </article>
+            <Link href="/about" className="creator-destination creator-destination-story">
+              <span className="creator-destination-number">03 / DISCOVER</span>
+              <strong>Meet the creator</strong>
+              <p>Learn about Jason, the ideas behind the projects, and what is coming next.</p>
+              <span className="creator-destination-link">Read the story →</span>
             </Link>
           </div>
         </section>
@@ -169,7 +191,7 @@ export default function HomePage() {
                 }
                 onClick={() => setHomeTab("dev")}
               >
-                Dev Projects
+                Software &amp; Tools
               </button>
               <button
                 type="button"
@@ -186,13 +208,13 @@ export default function HomePage() {
 
             <header className="home-section-header">
               <span className="home-section-pill">
-                {homeTab === "games" ? "Games" : "Dev projects"}
+                {homeTab === "games" ? "Games" : "Software & tools"}
               </span>
               <div>
                 <h2>
                   {homeTab === "games"
                     ? "More Games Coming Soon"
-                    : "Developer tools & projects"}
+                    : "Useful things you can try"}
                 </h2>
               </div>
             </header>
@@ -680,9 +702,10 @@ export default function HomePage() {
         .hero-float-card span { color: #67e8f9; font: 700 9px/1 var(--font-geist-mono), monospace; }
         .hero-float-card strong { font-size: 11px; letter-spacing: 0.16em; }
         .hero-float-card small { color: #64748b; font-size: 10px; }
-        .hero-float-code { top: 11%; right: 1%; }
-        .hero-float-data { left: 0; bottom: 17%; animation-delay: -1.7s; }
-        .hero-float-play { right: 2%; bottom: 7%; animation-delay: -3.2s; }
+        .hero-float-code { top: 8%; right: 1%; }
+        .hero-float-data { left: 0; bottom: 14%; animation-delay: -1.7s; }
+        .hero-float-play { right: 1%; bottom: 5%; animation-delay: -3.2s; }
+        .hero-float-shop { left: 1%; top: 5%; animation-delay: -4.1s; }
 
         /* Support / donation */
         .home-support {
@@ -747,6 +770,80 @@ export default function HomePage() {
           background: rgba(251, 146, 60, 0.08);
           box-shadow: 0 16px 40px rgba(249, 115, 22, 0.12);
         }
+
+        .creator-destinations {
+          width: min(1200px, calc(100% - 48px));
+          margin: 88px auto 0;
+        }
+
+        .creator-destinations-heading {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 22px;
+        }
+
+        .creator-destinations-heading > span {
+          color: #67e8f9;
+          font: 700 10px/1 var(--font-geist-mono), monospace;
+          letter-spacing: 0.17em;
+          text-transform: uppercase;
+        }
+
+        .creator-destinations-heading h2 {
+          max-width: 660px;
+          margin: 0;
+          font-size: clamp(28px, 4vw, 46px);
+          line-height: 1.05;
+          letter-spacing: -0.04em;
+          text-wrap: balance;
+        }
+
+        .creator-destinations-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 13px;
+        }
+
+        .creator-destination {
+          position: relative;
+          min-height: 255px;
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border: 1px solid rgba(148, 163, 184, 0.14);
+          border-radius: 23px;
+          color: #f8fafc;
+          text-decoration: none;
+          background: linear-gradient(145deg, rgba(13, 22, 40, 0.88), rgba(5, 9, 19, 0.94));
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+          transition: transform 220ms ease, border-color 220ms ease;
+        }
+
+        .creator-destination::after {
+          content: "";
+          position: absolute;
+          width: 190px;
+          height: 190px;
+          right: -85px;
+          top: -85px;
+          border-radius: 50%;
+          background: var(--destination-glow, rgba(34, 211, 238, 0.13));
+          filter: blur(8px);
+        }
+
+        a.creator-destination:hover {
+          transform: translateY(-5px);
+          border-color: rgba(103, 232, 249, 0.3);
+        }
+
+        .creator-destination-animation { --destination-glow: rgba(167, 139, 250, 0.2); }
+        .creator-destination-shop { --destination-glow: rgba(251, 146, 60, 0.18); }
+        .creator-destination-story { --destination-glow: rgba(52, 211, 153, 0.16); }
+        .creator-destination-number { color: #64748b; font: 700 9px/1 var(--font-geist-mono), monospace; letter-spacing: 0.15em; }
+        .creator-destination strong { margin-top: 58px; font-size: 21px; }
+        .creator-destination p { max-width: 310px; margin: 9px 0 20px; color: #94a3b8; font-size: 13px; line-height: 1.55; }
+        .creator-destination-link { margin-top: auto; color: #bae6fd; font-size: 11px; font-weight: 700; }
 
         /* Games / Dev projects panel */
         .panel-section {
@@ -1139,6 +1236,8 @@ export default function HomePage() {
           .home-hero-visual { min-height: 420px; }
           .home-support-shell { grid-template-columns: 1fr; gap: 12px; }
           .home-support-btn { justify-self: start; }
+          .creator-destinations-grid { grid-template-columns: 1fr; }
+          .creator-destination { min-height: 220px; }
           .game-card-layout {
             flex-direction: column;
           }
@@ -1154,6 +1253,8 @@ export default function HomePage() {
             margin-top: 18px;
             padding: 32px 0 44px;
           }
+
+          .creator-destinations { width: calc(100% - 30px); margin-top: 62px; }
 
           .home-hero-text h1 { font-size: clamp(40px, 13vw, 58px); }
           .home-proof { gap: 18px; overflow-x: auto; }

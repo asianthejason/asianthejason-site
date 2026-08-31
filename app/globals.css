@@ -110,7 +110,7 @@ body .account-btn.primary {
   box-shadow: 0 10px 28px rgba(34, 211, 238, 0.16);
 }
 
-/* Shared content architecture across portfolio pages. */
+/* Shared content architecture across creator-hub pages. */
 body .panel-section,
 body .profile-section {
   width: min(1200px, calc(100% - 48px));
