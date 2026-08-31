@@ -447,38 +447,94 @@ export default function HomePage() {
             {/* Tab content */}
             <div className="tab-panel">
               {activeTab === "instructions" && (
-                <div className="instructions">
-                  <h2>How to Play</h2>
-                  <p>
-                    Survive as long as you can in a ruined world at war. Upgrade
-                    your weapons, manage ammo, and push your distance record
-                    while the enemy never stops advancing.
-                  </p>
-                  <ul>
-                    <li>A / W / D for movement.</li>
-                    <li>
-                      Left click to fire your weapon (aim with your mouse).
-                    </li>
-                    <li>Right click to reload.</li>
-                    <li>Q / E to switch weapons.</li>
-                    <li>F to open the shop.</li>
-                    <li>Pistol has unlimited reloads</li>
-                    <li>Shield can be purchased in the upgrade menu. Shield will always reduce by 2 per bullet hit</li>
-                    <li>
-                      Shotguns fire multiple bullets at a time with a spread,
-                      the bullet range is shorter
-                    </li>
-                    <li>
-                      Sniper is extremely effective with headshots but weak
-                      without. Bullets have 4 pierce
-                    </li>
-                    <li>
-                      Machine Gun auto fires when left click is held. Bullets
-                      have 2 pierce
-                    </li>
-                    <li>Earn cash by surviving and killing enemies.</li>
-                    <li>Spend money on upgrades between runs.</li>
-                  </ul>
+                <div className="instructions visual-instructions">
+                  <section className="objective-card" aria-labelledby="objective-title">
+                    <div className="objective-target" aria-hidden="true">
+                      <span className="objective-target-core" />
+                    </div>
+                    <div className="objective-copy">
+                      <span className="instruction-eyebrow">Your objective</span>
+                      <h2 id="objective-title">Keep moving. Stay alive. Go farther.</h2>
+                      <p>
+                        Push into enemy territory, defeat attackers, collect cash,
+                        and improve your loadout. Your farthest distance earns a
+                        place on the leaderboard.
+                      </p>
+                    </div>
+                    <div className="objective-route" aria-hidden="true">
+                      <span className="route-soldier">●</span>
+                      <span className="route-line" />
+                      <span className="route-flag">⚑</span>
+                    </div>
+                  </section>
+
+                  <div className="control-guide">
+                    <section className="control-card keyboard-card" aria-labelledby="keyboard-title">
+                      <div className="control-card-heading">
+                        <span className="control-card-icon" aria-hidden="true">⌨</span>
+                        <div>
+                          <span className="instruction-eyebrow">Keyboard</span>
+                          <h3 id="keyboard-title">Movement & actions</h3>
+                        </div>
+                      </div>
+
+                      <div className="keyboard-layout" aria-label="Keyboard controls">
+                        <div className="key-control key-q">
+                          <kbd>Q</kbd><span>Previous weapon</span>
+                        </div>
+                        <div className="key-control key-w">
+                          <kbd>W</kbd><span>Jump</span>
+                        </div>
+                        <div className="key-control key-e">
+                          <kbd>E</kbd><span>Next weapon</span>
+                        </div>
+                        <div className="key-control key-a">
+                          <kbd>A</kbd><span>Move left</span>
+                        </div>
+                        <div className="key-control key-d">
+                          <kbd>D</kbd><span>Move right</span>
+                        </div>
+                        <div className="key-control key-f">
+                          <kbd>F</kbd><span>Open shop</span>
+                        </div>
+                        <div className="key-control key-h">
+                          <kbd>H</kbd><span>Use medkit</span>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="control-card mouse-card" aria-labelledby="mouse-title">
+                      <div className="control-card-heading">
+                        <span className="control-card-icon" aria-hidden="true">◎</span>
+                        <div>
+                          <span className="instruction-eyebrow">Mouse</span>
+                          <h3 id="mouse-title">Aim & fire</h3>
+                        </div>
+                      </div>
+
+                      <div className="mouse-demo" aria-label="Move the mouse to aim, left click to fire, and right click to reload">
+                        <div className="mouse-aim" aria-hidden="true">
+                          <span /><span />
+                        </div>
+                        <div className="mouse-shell" aria-hidden="true">
+                          <span className="mouse-button mouse-button-left" />
+                          <span className="mouse-button mouse-button-right" />
+                          <span className="mouse-wheel" />
+                        </div>
+                        <div className="mouse-actions">
+                          <div><span className="click-dot fire-dot" />Left click<strong>Fire</strong></div>
+                          <div><span className="click-dot reload-dot" />Right click<strong>Reload</strong></div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="gameplay-loop" aria-label="Gameplay loop">
+                    <div><span aria-hidden="true">➜</span><strong>Advance</strong><small>Build distance</small></div>
+                    <div><span aria-hidden="true">✦</span><strong>Defeat</strong><small>Earn cash</small></div>
+                    <div><span aria-hidden="true">⬆</span><strong>Upgrade</strong><small>Get stronger</small></div>
+                    <div><span aria-hidden="true">↻</span><strong>Repeat</strong><small>Beat your record</small></div>
+                  </div>
                 </div>
               )}
 
@@ -1117,6 +1173,400 @@ export default function HomePage() {
           opacity: 0.9;
         }
 
+        .visual-instructions {
+          display: grid;
+          gap: 18px;
+        }
+
+        .objective-card,
+        .control-card,
+        .gameplay-loop {
+          border: 1px solid rgba(129, 140, 248, 0.28);
+          background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(4, 7, 18, 0.96));
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .objective-card {
+          position: relative;
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) minmax(150px, 0.45fr);
+          align-items: center;
+          gap: 20px;
+          overflow: hidden;
+          padding: 22px;
+          border-radius: 18px;
+        }
+
+        .objective-card::after {
+          content: "";
+          position: absolute;
+          right: -70px;
+          top: -100px;
+          width: 280px;
+          height: 280px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(56, 189, 248, 0.13), transparent 68%);
+          pointer-events: none;
+        }
+
+        .objective-target {
+          position: relative;
+          width: 76px;
+          height: 76px;
+          flex: 0 0 auto;
+          border: 2px solid rgba(248, 113, 113, 0.9);
+          border-radius: 50%;
+          box-shadow: inset 0 0 0 12px rgba(248, 113, 113, 0.08), 0 0 26px rgba(248, 113, 113, 0.16);
+        }
+
+        .objective-target::before,
+        .objective-target::after {
+          content: "";
+          position: absolute;
+          background: rgba(248, 113, 113, 0.75);
+        }
+
+        .objective-target::before {
+          left: 50%;
+          top: -8px;
+          width: 1px;
+          height: calc(100% + 16px);
+        }
+
+        .objective-target::after {
+          left: -8px;
+          top: 50%;
+          width: calc(100% + 16px);
+          height: 1px;
+        }
+
+        .objective-target-core {
+          position: absolute;
+          inset: 25px;
+          z-index: 1;
+          border-radius: 50%;
+          background: #fb7185;
+          box-shadow: 0 0 18px rgba(251, 113, 133, 0.85);
+          animation: target-pulse 1.7s ease-in-out infinite;
+        }
+
+        .instruction-eyebrow {
+          display: block;
+          margin-bottom: 5px;
+          color: #7dd3fc;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .objective-copy h2,
+        .control-card-heading h3 {
+          margin: 0;
+          color: #f8fafc;
+        }
+
+        .objective-copy h2 {
+          font-size: clamp(20px, 2.4vw, 28px);
+        }
+
+        .objective-copy p {
+          max-width: 690px;
+          margin: 8px 0 0;
+          color: #cbd5e1;
+        }
+
+        .objective-route {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          color: #86efac;
+        }
+
+        .route-soldier {
+          font-size: 18px;
+          filter: drop-shadow(0 0 7px rgba(134, 239, 172, 0.8));
+          animation: soldier-advance 2.2s ease-in-out infinite;
+        }
+
+        .route-line {
+          height: 2px;
+          flex: 1;
+          margin: 0 8px;
+          background: repeating-linear-gradient(90deg, #34d399 0 8px, transparent 8px 14px);
+          background-size: 28px 2px;
+          animation: route-move 1s linear infinite;
+        }
+
+        .route-flag {
+          color: #fbbf24;
+          font-size: 34px;
+          filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.35));
+        }
+
+        .control-guide {
+          display: grid;
+          grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
+          gap: 18px;
+        }
+
+        .control-card {
+          min-width: 0;
+          padding: 20px;
+          border-radius: 18px;
+        }
+
+        .control-card-heading {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          margin-bottom: 20px;
+        }
+
+        .control-card-heading h3 {
+          font-size: 17px;
+        }
+
+        .control-card-icon {
+          display: grid;
+          width: 40px;
+          height: 40px;
+          place-items: center;
+          border: 1px solid rgba(125, 211, 252, 0.3);
+          border-radius: 11px;
+          background: rgba(14, 165, 233, 0.09);
+          color: #7dd3fc;
+          font-size: 22px;
+        }
+
+        .keyboard-layout {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(50px, 1fr));
+          grid-template-rows: repeat(2, auto);
+          gap: 15px 8px;
+          align-items: start;
+        }
+
+        .key-control {
+          display: grid;
+          justify-items: center;
+          gap: 7px;
+          min-width: 0;
+          color: #94a3b8;
+          font-size: 10px;
+          line-height: 1.15;
+          text-align: center;
+        }
+
+        .key-control kbd {
+          display: grid;
+          width: 48px;
+          height: 48px;
+          place-items: center;
+          border: 1px solid #64748b;
+          border-bottom-width: 4px;
+          border-radius: 9px;
+          background: linear-gradient(#263348, #111827);
+          color: #f8fafc;
+          font: 700 18px/1 var(--font-geist-mono), monospace;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+          animation: key-press 3.5s ease-in-out infinite;
+        }
+
+        .key-q { grid-column: 1; grid-row: 1; }
+        .key-w { grid-column: 2; grid-row: 1; }
+        .key-e { grid-column: 3; grid-row: 1; }
+        .key-a { grid-column: 1; grid-row: 2; }
+        .key-d { grid-column: 3; grid-row: 2; }
+        .key-f { grid-column: 4; grid-row: 2; }
+        .key-h { grid-column: 6; grid-row: 2; }
+        .key-w kbd { animation-delay: -0.2s; }
+        .key-a kbd { animation-delay: -1.1s; }
+        .key-d kbd { animation-delay: -2.1s; }
+
+        .mouse-demo {
+          position: relative;
+          display: grid;
+          justify-items: center;
+          min-height: 190px;
+          padding-top: 4px;
+        }
+
+        .mouse-shell {
+          position: relative;
+          width: 92px;
+          height: 124px;
+          overflow: hidden;
+          border: 2px solid #94a3b8;
+          border-radius: 46px 46px 38px 38px;
+          background: linear-gradient(145deg, #1e293b, #0f172a);
+          box-shadow: 0 16px 30px rgba(0, 0, 0, 0.34);
+        }
+
+        .mouse-shell::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 0;
+          width: 1px;
+          height: 49px;
+          background: #64748b;
+        }
+
+        .mouse-button {
+          position: absolute;
+          top: 0;
+          width: 50%;
+          height: 49px;
+          background: rgba(125, 211, 252, 0.04);
+        }
+
+        .mouse-button-left {
+          left: 0;
+          animation: mouse-left-click 2.4s ease-in-out infinite;
+        }
+
+        .mouse-button-right {
+          right: 0;
+          animation: mouse-right-click 2.4s ease-in-out infinite;
+        }
+
+        .mouse-wheel {
+          position: absolute;
+          z-index: 2;
+          left: 50%;
+          top: 14px;
+          width: 8px;
+          height: 20px;
+          border: 1px solid #64748b;
+          border-radius: 5px;
+          background: #020617;
+          transform: translateX(-50%);
+        }
+
+        .mouse-aim {
+          position: absolute;
+          right: 14%;
+          top: 20px;
+          width: 30px;
+          height: 30px;
+          border: 1px solid #fb7185;
+          border-radius: 50%;
+          animation: aim-drift 2.4s ease-in-out infinite;
+        }
+
+        .mouse-aim span {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          background: #fb7185;
+          transform: translate(-50%, -50%);
+        }
+
+        .mouse-aim span:first-child { width: 38px; height: 1px; }
+        .mouse-aim span:last-child { width: 1px; height: 38px; }
+
+        .mouse-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px;
+          width: 100%;
+          margin-top: 13px;
+        }
+
+        .mouse-actions div {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          align-items: center;
+          gap: 2px 7px;
+          color: #94a3b8;
+          font-size: 10px;
+        }
+
+        .mouse-actions strong {
+          grid-column: 2;
+          color: #e2e8f0;
+          font-size: 13px;
+        }
+
+        .click-dot {
+          grid-row: 1 / span 2;
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+        }
+
+        .fire-dot { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+        .reload-dot { background: #fb7185; box-shadow: 0 0 8px #fb7185; }
+
+        .gameplay-loop {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          border-radius: 16px;
+        }
+
+        .gameplay-loop div {
+          position: relative;
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 2px 10px;
+          padding: 15px 18px;
+        }
+
+        .gameplay-loop div:not(:last-child)::after {
+          content: "›";
+          position: absolute;
+          right: -5px;
+          top: 50%;
+          z-index: 1;
+          color: #64748b;
+          font-size: 22px;
+          transform: translateY(-50%);
+        }
+
+        .gameplay-loop span {
+          grid-row: 1 / span 2;
+          align-self: center;
+          color: #7dd3fc;
+          font-size: 20px;
+        }
+
+        .gameplay-loop strong { color: #e2e8f0; font-size: 13px; }
+        .gameplay-loop small { color: #94a3b8; font-size: 10px; }
+
+        @keyframes target-pulse {
+          50% { transform: scale(0.72); opacity: 0.65; }
+        }
+
+        @keyframes route-move {
+          to { background-position: 28px 0; }
+        }
+
+        @keyframes soldier-advance {
+          50% { transform: translateX(8px); }
+        }
+
+        @keyframes key-press {
+          0%, 88%, 100% { transform: translateY(0); border-bottom-width: 4px; color: #f8fafc; }
+          92%, 96% { transform: translateY(3px); border-bottom-width: 1px; color: #7dd3fc; box-shadow: 0 0 18px rgba(56, 189, 248, 0.25); }
+        }
+
+        @keyframes mouse-left-click {
+          0%, 16%, 100% { background: rgba(125, 211, 252, 0.04); }
+          7% { background: rgba(56, 189, 248, 0.55); transform: translateY(2px); }
+        }
+
+        @keyframes mouse-right-click {
+          0%, 54%, 70%, 100% { background: rgba(251, 113, 133, 0.04); }
+          62% { background: rgba(251, 113, 133, 0.55); transform: translateY(2px); }
+        }
+
+        @keyframes aim-drift {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(10px, 12px); }
+        }
+
         .leaderboard-table-wrapper {
           border-radius: 12px;
           overflow: hidden;
@@ -1571,6 +2021,53 @@ export default function HomePage() {
             padding: 14px 14px 16px;
           }
 
+          .objective-card {
+            grid-template-columns: auto 1fr;
+            gap: 14px;
+            padding: 17px;
+          }
+
+          .objective-target {
+            width: 58px;
+            height: 58px;
+          }
+
+          .objective-target-core {
+            inset: 19px;
+          }
+
+          .objective-route {
+            grid-column: 1 / -1;
+            padding: 0 10px;
+          }
+
+          .control-guide {
+            grid-template-columns: 1fr;
+          }
+
+          .keyboard-layout {
+            grid-template-columns: repeat(7, minmax(34px, 1fr));
+            gap: 14px 3px;
+          }
+
+          .key-control kbd {
+            width: 38px;
+            height: 38px;
+            font-size: 15px;
+          }
+
+          .key-control span {
+            font-size: 9px;
+          }
+
+          .gameplay-loop {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .gameplay-loop div:nth-child(2)::after {
+            display: none;
+          }
+
           .leaderboard-table th,
           .leaderboard-table td {
             padding: 6px 8px;
@@ -1585,6 +2082,17 @@ export default function HomePage() {
 
           .game-title {
             font-size: 18px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .objective-target-core,
+          .route-soldier,
+          .route-line,
+          .key-control kbd,
+          .mouse-button,
+          .mouse-aim {
+            animation: none !important;
           }
         }
       `}</style>

@@ -1843,15 +1843,15 @@ function showStartMainScreen(scene) {
   const b = controlBindings || getDefaultBindings();
 
   const instructions = [
-    `• ${b.moveLeft} / ${b.moveUp} / ${b.moveRight} to move`,
-    '• Buy shield upgrades in the UPGRADES tab to absorb damage',
-    '• Left click to fire, right click to reload',
-    `• ${b.weaponPrev} / ${b.weaponNext} to switch weapons`,
-    `• ${b.openShop} to open the Supply Depot (shop)`,
-    `• ${b.heal} to use Medical Kit`,
+    `⌨  ${b.moveLeft}   ${b.moveUp}   ${b.moveRight}     Move / Jump`,
+    `↔  ${b.weaponPrev}   ${b.weaponNext}          Switch weapon`,
+    `▣  ${b.openShop}              Open shop`,
+    `✚  ${b.heal}              Use medkit`,
+    '◉  Left click     Fire',
+    '◌  Right click    Reload',
     '',
-    'Survive as long as you can, push your distance,',
-    'and earn money to upgrade weapons and defenses.'
+    'OBJECTIVE: Stay alive, defeat enemies, and push',
+    'farther to set the highest distance on the leaderboard.'
   ];
 
   // moved up & tightened so buttons don't overlap
