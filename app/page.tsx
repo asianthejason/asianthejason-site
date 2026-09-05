@@ -12,6 +12,16 @@ type HomeTab = "games" | "dev";
 
 const GAMES = [
   {
+    id: "signal-bastion",
+    title: "Signal Bastion — Endless Defense",
+    status: "Live",
+    description:
+      "An endless tower-defense clicker. Power the grid, build an automated arsenal, and survive long enough to top the global leaderboard.",
+    href: "/signal-bastion",
+    tags: ["Tower Defense", "Clicker", "Endless"],
+    thumbnail: undefined,
+  },
+  {
     id: "wwiii",
     title: "WWIII — Endless Defense",
     status: "Live",

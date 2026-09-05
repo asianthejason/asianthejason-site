@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "./supabase";
+import { isSupabaseConfigured, supabase } from "./supabase";
 import * as authService from "./auth";
 
 export type AuthUser = {
@@ -54,6 +54,11 @@ export function useAuth(): UseAuthReturn {
   // Set up auth state listener
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    if (!isSupabaseConfigured) {
+      setAuthReady(true);
+      return;
+    }
 
     let active = true;
 
@@ -128,6 +133,14 @@ export function useAuth(): UseAuthReturn {
       e.preventDefault();
       setAuthError(null);
       setAuthStatus(null);
+
+      if (!isSupabaseConfigured) {
+        setAuthError(
+          "Authentication is not configured. Add the Supabase variables to .env.local."
+        );
+        return;
+      }
+
       setAuthLoading(true);
 
       try {
@@ -200,6 +213,14 @@ export function useAuth(): UseAuthReturn {
   const handleGoogleSignIn = useCallback(async () => {
     setAuthError(null);
     setAuthStatus(null);
+
+    if (!isSupabaseConfigured) {
+      setAuthError(
+        "Authentication is not configured. Add the Supabase variables to .env.local."
+      );
+      return;
+    }
+
     setAuthLoading(true);
     try {
       await authService.signInWithGoogle();
