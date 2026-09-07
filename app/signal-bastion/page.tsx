@@ -64,7 +64,7 @@ type GamePhase = "ready" | "playing" | "gameover";
 type DoctrineId = "longshot" | "relay" | "permafrost" | "deepBore";
 type MetaProfile = {
   cores: number;
-  unlocked: DoctrineId[];
+  research: Record<DoctrineId, number>;
   equipped: DoctrineId | null;
   rewardedRuns: string[];
 };
@@ -97,6 +97,7 @@ type Snapshot = {
   emergencyLevel: number;
   elapsed: number;
   doctrine: DoctrineId | null;
+  doctrineLevel: number;
 };
 type ScoreRow = {
   id: number;
@@ -108,6 +109,7 @@ type ScoreRow = {
   modifiers?: string[];
   created_at?: string;
   run_id?: string;
+  player_level?: number;
 };
 
 const W = 960,
@@ -174,52 +176,62 @@ const TOWER_MAX_RANGE: Record<Exclude<TowerKind, "miner">, number> = {
   arc: 175,
   cryo: 185,
 };
+const TARGET_HINTS: Record<TargetMode, string> = {
+  first: "Enemy closest to the core",
+  last: "Enemy farthest from the core",
+  strongest: "Enemy with the most health",
+  weakest: "Enemy with the least health",
+  closest: "Enemy nearest this tower",
+  unslowed: "Enemy not already slowed",
+};
 
 const DOCTRINES: Record<
   DoctrineId,
-  { name: string; tower: TowerKind; cost: number; effect: string }
+  { name: string; tower: TowerKind; effect: string }
 > = {
   longshot: {
     name: "Longshot Array",
     tower: "rail",
-    cost: 5,
-    effect: "Railguns gain 20% range but fire 15% slower.",
+    effect: "+4% range · 3% slower fire per level",
   },
   relay: {
     name: "Relay Lattice",
     tower: "arc",
-    cost: 7,
-    effect: "Arc Coils chain to one extra enemy but deal 15% less damage.",
+    effect: "More chain targets · −3% damage per level",
   },
   permafrost: {
     name: "Permafrost Mix",
     tower: "cryo",
-    cost: 7,
-    effect: "Cryo slow chance gains 20 points but damage falls 20%.",
+    effect: "+4% slow chance · −4% damage per level",
   },
   deepBore: {
     name: "Deep-Bore Rig",
     tower: "miner",
-    cost: 9,
-    effect: "Harvesters extract 35% faster but cost 30% more energy.",
+    effect: "+7% extraction · +6% build cost per level",
   },
 };
 const EMPTY_META: MetaProfile = {
   cores: 0,
-  unlocked: [],
+  research: { longshot: 0, relay: 0, permafrost: 0, deepBore: 0 },
   equipped: null,
   rewardedRuns: [],
 };
 function readMetaProfile(): MetaProfile {
   try {
     const saved = JSON.parse(localStorage.getItem("signalBastionMetaV1") || "{}");
-    const valid = (Object.keys(DOCTRINES) as DoctrineId[]).filter((id) =>
+    const legacy = (Object.keys(DOCTRINES) as DoctrineId[]).filter((id) =>
       Array.isArray(saved.unlocked) ? saved.unlocked.includes(id) : false,
     );
+    const research = Object.fromEntries(
+      (Object.keys(DOCTRINES) as DoctrineId[]).map((id) => [
+        id,
+        Math.max(0, Math.min(5, Math.floor(Number(saved.research?.[id]) || (legacy.includes(id) ? 5 : 0)))),
+      ]),
+    ) as Record<DoctrineId, number>;
     return {
       cores: Math.max(0, Math.floor(Number(saved.cores) || 0)),
-      unlocked: valid,
-      equipped: valid.includes(saved.equipped) ? saved.equipped : null,
+      research,
+      equipped: research[saved.equipped as DoctrineId] > 0 ? saved.equipped : null,
       rewardedRuns: Array.isArray(saved.rewardedRuns)
         ? saved.rewardedRuns.filter((id: unknown) => typeof id === "string").slice(-100)
         : [],
@@ -235,18 +247,21 @@ function writeMetaProfile(profile: MetaProfile) {
 }
 const coreReward = (completedWaves: number, bosses: number) =>
   Math.floor(completedWaves / 5) + bosses * 2;
-const towerCost = (kind: TowerKind, doctrine: DoctrineId | null) =>
-  Math.ceil(TOWER_DATA[kind].cost * (kind === "miner" && doctrine === "deepBore" ? 1.3 : 1));
+const playerLevel = (profile: MetaProfile) =>
+  Object.values(profile.research).reduce((total, level) => total + level, 0);
+const researchCost = (level: number) => level + 1;
+const towerCost = (kind: TowerKind, doctrine: DoctrineId | null, doctrineLevel = 0) =>
+  Math.ceil(TOWER_DATA[kind].cost * (kind === "miner" && doctrine === "deepBore" ? 1 + doctrineLevel * 0.06 : 1));
 const towerRangeCap = (kind: TowerKind) =>
   kind === "miner" ? 0 : TOWER_MAX_RANGE[kind];
-const towerRange = (tower: Tower, doctrine: DoctrineId | null) =>
+const towerRange = (tower: Tower, doctrine: DoctrineId | null, doctrineLevel = 0) =>
   tower.kind === "miner"
     ? 0
     : Math.min(
         towerRangeCap(tower.kind),
         TOWER_DATA[tower.kind].range *
           (1 + (tower.level - 1) * 0.08) *
-          (tower.kind === "rail" && doctrine === "longshot" ? 1.2 : 1),
+          (tower.kind === "rail" && doctrine === "longshot" ? 1 + doctrineLevel * 0.04 : 1),
       );
 
 const cryoChance = (level: number) => Math.min(0.75, 0.18 + (level - 1) * 0.09);
@@ -337,6 +352,11 @@ function rankScores(a: ScoreRow, b: ScoreRow) {
     (b.bosses_defeated || 0) - (a.bosses_defeated || 0) ||
     b.enemies_defeated - a.enemies_defeated
   );
+}
+function formatDuration(seconds = 0) {
+  const minutes = Math.floor(seconds / 60),
+    remainder = Math.floor(seconds % 60);
+  return `${minutes}:${remainder.toString().padStart(2, "0")}`;
 }
 function readLocalScores(): ScoreRow[] {
   try {
@@ -513,7 +533,9 @@ export default function SignalBastionPage() {
     last: 0,
     startedAt: 0,
     doctrine: null as DoctrineId | null,
+    doctrineLevel: 0,
     coresAwarded: false,
+    playerLevel: 0,
   });
   const placement = useRef({
     active: false,
@@ -551,6 +573,7 @@ export default function SignalBastionPage() {
     emergencyLevel: 0,
     elapsed: 0,
     doctrine: null,
+    doctrineLevel: 0,
   });
   const [placingTower, setPlacingTower] = useState<TowerKind | null>(null);
   const [selectedPad, setSelectedPad] = useState<number | null>(null);
@@ -561,6 +584,7 @@ export default function SignalBastionPage() {
   const [coreNotice, setCoreNotice] = useState("");
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [saveStatus, setSaveStatus] = useState("");
+  const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const saving = useRef(false);
   const savedRun = useRef("");
   const { currentUser } = useAuth();
@@ -598,6 +622,7 @@ export default function SignalBastionPage() {
       emergencyLevel: g.emergencyLevel,
       elapsed: g.elapsed,
       doctrine: g.doctrine,
+      doctrineLevel: g.doctrineLevel,
     });
   }, []);
   const loadScores = useCallback(async () => {
@@ -609,7 +634,7 @@ export default function SignalBastionPage() {
     const { data, error } = await supabase
       .from("signal_bastion_scores")
       .select(
-        "id,name,waves,enemies_defeated,bosses_defeated,run_seconds,modifiers,created_at,run_id",
+        "id,name,waves,enemies_defeated,bosses_defeated,run_seconds,modifiers,created_at,run_id,player_level",
       )
       .eq("rules_version", 2)
       .order("waves", { ascending: false })
@@ -674,7 +699,9 @@ export default function SignalBastionPage() {
       last: now,
       startedAt: Date.now(),
       doctrine: meta.equipped,
+      doctrineLevel: meta.equipped ? meta.research[meta.equipped] : 0,
       coresAwarded: false,
+      playerLevel: playerLevel(meta),
     };
     placement.current = {
       active: false,
@@ -690,6 +717,7 @@ export default function SignalBastionPage() {
     setSelectedPad(null);
     setSidebarTab("towers");
     setSaveStatus("");
+    setScoreSubmitted(false);
     setCoreNotice("");
     sync();
   };
@@ -898,7 +926,7 @@ export default function SignalBastionPage() {
             g.scrap +=
               minerRate(t.level) *
               (t.evolution === "recycler" ? 1.8 : 1) *
-              (g.doctrine === "deepBore" ? 1.35 : 1) *
+              (g.doctrine === "deepBore" ? 1 + g.doctrineLevel * 0.07 : 1) *
               dt;
             continue;
           }
@@ -928,7 +956,7 @@ export default function SignalBastionPage() {
                 const q = pointAt(e.progress);
                 return (
                   Math.hypot(q.x - p.x, q.y - p.y) <=
-                  towerRange(t, g.doctrine)
+                  towerRange(t, g.doctrine, g.doctrineLevel)
                 );
               });
           inRange.sort((a, b) =>
@@ -956,8 +984,10 @@ export default function SignalBastionPage() {
           if (!target) continue;
           const q = pointAt(target.progress);
           let damage = stats.damage * (1 + (t.level - 1) * 0.72);
-          if (t.kind === "arc" && g.doctrine === "relay") damage *= 0.85;
-          if (t.kind === "cryo" && g.doctrine === "permafrost") damage *= 0.8;
+          if (t.kind === "arc" && g.doctrine === "relay")
+            damage *= 1 - g.doctrineLevel * 0.03;
+          if (t.kind === "cryo" && g.doctrine === "permafrost")
+            damage *= 1 - g.doctrineLevel * 0.04;
           if (t.evolution === "siege" && target.boss) damage *= 1.75;
           if (t.evolution === "overload") damage *= 1.65;
           if (t.evolution === "shatter" && target.slow > 0) damage *= 1.5;
@@ -971,7 +1001,7 @@ export default function SignalBastionPage() {
               Math.min(
                 0.95,
                 cryoChance(t.level) +
-                  (g.doctrine === "permafrost" ? 0.2 : 0),
+                  (g.doctrine === "permafrost" ? g.doctrineLevel * 0.04 : 0),
               )
           ) {
             target.slow = t.evolution === "deep" ? 3 : 1.8;
@@ -991,10 +1021,10 @@ export default function SignalBastionPage() {
               .slice(
                 0,
                 t.evolution === "storm"
-                  ? 4 + (g.doctrine === "relay" ? 1 : 0)
+                  ? 4 + (g.doctrine === "relay" ? Math.ceil(g.doctrineLevel / 2) : 0)
                   : t.evolution === "overload"
-                    ? 1 + (g.doctrine === "relay" ? 1 : 0)
-                    : 2 + (g.doctrine === "relay" ? 1 : 0),
+                    ? 1 + (g.doctrine === "relay" ? Math.ceil(g.doctrineLevel / 2) : 0)
+                    : 2 + (g.doctrine === "relay" ? Math.ceil(g.doctrineLevel / 2) : 0),
               )
               .forEach((e) => {
                 hit(e, damage * 0.48, g.enemies, g.elapsed);
@@ -1014,8 +1044,8 @@ export default function SignalBastionPage() {
               dy = q.y - p.y;
             const length = Math.hypot(dx, dy) || 1;
             const end = {
-              x: p.x + (dx / length) * towerRange(t, g.doctrine),
-              y: p.y + (dy / length) * towerRange(t, g.doctrine),
+              x: p.x + (dx / length) * towerRange(t, g.doctrine, g.doctrineLevel),
+              y: p.y + (dy / length) * towerRange(t, g.doctrine, g.doctrineLevel),
             };
             const secondary = inRange.find((e) => {
               const location = pointAt(e.progress);
@@ -1049,7 +1079,9 @@ export default function SignalBastionPage() {
           t.cooldown =
             (stats.rate *
               Math.pow(0.94, t.level - 1) *
-              (t.kind === "rail" && g.doctrine === "longshot" ? 1.15 : 1)) /
+              (t.kind === "rail" && g.doctrine === "longshot"
+                ? 1 + g.doctrineLevel * 0.03
+                : 1)) /
             (g.buffs.overcharge > 0 ? 1.8 : 1);
         }
         g.shots.forEach((s) => (s.life -= dt));
@@ -1182,9 +1214,16 @@ export default function SignalBastionPage() {
       ctx.fillText("GENERATOR", GENERATOR.x, GENERATOR.y + 55);
       const selectedTower = g.towers.find((t) => t.pad === selectedPad),
         selectedTowerPad = g.pads.find((p) => p.id === selectedPad);
-      if (selectedTower && selectedTowerPad && selectedTower.kind !== "miner") {
+      if (
+        selectedTower &&
+        selectedTowerPad &&
+        (selectedTower.kind !== "miner" || selectedTower.evolution === "salvager")
+      ) {
         const stats = TOWER_DATA[selectedTower.kind],
-          range = towerRange(selectedTower, g.doctrine);
+          range =
+            selectedTower.evolution === "salvager"
+              ? 150
+              : towerRange(selectedTower, g.doctrine, g.doctrineLevel);
         ctx.beginPath();
         ctx.arc(selectedTowerPad.x, selectedTowerPad.y, range, 0, Math.PI * 2);
         ctx.fillStyle = `${stats.color}18`;
@@ -1194,6 +1233,12 @@ export default function SignalBastionPage() {
         ctx.setLineDash([8, 6]);
         ctx.stroke();
         ctx.setLineDash([]);
+        if (selectedTower.evolution === "salvager") {
+          ctx.fillStyle = stats.color;
+          ctx.font = "700 9px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("+25% SALVAGE ZONE", selectedTowerPad.x, selectedTowerPad.y - range - 8);
+        }
       }
       g.pads.forEach((p) => {
         const built = g.towers.find((t) => t.pad === p.id);
@@ -1558,10 +1603,10 @@ export default function SignalBastionPage() {
       g.phase === "playing" &&
       kind &&
       validPadPosition(canvasPoint(e), g.pads) &&
-      g.energy >= towerCost(kind, g.doctrine)
+      g.energy >= towerCost(kind, g.doctrine, g.doctrineLevel)
     ) {
       const pad = { id: g.padId++, ...canvasPoint(e) };
-      g.energy -= towerCost(kind, g.doctrine);
+      g.energy -= towerCost(kind, g.doctrine, g.doctrineLevel);
       g.pads.push(pad);
       g.towers.push({
         pad: pad.id,
@@ -1584,7 +1629,10 @@ export default function SignalBastionPage() {
       e.currentTarget.releasePointerCapture(e.pointerId);
   };
   const startTowerPlacement = (kind: TowerKind) => {
-    if (snap.phase !== "playing" || snap.energy < towerCost(kind, snap.doctrine))
+    if (
+      snap.phase !== "playing" ||
+      snap.energy < towerCost(kind, snap.doctrine, snap.doctrineLevel)
+    )
       return;
     setStrikeArmed(false);
     setSelectedPad(null);
@@ -1625,7 +1673,11 @@ export default function SignalBastionPage() {
   };
   const sell = () => {
     if (game.current.phase !== "playing" || !tower) return;
-    const paidCost = towerCost(tower.kind, game.current.doctrine);
+    const paidCost = towerCost(
+      tower.kind,
+      game.current.doctrine,
+      game.current.doctrineLevel,
+    );
     game.current.energy = Math.min(
       energyCapacity(game.current.storageLevel),
       game.current.energy + Math.floor(paidCost * 0.6),
@@ -1763,15 +1815,15 @@ export default function SignalBastionPage() {
     sync();
   };
   const unlockDoctrine = (id: DoctrineId) => {
-    const doctrine = DOCTRINES[id];
     if (game.current.phase === "playing") return;
     setMeta((current) => {
-      if (current.unlocked.includes(id) || current.cores < doctrine.cost)
-        return current;
+      const level = current.research[id],
+        cost = researchCost(level);
+      if (level >= 5 || current.cores < cost) return current;
       const next = {
         ...current,
-        cores: current.cores - doctrine.cost,
-        unlocked: [...current.unlocked, id],
+        cores: current.cores - cost,
+        research: { ...current.research, [id]: level + 1 },
         equipped: id,
       };
       writeMetaProfile(next);
@@ -1781,7 +1833,7 @@ export default function SignalBastionPage() {
   const equipDoctrine = (id: DoctrineId | null) => {
     if (
       game.current.phase === "playing" ||
-      (id && !meta.unlocked.includes(id))
+      (id && meta.research[id] <= 0)
     )
       return;
     setMeta((current) => {
@@ -1795,6 +1847,7 @@ export default function SignalBastionPage() {
     if (
       g.phase !== "gameover" ||
       saving.current ||
+      scoreSubmitted ||
       savedRun.current === g.runId
     )
       return;
@@ -1810,6 +1863,7 @@ export default function SignalBastionPage() {
       created_at: new Date().toISOString(),
       run_id: g.runId,
       rules_version: 2,
+      player_level: g.playerLevel,
     };
     if (g.doctrine) row.modifiers.push(`Doctrine: ${DOCTRINES[g.doctrine].name}`);
     try {
@@ -1822,17 +1876,16 @@ export default function SignalBastionPage() {
       try {
         localStorage.setItem("signalBastionScoresV2", JSON.stringify(local));
       } catch {}
+      savedRun.current = g.runId;
+      setScoreSubmitted(true);
       if (isSupabaseConfigured && currentUser) {
         const { error } = await supabase
           .from("signal_bastion_scores")
           .insert({ ...row, user_id: currentUser.uid });
         if (error && error.code !== "23505") {
-          setSaveStatus(
-            "Saved on this device. Global save failed; you can retry.",
-          );
+          setSaveStatus("Saved on this device. Global submission failed.");
           return;
         }
-        savedRun.current = g.runId;
         setSaveStatus("Score saved.");
         void loadScores();
       } else {
@@ -1933,18 +1986,43 @@ export default function SignalBastionPage() {
               }}
             />
             {snap.phase !== "playing" && (
-              <div className="sb-start">
-                <button onClick={begin}>
-                  {snap.phase === "gameover"
-                    ? "REBUILD & RETRY"
-                    : "BEGIN DEFENSE"}
-                </button>
+              <div className={`sb-start ${snap.phase === "gameover" ? "gameover" : ""}`}>
                 {snap.phase === "gameover" && (
-                  <button className="secondary" onClick={saveScore}>
-                    SAVE SCORE
-                  </button>
+                  <div className="sb-run-reward">
+                    <i>◆</i>
+                    <small>RUN REWARD SECURED</small>
+                    <strong>
+                      +{coreReward(Math.max(0, snap.wave - 1), snap.bosses)} DATA CORES
+                    </strong>
+                    <p>
+                      Commander Level {playerLevel(meta)} · Spend cores in the
+                      Archive to level tower doctrines.
+                    </p>
+                    <button
+                      className="secondary"
+                      onClick={() => setSidebarTab("archive")}
+                    >
+                      OPEN ARCHIVE
+                    </button>
+                  </div>
                 )}
-                <span>{coreNotice || saveStatus}</span>
+                <div className="sb-run-actions">
+                  <button onClick={begin}>
+                    {snap.phase === "gameover"
+                      ? "REBUILD & RETRY"
+                      : "BEGIN DEFENSE"}
+                  </button>
+                  {snap.phase === "gameover" && (
+                    <button
+                      className="secondary"
+                      onClick={saveScore}
+                      disabled={scoreSubmitted}
+                    >
+                      {scoreSubmitted ? "SCORE SAVED ✓" : "SAVE SCORE"}
+                    </button>
+                  )}
+                </div>
+                <span>{saveStatus || coreNotice}</span>
               </div>
             )}
             <div className="sb-tip">
@@ -1994,7 +2072,7 @@ export default function SignalBastionPage() {
                   </p>
                   {(Object.keys(TOWER_DATA) as TowerKind[]).map((k) => {
                     const d = TOWER_DATA[k],
-                      cost = towerCost(k, snap.doctrine);
+                      cost = towerCost(k, snap.doctrine, snap.doctrineLevel);
                     return (
                       <button
                         key={k}
@@ -2043,7 +2121,9 @@ export default function SignalBastionPage() {
                   +
                 </div>
                 <b>PLACING {TOWER_DATA[placingTower].name.toUpperCase()}</b>
-                <small>{towerCost(placingTower, snap.doctrine)} ENERGY</small>
+                <small>
+                  {towerCost(placingTower, snap.doctrine, snap.doctrineLevel)} ENERGY
+                </small>
                 <button className="sb-cancel" onClick={cancelTowerPlacement}>
                   CANCEL PLACEMENT
                 </button>
@@ -2060,6 +2140,7 @@ export default function SignalBastionPage() {
                 onTarget={setTarget}
                 onEvolve={evolve}
                 doctrine={snap.doctrine}
+                doctrineLevel={snap.doctrineLevel}
               />
             )}
             {sidebarTab === "upgrades" && (
@@ -2068,11 +2149,12 @@ export default function SignalBastionPage() {
                 {snap.threatPending && (
                   <div className="sb-threat">
                     <b>CHOOSE A THREAT · +BONUS SCRAP</b>
-                    {["Rapid host", "Armored host", "Hot generator"].map(
+                    {["Rapid host", "Armored host", "Hot generator"]
+                      .filter((x) => !snap.threat.split(", ").includes(x))
+                      .map(
                       (x) => (
                         <button
                           key={x}
-                          disabled={snap.threat.includes(x)}
                           onClick={() => chooseThreat(x)}
                         >
                           {x} ·{" "}
@@ -2086,7 +2168,15 @@ export default function SignalBastionPage() {
                     )}
                   </div>
                 )}
-                <div className="sb-general">
+                <div className="sb-upgrade-group">
+                  <div className="sb-group-title">
+                    <span>⚡</span>
+                    <div>
+                      <b>ECONOMY</b>
+                      <small>Earn and hold more resources</small>
+                    </div>
+                  </div>
+                  <div className="sb-general">
                   <button
                     onClick={upgradeStorage}
                     disabled={
@@ -2095,7 +2185,7 @@ export default function SignalBastionPage() {
                     }
                   >
                     <span>
-                      <b>Energy storage · LV {snap.storageLevel}</b>
+                      <b>Energy capacity · LV {snap.storageLevel}</b>
                       <small>
                         {energyCapacity(snap.storageLevel)} →{" "}
                         {energyCapacity(snap.storageLevel + 1)} capacity
@@ -2113,8 +2203,8 @@ export default function SignalBastionPage() {
                     }
                   >
                     <span>
-                      <b>Generator output · LV {snap.generatorLevel}</b>
-                      <small>+1 per click and +0.6 energy/second</small>
+                      <b>Energy income · LV {snap.generatorLevel}</b>
+                      <small>Clicks +1 · Passive +0.6/s</small>
                     </span>
                     <strong>
                       {generatorUpgradeCost(snap.generatorLevel)} SCRAP
@@ -2128,14 +2218,25 @@ export default function SignalBastionPage() {
                     }
                   >
                     <span>
-                      <b>Scrap extraction · LV {snap.extractionLevel}</b>
-                      <small>+18% enemy scrap per level</small>
+                      <b>Kill rewards · LV {snap.extractionLevel}</b>
+                      <small>Enemies drop +18% scrap</small>
                     </span>
                     <strong>
                       {extractionUpgradeCost(snap.extractionLevel)} ENERGY
                     </strong>
                   </button>
-                  <button
+                  </div>
+                </div>
+                <div className="sb-upgrade-group">
+                  <div className="sb-group-title">
+                    <span>⌖</span>
+                    <div>
+                      <b>OFFENSE</b>
+                      <small>Improve manual attacks</small>
+                    </div>
+                  </div>
+                  <div className="sb-general">
+                    <button
                     onClick={upgradeClickDamage}
                     disabled={
                       snap.phase !== "playing" ||
@@ -2143,7 +2244,7 @@ export default function SignalBastionPage() {
                     }
                   >
                     <span>
-                      <b>Click damage · LV {snap.clickLevel}</b>
+                      <b>Click shot · LV {snap.clickLevel}</b>
                       <small>
                         {Math.round(clickDamage(snap.clickLevel, snap.wave))} →{" "}
                         {Math.round(
@@ -2153,6 +2254,17 @@ export default function SignalBastionPage() {
                     </span>
                     <strong>{clickUpgradeCost(snap.clickLevel)} SCRAP</strong>
                   </button>
+                  </div>
+                </div>
+                <div className="sb-upgrade-group">
+                  <div className="sb-group-title">
+                    <span>◆</span>
+                    <div>
+                      <b>CORE DEFENSE</b>
+                      <small>Survive leaks and recover</small>
+                    </div>
+                  </div>
+                  <div className="sb-general">
                   <button
                     onClick={upgradeCore}
                     disabled={
@@ -2161,8 +2273,8 @@ export default function SignalBastionPage() {
                     }
                   >
                     <span>
-                      <b>Core integrity · LV {snap.coreLevel}</b>
-                      <small>Restore and add 5 maximum integrity</small>
+                      <b>Integrity · LV {snap.coreLevel}</b>
+                      <small>Heal 5 · Maximum +5</small>
                     </span>
                     <strong>{coreUpgradeCost(snap.coreLevel)} SCRAP</strong>
                   </button>
@@ -2174,15 +2286,24 @@ export default function SignalBastionPage() {
                     }
                   >
                     <span>
-                      <b>Core shield · LV {snap.shieldLevel}</b>
-                      <small>Regenerates between waves</small>
+                      <b>Shield · LV {snap.shieldLevel}</b>
+                      <small>Blocks leaks · Recharges each wave</small>
                     </span>
                     <strong>
                       {shieldUpgradeCost(snap.shieldLevel)} ENERGY
                     </strong>
                   </button>
+                  </div>
                 </div>
-                <div className="sb-general">
+                <div className="sb-upgrade-group">
+                  <div className="sb-group-title">
+                    <span>✦</span>
+                    <div>
+                      <b>CORE SYSTEMS</b>
+                      <small>Automatic emergency responses</small>
+                    </div>
+                  </div>
+                  <div className="sb-general">
                   {(["pulse", "emergency", "revival"] as const).map((kind) => (
                     <button
                       key={kind}
@@ -2208,17 +2329,17 @@ export default function SignalBastionPage() {
                       <span>
                         <b>
                           {kind === "pulse"
-                            ? "Core damage pulse"
+                            ? `Damage pulse · LV ${snap.pulseLevel}`
                             : kind === "emergency"
-                              ? "Emergency overcharge"
-                              : "One-time core revival"}
+                              ? `Leak overcharge · LV ${snap.emergencyLevel}`
+                              : "One-time revival"}
                         </b>
                         <small>
                           {kind === "pulse"
-                            ? "Damage all enemies when the core is hit"
+                            ? "Core hit → damage every enemy"
                             : kind === "emergency"
-                              ? "Boost towers when the core is hit"
-                              : "Restore 50% integrity on defeat"}
+                              ? "Core hit → temporary tower boost"
+                              : "Fatal hit → restore 50% integrity"}
                         </small>
                       </span>
                       <strong>
@@ -2237,6 +2358,14 @@ export default function SignalBastionPage() {
                       </strong>
                     </button>
                   ))}
+                  </div>
+                </div>
+                <div className="sb-group-title sb-ability-title">
+                  <span>▶</span>
+                  <div>
+                    <b>ACTIVE ABILITIES</b>
+                    <small>Tap to activate · Recharge over time</small>
+                  </div>
                 </div>
                 <div className="sb-abilities">
                   {(
@@ -2266,7 +2395,16 @@ export default function SignalBastionPage() {
                         snap.phase !== "playing" || snap.cooldowns[k] > 0
                       }
                     >
-                      {label}
+                      <b>{label}</b>
+                      <span>
+                        {{
+                          overcharge: "Faster towers",
+                          emp: "Freeze all",
+                          strike: "Area damage",
+                          repair: "Heal 5 core",
+                          magnet: "2× kill scrap",
+                        }[k]}
+                      </span>
                       <small>
                         {snap.cooldowns[k] > 0
                           ? `${Math.ceil(snap.cooldowns[k])}s`
@@ -2283,16 +2421,17 @@ export default function SignalBastionPage() {
                   <small>PERMANENT CURRENCY</small>
                   <strong>{meta.cores} DATA CORES</strong>
                   <span>
-                    Earn 1 per 5 completed waves and 2 per defeated boss.
+                    COMMANDER LEVEL {playerLevel(meta)} · Earn 1 per 5 waves and
+                    2 per boss.
                   </span>
                 </div>
                 <p>
-                  Unlock doctrines permanently, then equip one before a run.
-                  Every doctrine adds a strength and a tradeoff.
+                  Research up to five levels per doctrine. Equip one before a
+                  run; every strength includes a tradeoff.
                 </p>
                 {(Object.keys(DOCTRINES) as DoctrineId[]).map((id) => {
                   const doctrine = DOCTRINES[id],
-                    unlocked = meta.unlocked.includes(id),
+                    level = meta.research[id],
                     equipped = meta.equipped === id;
                   return (
                     <button
@@ -2300,26 +2439,40 @@ export default function SignalBastionPage() {
                       className={`sb-doctrine ${equipped ? "active" : ""}`}
                       disabled={
                         snap.phase === "playing" ||
-                        (!unlocked && meta.cores < doctrine.cost)
+                        (level >= 5 || meta.cores < researchCost(level))
                       }
-                      onClick={() =>
-                        unlocked ? equipDoctrine(equipped ? null : id) : unlockDoctrine(id)
-                      }
+                      onClick={() => unlockDoctrine(id)}
                     >
                       <span>
-                        <b>{doctrine.name}</b>
+                        <b>{doctrine.name} · LV {level}/5</b>
                         <small>{doctrine.effect}</small>
                       </span>
                       <strong>
-                        {equipped
-                          ? "EQUIPPED"
-                          : unlocked
-                            ? "EQUIP"
-                            : `${doctrine.cost} CORES`}
+                        {level >= 5 ? "MAX" : `${researchCost(level)} CORES`}
                       </strong>
                     </button>
                   );
                 })}
+                <div className="sb-doctrine-equip">
+                  <small>EQUIPPED DOCTRINE</small>
+                  <select
+                    aria-label="Equipped doctrine"
+                    disabled={snap.phase === "playing"}
+                    value={meta.equipped || ""}
+                    onChange={(event) =>
+                      equipDoctrine((event.target.value || null) as DoctrineId | null)
+                    }
+                  >
+                    <option value="">None</option>
+                    {(Object.keys(DOCTRINES) as DoctrineId[])
+                      .filter((id) => meta.research[id] > 0)
+                      .map((id) => (
+                        <option key={id} value={id}>
+                          {DOCTRINES[id].name} · LV {meta.research[id]}
+                        </option>
+                      ))}
+                  </select>
+                </div>
                 {snap.phase === "playing" && (
                   <small>Doctrine loadout is locked until this run ends.</small>
                 )}
@@ -2390,16 +2543,31 @@ export default function SignalBastionPage() {
             ol(
               scores.map((s, i) => (
                 <li key={s.id}>
-                  <b>#{i + 1}</b>
-                  <span>{s.name}</span>
+                  <b className="sb-rank">#{i + 1}</b>
+                  <div className="sb-player">
+                    <span>{s.name}</span>
+                    <small>COMMANDER LV {s.player_level || 0}</small>
+                  </div>
                   <strong>WAVE {s.waves}</strong>
-                  <small>
-                    {s.enemies_defeated} defeated · {s.bosses_defeated || 0}{" "}
-                    bosses · {s.run_seconds || 0}s ·{" "}
-                    {s.modifiers?.join(", ") || "No modifiers"} ·{" "}
-                    {s.created_at
-                      ? new Date(s.created_at).toLocaleDateString()
-                      : ""}
+                  <div className="sb-score-metrics">
+                    <span><b>{s.enemies_defeated}</b> KILLS</span>
+                    <span><b>{s.bosses_defeated || 0}</b> BOSSES</span>
+                    <span><b>{formatDuration(s.run_seconds)}</b> TIME</span>
+                    <span>
+                      <b>
+                        {s.created_at
+                          ? new Date(s.created_at).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "Unknown"}
+                      </b>{" "}
+                      DATE
+                    </span>
+                  </div>
+                  <small className="sb-score-modifiers">
+                    {s.modifiers?.join(" · ") || "Standard run · No modifiers"}
                   </small>
                 </li>
               )),
@@ -2429,6 +2597,7 @@ function TowerStats({
   onTarget,
   onEvolve,
   doctrine,
+  doctrineLevel,
 }: {
   tower: Tower;
   upgradeCost: number;
@@ -2439,10 +2608,11 @@ function TowerStats({
   onTarget: (target: TargetMode) => void;
   onEvolve: (evolution: Evolution) => void;
   doctrine: DoctrineId | null;
+  doctrineLevel: number;
 }) {
   const data = TOWER_DATA[tower.kind],
     levelScale = 1 + (tower.level - 1) * 0.72,
-    range = towerRange(tower, doctrine),
+    range = towerRange(tower, doctrine, doctrineLevel),
     isMiner = tower.kind === "miner";
   const evolution = EVOLUTIONS[tower.kind];
   return (
@@ -2463,7 +2633,7 @@ function TowerStats({
                 {(
                   minerRate(tower.level) *
                   (tower.evolution === "recycler" ? 1.8 : 1) *
-                  (doctrine === "deepBore" ? 1.35 : 1)
+                  (doctrine === "deepBore" ? 1 + doctrineLevel * 0.07 : 1)
                 ).toFixed(2)}
                 /s
               </dd>
@@ -2474,7 +2644,7 @@ function TowerStats({
                 {(
                   minerRate(tower.level + 1) *
                   (tower.evolution === "recycler" ? 1.8 : 1) *
-                  (doctrine === "deepBore" ? 1.35 : 1)
+                  (doctrine === "deepBore" ? 1 + doctrineLevel * 0.07 : 1)
                 ).toFixed(2)}
                 /s
               </dd>
@@ -2485,7 +2655,11 @@ function TowerStats({
             </div>
             <div>
               <dt>SPECIAL</dt>
-              <dd>{tower.evolution?.toUpperCase() || "AUTO EXTRACT"}</dd>
+              <dd>
+                {tower.evolution === "salvager"
+                  ? "+25% KILLS · 150R"
+                  : tower.evolution?.toUpperCase() || "AUTO EXTRACT"}
+              </dd>
             </div>
           </>
         ) : (
@@ -2496,8 +2670,12 @@ function TowerStats({
                 {Math.round(
                   data.damage *
                     levelScale *
-                    (tower.kind === "arc" && doctrine === "relay" ? 0.85 : 1) *
-                    (tower.kind === "cryo" && doctrine === "permafrost" ? 0.8 : 1) *
+                    (tower.kind === "arc" && doctrine === "relay"
+                      ? 1 - doctrineLevel * 0.03
+                      : 1) *
+                    (tower.kind === "cryo" && doctrine === "permafrost"
+                      ? 1 - doctrineLevel * 0.04
+                      : 1) *
                     (tower.evolution === "overload" ? 1.65 : 1),
                 )}
               </dd>
@@ -2514,7 +2692,9 @@ function TowerStats({
                 {(
                   data.rate *
                   Math.pow(0.94, tower.level - 1) *
-                  (tower.kind === "rail" && doctrine === "longshot" ? 1.15 : 1)
+                  (tower.kind === "rail" && doctrine === "longshot"
+                    ? 1 + doctrineLevel * 0.03
+                    : 1)
                 ).toFixed(2)}s
               </dd>
             </div>
@@ -2530,7 +2710,9 @@ function TowerStats({
                           Math.min(
                             0.95,
                             cryoChance(tower.level) +
-                              (doctrine === "permafrost" ? 0.2 : 0),
+                              (doctrine === "permafrost"
+                                ? doctrineLevel * 0.04
+                                : 0),
                           ) * 100,
                         )}% slow`)}
               </dd>
@@ -2539,19 +2721,27 @@ function TowerStats({
         )}
       </dl>
       {!isMiner && (
-        <select
-          className="sb-target"
-          aria-label="Tower targeting"
-          value={tower.target}
-          onChange={(e) => onTarget(e.target.value as TargetMode)}
-        >
-          <option value="first">Target: First</option>
-          <option value="last">Target: Last</option>
-          <option value="strongest">Target: Strongest</option>
-          <option value="weakest">Target: Weakest</option>
-          <option value="closest">Target: Closest</option>
-          <option value="unslowed">Target: Unslowed</option>
-        </select>
+        <label className="sb-target-control">
+          <span>
+            <small>COMBAT DIRECTIVE</small>
+            <b>{TARGET_HINTS[tower.target]}</b>
+          </span>
+          <span className="sb-select-wrap">
+            <select
+              className="sb-target"
+              aria-label="Tower targeting"
+              value={tower.target}
+              onChange={(e) => onTarget(e.target.value as TargetMode)}
+            >
+              <option value="first">First</option>
+              <option value="last">Last</option>
+              <option value="strongest">Strongest</option>
+              <option value="weakest">Weakest</option>
+              <option value="closest">Closest</option>
+              <option value="unslowed">Unslowed</option>
+            </select>
+          </span>
+        </label>
       )}
       {tower.level >= 5 && !tower.evolution && (
         <div className="sb-evolve">
@@ -2575,7 +2765,8 @@ function TowerStats({
         <span>{upgradeCost} SCRAP</span>
       </button>
       <button className="sb-sell" onClick={onSell}>
-        SELL TOWER · {Math.floor(towerCost(tower.kind, doctrine) * 0.6)} ENERGY
+        SELL TOWER ·{" "}
+        {Math.floor(towerCost(tower.kind, doctrine, doctrineLevel) * 0.6)} ENERGY
       </button>
       <button className="sb-back" onClick={onClose}>
         BACK TO GRID

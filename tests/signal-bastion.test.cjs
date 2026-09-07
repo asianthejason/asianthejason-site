@@ -25,6 +25,8 @@ const names = new Set([
   "TOWER_MAX_RANGE",
   "towerRangeCap",
   "towerRange",
+  "playerLevel",
+  "researchCost",
 ]);
 const selected = source.statements
   .filter(
@@ -41,7 +43,7 @@ const code = ts.transpileModule(selected, {
   compilerOptions: { target: ts.ScriptTarget.ES2020 },
 }).outputText;
 const rules = vm.runInNewContext(
-  code + ";({hit,rankScores,validPadPosition,coreReward,towerRange})",
+  code + ";({hit,rankScores,validPadPosition,coreReward,towerRange,playerLevel,researchCost})",
 );
 const enemy = (overrides) => ({
   id: 1,
@@ -111,4 +113,12 @@ test("tower firing ranges stop growing at their combat caps", () => {
   assert.equal(rules.towerRange({ kind: "arc", level: 20 }, null), 175);
   assert.equal(rules.towerRange({ kind: "cryo", level: 20 }, null), 185);
   assert.equal(rules.towerRange({ kind: "miner", level: 20 }, null), 0);
+});
+test("commander level is the sum of all archive research levels", () => {
+  const profile = {
+    research: { longshot: 2, relay: 1, permafrost: 3, deepBore: 2 },
+  };
+  assert.equal(rules.playerLevel(profile), 8);
+  assert.equal(rules.researchCost(0), 1);
+  assert.equal(rules.researchCost(4), 5);
 });
