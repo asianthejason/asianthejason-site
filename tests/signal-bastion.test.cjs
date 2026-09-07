@@ -27,6 +27,8 @@ const names = new Set([
   "towerRange",
   "playerLevel",
   "researchCost",
+  "ABILITY_DATA",
+  "abilityCost",
 ]);
 const selected = source.statements
   .filter(
@@ -43,7 +45,7 @@ const code = ts.transpileModule(selected, {
   compilerOptions: { target: ts.ScriptTarget.ES2020 },
 }).outputText;
 const rules = vm.runInNewContext(
-  code + ";({hit,rankScores,validPadPosition,coreReward,towerRange,playerLevel,researchCost})",
+  code + ";({hit,rankScores,validPadPosition,coreReward,towerRange,playerLevel,researchCost,abilityCost})",
 );
 const enemy = (overrides) => ({
   id: 1,
@@ -121,4 +123,18 @@ test("commander level is the sum of all archive research levels", () => {
   assert.equal(rules.playerLevel(profile), 8);
   assert.equal(rules.researchCost(0), 1);
   assert.equal(rules.researchCost(4), 5);
+});
+test("ability prices scale continuously with every wave", () => {
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(rules.abilityCost("emp", 0))),
+    { energy: 220, scrap: 75 },
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(rules.abilityCost("emp", 1))),
+    { energy: 228, scrap: 77 },
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(rules.abilityCost("emp", 20))),
+    { energy: 374, scrap: 113 },
+  );
 });

@@ -8,7 +8,7 @@ import "./signal-bastion.css";
 
 type TowerKind = "rail" | "arc" | "cryo" | "miner";
 type TargetMode =
-  "first" | "last" | "strongest" | "weakest" | "closest" | "unslowed";
+  "first" | "last" | "strongest" | "closest" | "unslowed";
 type Evolution =
   | "siege"
   | "pierce"
@@ -61,6 +61,7 @@ type Shot = {
   color: string;
 };
 type GamePhase = "ready" | "playing" | "gameover";
+type AbilityKind = "overcharge" | "emp" | "strike" | "repair" | "magnet";
 type DoctrineId = "longshot" | "relay" | "permafrost" | "deepBore";
 type MetaProfile = {
   cores: number;
@@ -176,14 +177,31 @@ const TOWER_MAX_RANGE: Record<Exclude<TowerKind, "miner">, number> = {
   arc: 175,
   cryo: 185,
 };
-const TARGET_HINTS: Record<TargetMode, string> = {
-  first: "Enemy closest to the core",
-  last: "Enemy farthest from the core",
-  strongest: "Enemy with the most health",
-  weakest: "Enemy with the least health",
-  closest: "Enemy nearest this tower",
-  unslowed: "Enemy not already slowed",
+const TARGET_MODES: TargetMode[] = [
+  "first",
+  "last",
+  "strongest",
+  "closest",
+  "unslowed",
+];
+const ABILITY_DATA: Record<
+  AbilityKind,
+  { energy: number; scrap: number; cooldown: number }
+> = {
+  overcharge: { energy: 160, scrap: 55, cooldown: 55 },
+  emp: { energy: 220, scrap: 75, cooldown: 65 },
+  strike: { energy: 300, scrap: 110, cooldown: 80 },
+  repair: { energy: 140, scrap: 140, cooldown: 90 },
+  magnet: { energy: 120, scrap: 90, cooldown: 70 },
 };
+const abilityCost = (kind: AbilityKind, wave: number) => ({
+  energy:
+    ABILITY_DATA[kind].energy +
+    Math.ceil((ABILITY_DATA[kind].energy * wave * 35) / 1000),
+  scrap:
+    ABILITY_DATA[kind].scrap +
+    Math.ceil((ABILITY_DATA[kind].scrap * wave * 25) / 1000),
+});
 
 const DOCTRINES: Record<
   DoctrineId,
@@ -581,7 +599,6 @@ export default function SignalBastionPage() {
     "towers" | "upgrades" | "archive"
   >("towers");
   const [meta, setMeta] = useState<MetaProfile>(EMPTY_META);
-  const [coreNotice, setCoreNotice] = useState("");
   const [scores, setScores] = useState<ScoreRow[]>([]);
   const [saveStatus, setSaveStatus] = useState("");
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -718,7 +735,6 @@ export default function SignalBastionPage() {
     setSidebarTab("towers");
     setSaveStatus("");
     setScoreSubmitted(false);
-    setCoreNotice("");
     sync();
   };
   const spawnWave = useCallback(
@@ -964,9 +980,7 @@ export default function SignalBastionPage() {
               ? a.progress - b.progress
               : t.target === "strongest"
                 ? b.hp - a.hp
-                : t.target === "weakest"
-                  ? a.hp - b.hp
-                  : t.target === "closest"
+                : t.target === "closest"
                     ? Math.hypot(
                         pointAt(a.progress).x - p.x,
                         pointAt(a.progress).y - p.y,
@@ -1109,7 +1123,6 @@ export default function SignalBastionPage() {
               writeMetaProfile(next);
               return next;
             });
-            setCoreNotice(`Recovered ${earned} Data Core${earned === 1 ? "" : "s"}.`);
           }
           placement.current.active = false;
           sync();
@@ -1476,6 +1489,17 @@ export default function SignalBastionPage() {
     if (g.phase !== "playing") return;
     const { x, y } = canvasPoint(e);
     if (strikeArmed) {
+      const cost = abilityCost("strike", g.wave);
+      if (
+        g.cooldowns.strike > 0 ||
+        g.energy < cost.energy ||
+        g.scrap < cost.scrap
+      ) {
+        setStrikeArmed(false);
+        return;
+      }
+      g.energy -= cost.energy;
+      g.scrap -= cost.scrap;
       g.enemies
         .filter(
           (enemy) =>
@@ -1487,7 +1511,7 @@ export default function SignalBastionPage() {
         .forEach((enemy) =>
           hit(enemy, 120 + g.wave * 25, g.enemies, g.elapsed),
         );
-      g.cooldowns.strike = 42;
+      g.cooldowns.strike = ABILITY_DATA.strike.cooldown;
       burst(x, y, "#ffbd5a");
       setStrikeArmed(false);
       return;
@@ -1778,29 +1802,35 @@ export default function SignalBastionPage() {
       sync();
     }
   };
-  const ability = (kind: keyof typeof game.current.cooldowns) => {
+  const ability = (kind: AbilityKind) => {
     const g = game.current;
-    if (g.phase !== "playing" || g.cooldowns[kind] > 0) return;
-    if (kind === "overcharge") {
-      g.buffs.overcharge = 8;
-      g.cooldowns[kind] = 35;
-    }
-    if (kind === "emp") {
-      g.empTime = 2.5;
-      g.cooldowns[kind] = 30;
-    }
+    const cost = abilityCost(kind, g.wave);
+    if (
+      g.phase !== "playing" ||
+      g.cooldowns[kind] > 0 ||
+      g.energy < cost.energy ||
+      g.scrap < cost.scrap
+    )
+      return;
     if (kind === "strike") {
       cancelTowerPlacement();
       setStrikeArmed(true);
       return;
     }
+    g.energy -= cost.energy;
+    g.scrap -= cost.scrap;
+    g.cooldowns[kind] = ABILITY_DATA[kind].cooldown;
+    if (kind === "overcharge") {
+      g.buffs.overcharge = 8;
+    }
+    if (kind === "emp") {
+      g.empTime = 2.5;
+    }
     if (kind === "repair") {
       g.lives = Math.min(g.maxLives, g.lives + 5);
-      g.cooldowns[kind] = 55;
     }
     if (kind === "magnet") {
       g.buffs.magnet = 10;
-      g.cooldowns[kind] = 38;
     }
     sync();
   };
@@ -2022,7 +2052,13 @@ export default function SignalBastionPage() {
                     </button>
                   )}
                 </div>
-                <span>{saveStatus || coreNotice}</span>
+                {(saveStatus.includes("failed") ||
+                  saveStatus.includes("Could not") ||
+                  saveStatus.includes("unavailable")) && (
+                  <p className="sb-save-error" role="status">
+                    {saveStatus}
+                  </p>
+                )}
               </div>
             )}
             <div className="sb-tip">
@@ -2392,7 +2428,10 @@ export default function SignalBastionPage() {
                       }
                       onClick={() => ability(k)}
                       disabled={
-                        snap.phase !== "playing" || snap.cooldowns[k] > 0
+                        snap.phase !== "playing" ||
+                        snap.cooldowns[k] > 0 ||
+                        snap.energy < abilityCost(k, snap.wave).energy ||
+                        snap.scrap < abilityCost(k, snap.wave).scrap
                       }
                     >
                       <b>{label}</b>
@@ -2410,6 +2449,10 @@ export default function SignalBastionPage() {
                           ? `${Math.ceil(snap.cooldowns[k])}s`
                           : "READY"}
                       </small>
+                      <em>
+                        {abilityCost(k, snap.wave).energy}⚡ ·{" "}
+                        {abilityCost(k, snap.wave).scrap} SCRAP
+                      </em>
                     </button>
                   ))}
                 </div>
@@ -2610,6 +2653,7 @@ function TowerStats({
   doctrine: DoctrineId | null;
   doctrineLevel: number;
 }) {
+  const [targetMenuOpen, setTargetMenuOpen] = useState(false);
   const data = TOWER_DATA[tower.kind],
     levelScale = 1 + (tower.level - 1) * 0.72,
     range = towerRange(tower, doctrine, doctrineLevel),
@@ -2721,27 +2765,46 @@ function TowerStats({
         )}
       </dl>
       {!isMiner && (
-        <label className="sb-target-control">
+        <div className={`sb-target-control ${targetMenuOpen ? "open" : ""}`}>
           <span>
             <small>COMBAT DIRECTIVE</small>
-            <b>{TARGET_HINTS[tower.target]}</b>
           </span>
-          <span className="sb-select-wrap">
-            <select
-              className="sb-target"
+          <div className="sb-custom-select">
+            <button
+              type="button"
+              className="sb-target-trigger"
               aria-label="Tower targeting"
-              value={tower.target}
-              onChange={(e) => onTarget(e.target.value as TargetMode)}
+              aria-haspopup="listbox"
+              aria-expanded={targetMenuOpen}
+              onClick={() => setTargetMenuOpen((open) => !open)}
             >
-              <option value="first">First</option>
-              <option value="last">Last</option>
-              <option value="strongest">Strongest</option>
-              <option value="weakest">Weakest</option>
-              <option value="closest">Closest</option>
-              <option value="unslowed">Unslowed</option>
-            </select>
-          </span>
-        </label>
+              {tower.target.toUpperCase()}
+              <i aria-hidden="true">⌄</i>
+            </button>
+            {targetMenuOpen && (
+              <div className="sb-target-menu" role="listbox" aria-label="Target priority">
+                {TARGET_MODES.map((mode) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={tower.target === mode}
+                    className={tower.target === mode ? "active" : ""}
+                    key={mode}
+                    onClick={() => {
+                      onTarget(mode);
+                      setTargetMenuOpen(false);
+                    }}
+                  >
+                    <span>
+                      <b>{mode.toUpperCase()}</b>
+                    </span>
+                    {tower.target === mode && <i aria-hidden="true">●</i>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {tower.level >= 5 && !tower.evolution && (
         <div className="sb-evolve">
